@@ -463,8 +463,8 @@ function App() {
           .eq('id', noteToDelete.down_id)
       }
 
-      // Clean up any notes that point to this one (left/right links aren't bidirectional)
-      // Remove references where other notes point to this note
+      // Clean up any remaining references where other notes point to this note
+      // (bidirectional links should already be cleaned, but this ensures consistency)
       await supabase
         .from('notes')
         .update({ up_id: null })
@@ -731,21 +731,31 @@ function App() {
 
   const setLeftLink = async (sourceId, targetId) => {
     try {
-      const { error } = await supabase
+      // Set source's left_id to target
+      const { error: sourceError } = await supabase
         .from('notes')
         .update({ left_id: targetId })
         .eq('id', sourceId)
 
-      if (error) throw error
+      if (sourceError) throw sourceError
+
+      // Set target's right_id to source (bidirectional link)
+      const { error: targetError } = await supabase
+        .from('notes')
+        .update({ right_id: sourceId })
+        .eq('id', targetId)
+
+      if (targetError) throw targetError
+
       await fetchNotes()
-      
+
       if (selectedNote?.id === sourceId) {
         const { data } = await supabase
           .from('notes')
           .select('*')
           .eq('id', sourceId)
           .single()
-        
+
         if (data) setSelectedNote(data)
       }
     } catch (error) {
@@ -756,21 +766,31 @@ function App() {
 
   const setRightLink = async (sourceId, targetId) => {
     try {
-      const { error } = await supabase
+      // Set source's right_id to target
+      const { error: sourceError } = await supabase
         .from('notes')
         .update({ right_id: targetId })
         .eq('id', sourceId)
 
-      if (error) throw error
+      if (sourceError) throw sourceError
+
+      // Set target's left_id to source (bidirectional link)
+      const { error: targetError } = await supabase
+        .from('notes')
+        .update({ left_id: sourceId })
+        .eq('id', targetId)
+
+      if (targetError) throw targetError
+
       await fetchNotes()
-      
+
       if (selectedNote?.id === sourceId) {
         const { data } = await supabase
           .from('notes')
           .select('*')
           .eq('id', sourceId)
           .single()
-        
+
         if (data) setSelectedNote(data)
       }
     } catch (error) {
@@ -781,21 +801,40 @@ function App() {
 
   const removeLeftLink = async (sourceId) => {
     try {
+      // Get the current left_id before removing
+      const { data: sourceNote } = await supabase
+        .from('notes')
+        .select('left_id')
+        .eq('id', sourceId)
+        .single()
+
+      if (sourceNote?.left_id) {
+        // Remove the bidirectional link
+        const { error: targetError } = await supabase
+          .from('notes')
+          .update({ right_id: null })
+          .eq('id', sourceNote.left_id)
+
+        if (targetError) throw targetError
+      }
+
+      // Remove source's left_id
       const { error } = await supabase
         .from('notes')
         .update({ left_id: null })
         .eq('id', sourceId)
 
       if (error) throw error
+
       await fetchNotes()
-      
+
       if (selectedNote?.id === sourceId) {
         const { data } = await supabase
           .from('notes')
           .select('*')
           .eq('id', sourceId)
           .single()
-        
+
         if (data) setSelectedNote(data)
       }
     } catch (error) {
@@ -806,21 +845,40 @@ function App() {
 
   const removeRightLink = async (sourceId) => {
     try {
+      // Get the current right_id before removing
+      const { data: sourceNote } = await supabase
+        .from('notes')
+        .select('right_id')
+        .eq('id', sourceId)
+        .single()
+
+      if (sourceNote?.right_id) {
+        // Remove the bidirectional link
+        const { error: targetError } = await supabase
+          .from('notes')
+          .update({ left_id: null })
+          .eq('id', sourceNote.right_id)
+
+        if (targetError) throw targetError
+      }
+
+      // Remove source's right_id
       const { error } = await supabase
         .from('notes')
         .update({ right_id: null })
         .eq('id', sourceId)
 
       if (error) throw error
+
       await fetchNotes()
-      
+
       if (selectedNote?.id === sourceId) {
         const { data } = await supabase
           .from('notes')
           .select('*')
           .eq('id', sourceId)
           .single()
-        
+
         if (data) setSelectedNote(data)
       }
     } catch (error) {
