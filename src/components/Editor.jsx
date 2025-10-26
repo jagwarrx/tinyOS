@@ -13,7 +13,66 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { CodeNode, CodeHighlightNode } from '@lexical/code'
 import { LinkNode } from '@lexical/link'
 import { TRANSFORMERS } from '@lexical/markdown'
-import { $getNodeByKey, $getSelection, $isRangeSelection } from 'lexical'
+import { $getNodeByKey, $getSelection, $isRangeSelection, $getNearestNodeFromDOMNode, FORMAT_TEXT_COMMAND, COMMAND_PRIORITY_HIGH, KEY_MODIFIER_COMMAND, $isTextNode, $createTextNode, TextNode as LexicalTextNode } from 'lexical'
+
+// Plugin to apply format classes to text nodes
+function TextFormatClassPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    const removeUpdateListener = editor.registerUpdateListener(({ editorState }) => {
+      // This runs after the DOM has been updated by Lexical
+      // We use queueMicrotask to ensure DOM changes are complete
+      queueMicrotask(() => {
+        const editorElement = editor.getRootElement()
+        if (!editorElement) return
+
+        // Query both span and code elements
+        const textSpans = editorElement.querySelectorAll('span[data-lexical-text="true"], code')
+
+        // We need to map spans to their formats
+        // We'll do this by reading the editor state and building a map of text content to format
+        const contentToFormat = new Map()
+
+        editorState.read(() => {
+          const nodeMap = editorState._nodeMap
+          nodeMap.forEach((node) => {
+            if ($isTextNode(node)) {
+              const text = node.getTextContent()
+              const format = node.getFormat()
+              // Store with a unique key based on content and position
+              contentToFormat.set(text, format)
+            }
+          })
+        })
+
+        // Now apply classes based on text content matching
+        textSpans.forEach((span) => {
+          const text = span.textContent
+          if (contentToFormat.has(text)) {
+            const format = contentToFormat.get(text)
+            const classes = []
+
+            if (format & 1) classes.push('editor-text-bold')
+            if (format & 2) classes.push('editor-text-italic')
+            if (format & 4) classes.push('editor-text-strikethrough')
+            if (format & 8) classes.push('editor-text-underline')
+            if (format & 16) classes.push('editor-text-blue')
+            if (format & 32) classes.push('editor-text-highlight')
+
+            span.className = classes.join(' ')
+          }
+        })
+      })
+    })
+
+    return () => {
+      removeUpdateListener()
+    }
+  }, [editor])
+
+  return null
+}
 
 // Plugin to load initial content
 function InitialContentPlugin({ initialContent }) {
@@ -21,8 +80,16 @@ function InitialContentPlugin({ initialContent }) {
 
   useEffect(() => {
     if (initialContent) {
-      const editorState = editor.parseEditorState(initialContent)
-      editor.setEditorState(editorState)
+      try {
+        const editorState = editor.parseEditorState(initialContent)
+        // Only set if the editor state has valid content
+        if (editorState && editorState._nodeMap.size > 0) {
+          editor.setEditorState(editorState)
+        }
+      } catch (error) {
+        console.error('Failed to parse editor state:', error)
+        // Leave editor with default empty state
+      }
     }
   }, [editor, initialContent])
 
@@ -34,33 +101,45 @@ function ListReorderPlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {
-    let draggedNode = null
+    let draggedNodeKey = null
     let draggedElement = null
     let dropIndicator = null
 
     const handleDragStart = (e) => {
+      console.log('Drag start triggered')
       const listItem = e.target.closest('li')
-      if (!listItem) return
+      if (!listItem) {
+        console.log('No list item found')
+        return
+      }
 
       draggedElement = listItem
       e.dataTransfer.effectAllowed = 'move'
-      e.dataTransfer.setData('text/html', listItem.innerHTML)
-      
+      e.dataTransfer.setData('text/plain', 'lexical-list-item') // Just a marker
+
+      console.log('Dragging item:', listItem.textContent.substring(0, 50))
+
+      // Prevent text selection during drag on the entire editor
+      const editorElement = editor.getRootElement()
+      if (editorElement) {
+        editorElement.style.userSelect = 'none'
+        editorElement.style.webkitUserSelect = 'none'
+      }
+
       // Add visual feedback
       setTimeout(() => {
         listItem.style.opacity = '0.5'
       }, 0)
 
-      // Store the node key
-      const key = listItem.getAttribute('data-lexical-list-item')
-      if (key) {
-        editor.getEditorState().read(() => {
-          const node = $getNodeByKey(key)
-          if ($isListItemNode(node)) {
-            draggedNode = node
-          }
-        })
-      }
+      // Store the node key - we'll look it up fresh in the drop handler
+      // Just verify we can find it
+      editor.getEditorState().read(() => {
+        const node = $getNearestNodeFromDOMNode(listItem)
+        console.log('DragStart - Node found?', !!node, 'Is ListItem?', node ? $isListItemNode(node) : false)
+        if (node) {
+          console.log('Node type:', node.getType(), 'Key:', node.getKey())
+        }
+      })
     }
 
     const handleDragEnd = (e) => {
@@ -68,39 +147,92 @@ function ListReorderPlugin() {
       if (listItem) {
         listItem.style.opacity = '1'
       }
+
+      // Re-enable text selection on the editor
+      const editorElement = editor.getRootElement()
+      if (editorElement) {
+        editorElement.style.userSelect = ''
+        editorElement.style.webkitUserSelect = ''
+      }
+
       if (dropIndicator) {
         dropIndicator.remove()
         dropIndicator = null
       }
-      draggedNode = null
+      draggedNodeKey = null
       draggedElement = null
     }
 
     const handleDragOver = (e) => {
       e.preventDefault()
-      const listItem = e.target.closest('li')
-      if (!listItem || listItem === draggedElement) return
 
+      // Try to find the target list item
+      let listItem = e.target.closest('li')
+      if (!listItem) {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY)
+        listItem = elements.find(el => el.tagName === 'LI')
+        console.log('🔍 DragOver: Using elementsFromPoint, found LI?', !!listItem)
+      }
+
+      if (!listItem || listItem === draggedElement) {
+        // Remove indicator if hovering over dragged element or no target
+        if (dropIndicator && dropIndicator.parentNode) {
+          dropIndicator.remove()
+          console.log('🗑️ Removed indicator (no target or same element)')
+        }
+        return
+      }
+
+      console.log('🎯 DragOver: Valid target found')
+
+      // Get position info for the target list item
       const rect = listItem.getBoundingClientRect()
       const midpoint = rect.top + rect.height / 2
       const insertBefore = e.clientY < midpoint
 
-      // Create or update drop indicator
+      // Create drop indicator if it doesn't exist
       if (!dropIndicator) {
         dropIndicator = document.createElement('div')
-        dropIndicator.style.cssText = 'position: absolute; left: 0; right: 0; height: 2px; background: #3b82f6; pointer-events: none; z-index: 1000;'
+        dropIndicator.className = 'drop-indicator'
+        dropIndicator.style.cssText = 'position: fixed; height: 4px; background: #3b82f6; pointer-events: none; z-index: 9999; box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);'
+        console.log('✨ Created drop indicator')
       }
 
-      if (insertBefore) {
-        listItem.style.position = 'relative'
-        dropIndicator.style.top = '-1px'
-        listItem.insertBefore(dropIndicator, listItem.firstChild)
-      } else {
-        listItem.style.position = 'relative'
-        dropIndicator.style.bottom = '-1px'
-        dropIndicator.style.top = 'auto'
-        listItem.appendChild(dropIndicator)
+      // Remove indicator from previous location if it exists
+      if (dropIndicator.parentNode && dropIndicator.parentNode !== listItem) {
+        dropIndicator.remove()
+        console.log('🗑️ Removed indicator from previous location')
       }
+
+      // Position the indicator - use fixed positioning relative to viewport
+
+      if (insertBefore) {
+        // Position above the target item
+        dropIndicator.style.position = 'fixed'
+        dropIndicator.style.top = `${rect.top - 2}px`
+        dropIndicator.style.left = `${rect.left}px`
+        dropIndicator.style.width = `${rect.width}px`
+        dropIndicator.style.bottom = 'auto'
+
+        if (!dropIndicator.parentNode) {
+          document.body.appendChild(dropIndicator)
+          console.log('📍 Indicator inserted ABOVE (fixed positioning)')
+        }
+      } else {
+        // Position below the target item
+        dropIndicator.style.position = 'fixed'
+        dropIndicator.style.top = `${rect.bottom - 2}px`
+        dropIndicator.style.left = `${rect.left}px`
+        dropIndicator.style.width = `${rect.width}px`
+        dropIndicator.style.bottom = 'auto'
+
+        if (!dropIndicator.parentNode) {
+          document.body.appendChild(dropIndicator)
+          console.log('📍 Indicator inserted BELOW (fixed positioning)')
+        }
+      }
+
+      console.log('Indicator in DOM?', document.body.contains(dropIndicator), 'Visible?', dropIndicator.offsetWidth > 0)
 
       e.dataTransfer.dropEffect = 'move'
     }
@@ -122,14 +254,31 @@ function ListReorderPlugin() {
       e.preventDefault()
       e.stopPropagation()
 
+      console.log('Drop triggered!')
+
       if (dropIndicator) {
         dropIndicator.remove()
         dropIndicator = null
       }
 
-      const targetListItem = e.target.closest('li')
+      // Try to find the target list item, checking both e.target and the drop coordinates
+      let targetListItem = e.target.closest('li')
+
+      // If we didn't find a list item from e.target, try to find it from the drop position
+      if (!targetListItem) {
+        const elements = document.elementsFromPoint(e.clientX, e.clientY)
+        targetListItem = elements.find(el => el.tagName === 'LI')
+        console.log('Using elementsFromPoint for drop, found:', !!targetListItem)
+      }
+
       if (!targetListItem || !draggedElement || targetListItem === draggedElement) {
-        if (draggedElement) draggedElement.style.opacity = '1'
+        console.log('Drop aborted - no target or same element')
+        if (draggedElement) {
+          draggedElement.style.opacity = '1'
+          draggedElement.style.userSelect = ''
+        }
+        draggedNodeKey = null
+        draggedElement = null
         return
       }
 
@@ -137,37 +286,60 @@ function ListReorderPlugin() {
       const midpoint = rect.top + rect.height / 2
       const insertBefore = e.clientY < midpoint
 
-      const targetKey = targetListItem.getAttribute('data-lexical-list-item')
-      const draggedKey = draggedElement.getAttribute('data-lexical-list-item')
-
-      if (!targetKey || !draggedKey) {
-        if (draggedElement) draggedElement.style.opacity = '1'
-        return
-      }
+      console.log('Performing reorder...')
 
       editor.update(() => {
-        const draggedNode = $getNodeByKey(draggedKey)
-        const targetNode = $getNodeByKey(targetKey)
+        // Get both nodes from the DOM elements
+        const targetNode = $getNearestNodeFromDOMNode(targetListItem)
+        const draggedNode = $getNearestNodeFromDOMNode(draggedElement)
 
-        if ($isListItemNode(draggedNode) && $isListItemNode(targetNode)) {
+        console.log('Drop - Dragged node found?', !!draggedNode, 'Target node found?', !!targetNode)
+
+        if (draggedNode) {
+          console.log('Dragged type:', draggedNode.getType(), 'Key:', draggedNode.getKey())
+        }
+        if (targetNode) {
+          console.log('Target type:', targetNode.getType(), 'Key:', targetNode.getKey())
+        }
+
+        if (draggedNode && targetNode && $isListItemNode(draggedNode) && $isListItemNode(targetNode)) {
           const draggedParent = draggedNode.getParent()
           const targetParent = targetNode.getParent()
+
+          console.log('Same parent?', draggedParent === targetParent)
 
           // Only allow reordering within the same list
           if (draggedParent === targetParent && $isListNode(draggedParent)) {
             draggedNode.remove()
-            
+
             if (insertBefore) {
               targetNode.insertBefore(draggedNode)
+              console.log('✅ Inserted BEFORE target')
             } else {
               targetNode.insertAfter(draggedNode)
+              console.log('✅ Inserted AFTER target')
             }
+          } else {
+            console.log('❌ Not same parent or not a list')
           }
+        } else {
+          console.log('❌ Invalid nodes - draggedNode:', !!draggedNode, 'Is ListItem?', draggedNode ? $isListItemNode(draggedNode) : false)
+          console.log('❌ targetNode:', !!targetNode, 'Is ListItem?', targetNode ? $isListItemNode(targetNode) : false)
         }
       })
 
-      if (draggedElement) draggedElement.style.opacity = '1'
-      draggedNode = null
+      if (draggedElement) {
+        draggedElement.style.opacity = '1'
+      }
+
+      // Re-enable text selection on the editor
+      const editorElement = editor.getRootElement()
+      if (editorElement) {
+        editorElement.style.userSelect = ''
+        editorElement.style.webkitUserSelect = ''
+      }
+
+      draggedNodeKey = null
       draggedElement = null
     }
 
@@ -177,17 +349,29 @@ function ListReorderPlugin() {
       if (!editorElement) return
 
       const listItems = editorElement.querySelectorAll('li')
+      console.log('Found list items:', listItems.length)
+
       listItems.forEach((li) => {
-        if (!li.hasAttribute('draggable')) {
-          li.setAttribute('draggable', 'true')
-          li.style.cursor = 'move'
-          
-          li.addEventListener('dragstart', handleDragStart)
-          li.addEventListener('dragend', handleDragEnd)
-          li.addEventListener('dragover', handleDragOver)
-          li.addEventListener('dragleave', handleDragLeave)
-          li.addEventListener('drop', handleDrop)
-        }
+        // Debug: Check what attributes the li has
+        console.log('List item attributes:', Array.from(li.attributes).map(a => a.name + '=' + a.value))
+
+        // Always update to ensure events are attached (even if draggable is set)
+        li.setAttribute('draggable', 'true')
+        li.style.cursor = 'move'
+
+        // Remove old listeners to avoid duplicates
+        li.removeEventListener('dragstart', handleDragStart)
+        li.removeEventListener('dragend', handleDragEnd)
+        li.removeEventListener('dragover', handleDragOver)
+        li.removeEventListener('dragleave', handleDragLeave)
+        li.removeEventListener('drop', handleDrop)
+
+        // Add fresh listeners
+        li.addEventListener('dragstart', handleDragStart)
+        li.addEventListener('dragend', handleDragEnd)
+        li.addEventListener('dragover', handleDragOver)
+        li.addEventListener('dragleave', handleDragLeave)
+        li.addEventListener('drop', handleDrop)
       })
     }
 
@@ -218,6 +402,80 @@ function ListReorderPlugin() {
       if (dropIndicator) {
         dropIndicator.remove()
       }
+    }
+  }, [editor])
+
+  return null
+}
+
+// Plugin to handle custom keyboard shortcuts for formatting
+function FormattingShortcutsPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    // Register command listeners for formatting
+    const removeBoldCommand = editor.registerCommand(
+      KEY_MODIFIER_COMMAND,
+      (payload) => {
+        const event = payload
+        const { code, ctrlKey, metaKey } = event
+
+        // Cmd+B for bold (yellow text color)
+        if ((ctrlKey || metaKey) && code === 'KeyB' && !event.shiftKey) {
+          event.preventDefault()
+          event.stopPropagation()
+          editor.update(() => {
+            const selection = $getSelection()
+            if ($isRangeSelection(selection)) {
+              selection.formatText('bold')
+            }
+          })
+          return true
+        }
+
+        // Cmd+H for highlight
+        if ((ctrlKey || metaKey) && code === 'KeyH' && !event.shiftKey) {
+          event.preventDefault()
+          editor.update(() => {
+            const selection = $getSelection()
+            if ($isRangeSelection(selection)) {
+              selection.formatText('highlight')
+            }
+          })
+          return true
+        }
+
+        // Cmd+S for strikethrough
+        if ((ctrlKey || metaKey) && code === 'KeyS' && !event.shiftKey) {
+          event.preventDefault()
+          editor.update(() => {
+            const selection = $getSelection()
+            if ($isRangeSelection(selection)) {
+              selection.formatText('strikethrough')
+            }
+          })
+          return true
+        }
+
+        // Cmd+Shift+C for electric blue (code format repurposed)
+        if ((ctrlKey || metaKey) && code === 'KeyC' && event.shiftKey) {
+          event.preventDefault()
+          editor.update(() => {
+            const selection = $getSelection()
+            if ($isRangeSelection(selection)) {
+              selection.formatText('code')
+            }
+          })
+          return true
+        }
+
+        return false
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+
+    return () => {
+      removeBoldCommand()
     }
   }, [editor])
 
@@ -257,13 +515,23 @@ function EditorRefPlugin({ editorRef, onContentChange }) {
 const Editor = forwardRef(({ initialContent, onContentChange }, ref) => {
   const initialConfig = {
     namespace: 'NotesEditor',
-    nodes: [ListNode, ListItemNode, HeadingNode, QuoteNode, CodeNode, CodeHighlightNode, LinkNode],
+    nodes: [
+      ListNode,
+      ListItemNode,
+      HeadingNode,
+      QuoteNode,
+      CodeNode,
+      CodeHighlightNode,
+      LinkNode
+    ],
     theme: {
       text: {
-        bold: 'font-bold',
-        underline: 'underline',
-        italic: 'italic',
-        code: 'bg-gray-100 dark:bg-gray-800 px-1 rounded font-mono text-sm',
+        bold: 'editor-text-bold',
+        underline: 'editor-text-underline',
+        italic: 'editor-text-italic',
+        strikethrough: 'editor-text-strikethrough',
+        highlight: 'editor-text-highlight',
+        code: 'editor-text-blue',
       },
       paragraph: 'mb-2',
     },
@@ -286,6 +554,8 @@ const Editor = forwardRef(({ initialContent, onContentChange }, ref) => {
         />
         {initialContent && <InitialContentPlugin initialContent={initialContent} />}
         <EditorRefPlugin editorRef={ref} onContentChange={onContentChange} />
+        <TextFormatClassPlugin />
+        <FormattingShortcutsPlugin />
         <ListReorderPlugin />
         <HistoryPlugin />
         <ListPlugin />

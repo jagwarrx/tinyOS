@@ -40,7 +40,6 @@
 
 .editor-input li {
   color: #f8f8f2;
-  user-select: none; /* Prevent text selection during drag */
 }
 
 /* Light theme list items */
@@ -52,6 +51,7 @@
 .editor-input li[draggable="true"] {
   cursor: move;
   transition: opacity 0.2s ease, background-color 0.2s ease;
+  pointer-events: auto;
 }
 
 .editor-input li[draggable="true"]:hover {
@@ -96,10 +96,15 @@
   padding-left: 24px;
 }
 
-/* Hide markers from wrapper li elements */
+/* Hide markers from wrapper li elements and don't count them */
 .editor-input li:has(> ul:only-child)::before,
 .editor-input li:has(> ol:only-child)::before {
   display: none !important;
+}
+
+.editor-input li:has(> ul:only-child),
+.editor-input li:has(> ol:only-child) {
+  counter-increment: none !important;
 }
 
 /* Numbered lists - Level 1: 1. 2. 3. */
@@ -178,6 +183,85 @@
   content: counter(item4, decimal) ". ";
   left: 0;
   min-width: 24px;
+}
+
+/* Text formatting styles */
+.editor-input .editor-text-bold,
+.editor-input span[data-lexical-text="true"][style*="font-weight: bold"],
+.editor-input span[data-lexical-text="true"][style*="font-weight:bold"] {
+  color: #facc15 !important;
+  font-weight: normal !important;
+}
+
+:root:not(.dark) .editor-input .editor-text-bold,
+:root:not(.dark) .editor-input span[data-lexical-text="true"][style*="font-weight: bold"],
+:root:not(.dark) .editor-input span[data-lexical-text="true"][style*="font-weight:bold"] {
+  color: #eab308 !important;
+  font-weight: normal !important;
+}
+
+/* Electric blue text (code format repurposed) */
+.editor-input .editor-text-blue,
+.editor-input code.editor-text-blue {
+  color: #00d4ff !important;
+  font-weight: normal !important;
+  font-family: inherit !important;
+  background: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+}
+
+:root:not(.dark) .editor-input .editor-text-blue,
+:root:not(.dark) .editor-input code.editor-text-blue {
+  color: #0ea5e9 !important;
+  font-weight: normal !important;
+  font-family: inherit !important;
+  background: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit !important;
+}
+
+.editor-input .editor-text-underline {
+  text-decoration: underline;
+}
+
+.editor-input .editor-text-italic {
+  font-style: italic;
+}
+
+.editor-input .editor-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.editor-input .editor-text-highlight {
+  background-color: #fef08a;
+  color: #854d0e;
+}
+
+:root:not(.dark) .editor-input .editor-text-highlight {
+  background-color: #fef08a;
+  color: #854d0e;
+}
+
+/* Dark theme highlight */
+.dark .editor-input .editor-text-highlight {
+  background-color: #a16207;
+  color: #fef3c7;
+}
+
+/* Bold - yellow text (for strong tags if rendered) */
+.editor-input strong,
+.editor-input .text-yellow-400 {
+  color: #facc15;
+  font-weight: normal;
+}
+
+:root:not(.dark) .editor-input strong,
+:root:not(.dark) .editor-input .text-yellow-400 {
+  color: #eab308;
+  font-weight: normal;
 }
 
 /* Highlight */
