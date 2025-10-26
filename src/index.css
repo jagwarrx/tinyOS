@@ -2,15 +2,175 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom editor styles */
-.editor-container {
-  @apply relative;
+/* Custom editor styles - Sublime Text inspired */
+.editor-input {
+  min-height: 200px;
+  line-height: 1.6;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: #f8f8f2;
+  outline: none;
 }
 
-.editor-input {
-  @apply min-h-[200px] resize-none text-base outline-none;
+/* Light theme overrides */
+:root:not(.dark) .editor-input {
+  color: #24292e;
 }
 
 .editor-placeholder {
-  @apply absolute top-0 left-0 text-gray-400 pointer-events-none select-none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  color: #75715e;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* Light theme placeholder */
+:root:not(.dark) .editor-placeholder {
+  color: #6a737d;
+}
+
+/* Remove ALL list styling by default */
+.editor-input ul,
+.editor-input ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.editor-input li {
+  color: #f8f8f2;
+}
+
+/* Light theme list items */
+:root:not(.dark) .editor-input li {
+  color: #24292e;
+}
+
+/* Bullet lists - Level 1 */
+.editor-input ul > li {
+  position: relative;
+  padding-left: 24px;
+  margin-left: 0;
+  margin-bottom: 4px;
+}
+
+.editor-input ul > li::before {
+  content: "•";
+  position: absolute;
+  left: 8px;
+  color: #f8f8f2;
+  font-size: 0.7em;
+  line-height: 1.8;
+}
+
+/* Light theme bullet */
+:root:not(.dark) .editor-input ul > li::before {
+  color: #24292e;
+}
+
+/* Nested bullets - consistent 24px indent per level */
+.editor-input ul ul {
+  margin-top: 4px;
+  padding-left: 24px;
+}
+
+/* Hide markers from wrapper li elements */
+.editor-input li:has(> ul:only-child)::before,
+.editor-input li:has(> ol:only-child)::before {
+  display: none !important;
+}
+
+/* Numbered lists - Level 1: 1. 2. 3. */
+.editor-input ol {
+  counter-reset: item;
+}
+
+.editor-input ol > li {
+  counter-increment: item;
+  position: relative;
+  padding-left: 32px;
+  margin-bottom: 4px;
+}
+
+.editor-input ol > li::before {
+  content: counter(item) ". ";
+  position: absolute;
+  left: 0;
+  color: #f8f8f2;
+  min-width: 24px;
+}
+
+/* Light theme numbered list */
+:root:not(.dark) .editor-input ol > li::before {
+  color: #24292e;
+}
+
+/* Level 2: i. ii. iii. - consistent 24px indent */
+.editor-input ol ol {
+  counter-reset: item2;
+  padding-left: 24px;
+  margin-top: 4px;
+}
+
+.editor-input ol ol > li {
+  counter-increment: item2;
+  padding-left: 32px;
+}
+
+.editor-input ol ol > li::before {
+  content: counter(item2, lower-roman) ". ";
+  left: 0;
+  min-width: 24px;
+}
+
+/* Level 3: a. b. c. - consistent 24px indent */
+.editor-input ol ol ol {
+  counter-reset: item3;
+  padding-left: 24px;
+}
+
+.editor-input ol ol ol > li {
+  counter-increment: item3;
+  padding-left: 32px;
+}
+
+.editor-input ol ol ol > li::before {
+  content: counter(item3, lower-alpha) ". ";
+  left: 0;
+  min-width: 24px;
+}
+
+/* Level 4 and beyond - consistent pattern */
+.editor-input ol ol ol ol {
+  counter-reset: item4;
+  padding-left: 24px;
+}
+
+.editor-input ol ol ol ol > li {
+  counter-increment: item4;
+  padding-left: 32px;
+}
+
+.editor-input ol ol ol ol > li::before {
+  content: counter(item4, decimal) ". ";
+  left: 0;
+  min-width: 24px;
+}
+
+/* Highlight */
+.editor-input mark {
+  background-color: #49483e;
+  color: #f8f8f2;
+}
+
+/* Light theme highlight */
+:root:not(.dark) .editor-input mark {
+  background-color: #fff3cd;
+  color: #24292e;
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
