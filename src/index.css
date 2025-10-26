@@ -40,11 +40,31 @@
 
 .editor-input li {
   color: #f8f8f2;
+  user-select: none; /* Prevent text selection during drag */
 }
 
 /* Light theme list items */
 :root:not(.dark) .editor-input li {
   color: #24292e;
+}
+
+/* Drag and drop styling */
+.editor-input li[draggable="true"] {
+  cursor: move;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.editor-input li[draggable="true"]:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+  border-radius: 4px;
+}
+
+:root:not(.dark) .editor-input li[draggable="true"]:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.editor-input li[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 /* Bullet lists - Level 1 */
@@ -62,6 +82,7 @@
   color: #f8f8f2;
   font-size: 0.7em;
   line-height: 1.8;
+  pointer-events: none;
 }
 
 /* Light theme bullet */
@@ -99,6 +120,7 @@
   left: 0;
   color: #f8f8f2;
   min-width: 24px;
+  pointer-events: none;
 }
 
 /* Light theme numbered list */

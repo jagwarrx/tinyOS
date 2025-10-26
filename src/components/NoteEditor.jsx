@@ -237,9 +237,9 @@ export default function NoteEditor({
               <p className="font-medium mb-3 text-gray-600 dark:text-gray-400">Keyboard Shortcuts:</p>
               <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+S</kbd> Save note</p>
               <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Backspace</kbd> Delete note</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">â†‘â†“â†â†’</kbd> Navigate (when not editing)</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+â†‘â†“â†â†’</kbd> Force navigate (while editing)</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Shift+â†‘â†“â†â†’</kbd> Create linked note</p>
+              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">↑↓←→</kbd> Navigate (when not editing)</p>
+              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+↑↓←→</kbd> Force navigate (while editing)</p>
+              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Shift+↑↓←→</kbd> Create linked note</p>
               <p className="pt-2 border-t border-gray-200 dark:border-gray-700 mt-3"><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Right-click title</kbd> Set as HOME</p>
             </div>
           </div>
@@ -280,9 +280,9 @@ export default function NoteEditor({
               <button
                 onClick={() => onNavigate(note.left_id)}
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                title="Navigate left (← )"
+                title="Navigate left (←)"
               >
-                ← {getNoteTitleById(note.left_id)}
+                ← {getNoteTitleById(note.left_id)}
               </button>
             ) : (
               <span className="text-gray-400 dark:text-gray-600 text-xs">left ()</span>
@@ -298,7 +298,7 @@ export default function NoteEditor({
               <button
                 onClick={() => onNavigate(note.right_id)}
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
-                title="Navigate right ( →)"
+                title="Navigate right (→)"
               >
                 {getNoteTitleById(note.right_id)} →
               </button>
