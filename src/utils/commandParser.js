@@ -10,6 +10,7 @@
  * - complete task N           → Marks task N as complete
  * - star task N               → Stars task N
  * - goto target               → Navigates to target note
+ * - start timer N             → Starts a timer for N minutes with 30-second intervals
  * 
  * Command Object Structure:
  * {
@@ -70,7 +71,7 @@ export function parseCommand(input) {
   // Star task command: star task <number>
   const starPattern = /^star\s+task\s+(\d+)$/i
   const starMatch = trimmed.match(starPattern)
-  
+
   if (starMatch) {
     return {
       type: 'STAR_TASK',
@@ -80,10 +81,24 @@ export function parseCommand(input) {
     }
   }
 
+  // Start timer command: start timer <minutes>
+  // Must check BEFORE goto to avoid being caught by goto's greedy pattern
+  const startTimerPattern = /^start\s+timer\s+(\d+)$/i
+  const startTimerMatch = trimmed.match(startTimerPattern)
+
+  if (startTimerMatch) {
+    return {
+      type: 'START_TIMER',
+      payload: {
+        minutes: parseInt(startTimerMatch[1], 10)
+      }
+    }
+  }
+
   // Goto command: goto <target>
   const gotoPattern = /^goto\s+(.+)$/i
   const gotoMatch = trimmed.match(gotoPattern)
-  
+
   if (gotoMatch) {
     return {
       type: 'GOTO',

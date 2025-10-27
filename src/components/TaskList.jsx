@@ -1,45 +1,75 @@
 /**
  * TaskList Component
- * 
- * Displays a list of tasks with interactive controls.
- * Supports completion checkboxes, starring, drag-and-drop reordering,
- * and displays linked project information.
- * 
+ *
+ * Displays a plain text numbered list of tasks.
+ *
  * Features:
- * - Checkbox to toggle task completion (with visual feedback)
- * - Star button to add/remove tasks from Today list
+ * - Numbered list format
+ * - Checkbox to toggle task completion
+ * - Project display in [PROJECT] format (muted)
+ * - Clickable status with dropdown menu
+ * - Color-coded status text
  * - Drag-and-drop to reorder tasks
- * - Display of linked project name (in grey)
- * - Task metadata (order number, creation date)
- * - Empty state with helpful message
- * 
- * Task Data Structure:
- * {
- *   id: string,           // Unique task ID
- *   text: string,         // Task description
- *   completed: boolean,   // Completion status
- *   starred: boolean,     // In Today list?
- *   project_id: string,   // ID of linked project note (or null)
- *   order: number,        // Global sort order
- *   created_at: string    // ISO timestamp
- * }
- * 
+ * - Double-click to open task detail panel
+ *
  * @param {Array} tasks - Array of task objects to display
  * @param {Array} allNotes - All notes (for resolving project names)
  * @param {function} onToggleComplete - Callback when checkbox clicked (taskId)
  * @param {function} onToggleStar - Callback when star clicked (taskId)
  * @param {function} onReorder - Callback when drag-drop completes (fromIndex, toIndex)
+ * @param {function} onStatusChange - Callback when status is changed (taskId, newStatus)
+ * @param {function} onTaskDoubleClick - Callback when task is double-clicked (task)
  */
 
-import { Check, Star, Circle } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle } from 'lucide-react'
+import DatePicker from './DatePicker'
+import { formatDateNatural } from '../utils/dateUtils'
 
-export default function TaskList({ 
-  tasks, 
+export default function TaskList({
+  tasks,
   allNotes,
-  onToggleComplete, 
+  onToggleComplete,
   onToggleStar,
-  onReorder 
+  onReorder,
+  onStatusChange,
+  onTaskDoubleClick,
+  onScheduleTask
 }) {
+  const [openDropdown, setOpenDropdown] = useState(null)
+  const [openDatePicker, setOpenDatePicker] = useState(null)
+  const dropdownRef = useRef(null)
+  const datePickerRef = useRef(null)
+
+  const statusOptions = [
+    { value: 'BACKLOG', label: 'BACKLOG', icon: null },
+    { value: 'PLANNED', label: 'PLANNED', icon: null },
+    { value: 'DOING', label: 'DOING', icon: null },
+    { value: 'BLOCKED', label: 'BLOCKED', icon: null },
+    { value: 'DONE', label: 'DONE', icon: null },
+    { value: 'CANCELLED', label: 'CANCELLED', icon: null }
+  ]
+
+  // Close dropdown and date picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpenDropdown(null)
+      }
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
+        setOpenDatePicker(null)
+      }
+    }
+
+    if (openDropdown || openDatePicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [openDropdown, openDatePicker])
+
   /**
    * Get the title of a project note by its ID
    * @param {string} projectId - ID of the project note
@@ -49,6 +79,38 @@ export default function TaskList({
     if (!projectId) return null
     const project = allNotes.find(n => n.id === projectId)
     return project?.title || 'Unknown Project'
+  }
+
+  /**
+   * Get color class for status text
+   */
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'DOING':
+        return 'text-blue-600 dark:text-blue-400'
+      case 'PLANNED':
+        return 'text-purple-600 dark:text-purple-400'
+      case 'BLOCKED':
+        return 'text-yellow-600 dark:text-yellow-400'
+      case 'OVERDUE':
+        return 'text-red-600 dark:text-red-400 font-semibold'
+      case 'DONE':
+        return 'text-green-600 dark:text-green-400'
+      case 'CANCELLED':
+        return 'text-red-600 dark:text-red-400'
+      case 'BACKLOG':
+      default:
+        return 'text-gray-500 dark:text-gray-500'
+    }
+  }
+
+  const handleStatusClick = (taskId) => {
+    setOpenDropdown(openDropdown === taskId ? null : taskId)
+  }
+
+  const handleStatusChange = (taskId, newStatus) => {
+    onStatusChange?.(taskId, newStatus)
+    setOpenDropdown(null)
   }
 
   /**
@@ -90,7 +152,7 @@ export default function TaskList({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1 text-sm">
       {tasks.map((task, index) => (
         <div
           key={task.id}
@@ -98,60 +160,150 @@ export default function TaskList({
           onDragStart={(e) => handleDragStart(e, index)}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDrop(e, index)}
-          className="group flex items-start gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all cursor-move"
+          onDoubleClick={() => onTaskDoubleClick?.(task)}
+          className="group flex items-start gap-3 py-1.5 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded cursor-move transition-colors"
+          title="Double-click to view details"
         >
+          {/* Number */}
+          <span className="text-gray-400 dark:text-gray-600 select-none w-8 flex-shrink-0">
+            {index + 1}.
+          </span>
+
           {/* Checkbox */}
           <button
             onClick={() => onToggleComplete(task.id)}
             className="mt-0.5 flex-shrink-0"
           >
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-              task.completed 
-                ? 'bg-green-500 border-green-500' 
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+              task.status === 'DONE'
+                ? 'bg-green-500 border-green-500'
                 : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
             }`}>
-              {task.completed && <Check size={14} className="text-white" />}
+              {task.status === 'DONE' && <Check size={10} className="text-white" strokeWidth={3} />}
             </div>
           </button>
 
-          {/* Task content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-sm ${
-                task.completed 
-                  ? 'line-through text-gray-400 dark:text-gray-600' 
-                  : 'text-gray-900 dark:text-gray-100'
-              }`}>
-                {task.text}
+          {/* Task text, project, and status */}
+          <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+            {/* Task text */}
+            <span className={`${
+              task.status === 'DONE'
+                ? 'line-through text-gray-400 dark:text-gray-600'
+                : 'text-gray-900 dark:text-gray-100'
+            }`}>
+              {task.text}
+            </span>
+
+            {/* Project */}
+            {task.project_id && (
+              <span className="text-gray-400 dark:text-gray-600 text-xs">
+                [{getProjectName(task.project_id)}]
               </span>
-              
-              {/* Project tag */}
-              {task.project_id && (
-                <span className="text-xs text-gray-400 dark:text-gray-600 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
-                  {getProjectName(task.project_id)}
-                </span>
+            )}
+
+            {/* Spacer to push status to the right */}
+            <span className="flex-1" />
+
+            {/* Status - clickable */}
+            <div className="relative flex-shrink-0" ref={openDropdown === task.id ? dropdownRef : null}>
+              <button
+                onClick={() => handleStatusClick(task.id)}
+                className={`flex items-center gap-1 hover:opacity-70 transition-opacity font-mono ${getStatusColor(task.status)}`}
+              >
+                {task.status === 'OVERDUE' && <AlertCircle size={12} className="opacity-70" />}
+                [{task.status}]
+                <ChevronDown size={12} className="opacity-50" />
+              </button>
+
+              {/* Dropdown menu */}
+              {openDropdown === task.id && (
+                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg py-1 z-50 min-w-[120px]">
+                  {statusOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleStatusChange(task.id, option.value)}
+                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 font-mono ${getStatusColor(option.value)}`}
+                    >
+                      {option.icon && <option.icon size={12} className="opacity-60" />}
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
 
-            {/* Metadata */}
-            <div className="flex items-center gap-2 mt-1 text-xs text-gray-400 dark:text-gray-600">
-              <span>#{task.order}</span>
-              <span>•</span>
-              <span>{new Date(task.created_at).toLocaleDateString()}</span>
-            </div>
-          </div>
+            {/* Scheduled date display */}
+            {task.scheduled_date && (
+              <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                  }}
+                  className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:opacity-70 transition-opacity"
+                  title="Scheduled date"
+                >
+                  <Calendar size={12} />
+                  {formatDateNatural(task.scheduled_date)}
+                </button>
 
-          {/* Star button */}
-          <button
-            onClick={() => onToggleStar(task.id)}
-            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            title={task.starred ? 'Remove from today' : 'Add to today'}
-          >
-            <Star
-              size={16}
-              className={task.starred ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400 dark:text-gray-600'}
-            />
-          </button>
+                {/* Date picker */}
+                {openDatePicker === task.id && (
+                  <DatePicker
+                    value={task.scheduled_date}
+                    onChange={(date) => {
+                      onScheduleTask?.(task.id, date)
+                      setOpenDatePicker(null)
+                    }}
+                    onClose={() => setOpenDatePicker(null)}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Calendar icon for scheduling (shown when no date) */}
+            {!task.scheduled_date && (
+              <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                  }}
+                  className="text-gray-400 dark:text-gray-600 hover:text-purple-600 dark:hover:text-purple-400 transition-colors opacity-0 group-hover:opacity-100"
+                  title="Schedule task"
+                >
+                  <Calendar size={14} />
+                </button>
+
+                {/* Date picker */}
+                {openDatePicker === task.id && (
+                  <DatePicker
+                    value={task.scheduled_date}
+                    onChange={(date) => {
+                      onScheduleTask?.(task.id, date)
+                      setOpenDatePicker(null)
+                    }}
+                    onClose={() => setOpenDatePicker(null)}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Star button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleStar(task.id)
+              }}
+              className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              title={task.starred ? "Remove from Today" : "Add to Today"}
+            >
+              <Star
+                size={14}
+                className={task.starred ? "fill-yellow-500 text-yellow-500" : "text-gray-400 dark:text-gray-600"}
+              />
+            </button>
+          </div>
         </div>
       ))}
     </div>

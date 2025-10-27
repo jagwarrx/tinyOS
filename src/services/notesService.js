@@ -17,8 +17,19 @@ export class NotesService {
       .select('*')
       .eq('id', id)
       .single()
-    
+
     if (error) throw new Error(`Failed to fetch note: ${error.message}`)
+    return data
+  }
+
+  static async fetchByRefId(refId) {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('ref_id', refId)
+      .single()
+
+    if (error) throw new Error(`Failed to fetch note by ref_id: ${error.message}`)
     return data
   }
 

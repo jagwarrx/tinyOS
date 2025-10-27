@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import Editor from './Editor'
+import TaskList from './TaskList'
+import StatusFilter from './StatusFilter'
 import { Home, Star } from 'lucide-react'
+import { formatTodayLong } from '../utils/dateUtils'
 
-export default function NoteEditor({ 
-  note, 
+export default function NoteEditor({
+  note,
   allNotes,
-  onSave, 
+  currentTasks,
+  onSave,
   onDelete,
   onSetAsHome,
   onToggleStar,
@@ -18,22 +22,61 @@ export default function NoteEditor({
   onRemoveLeft,
   onRemoveRight,
   onNavigate,
-  onCreateDraftLinked
+  onCreateDraftLinked,
+  onToggleTaskComplete,
+  onToggleTaskStar,
+  onChangeTaskStatus,
+  onScheduleTask,
+  onReorderTasks,
+  onRefIdNavigate,
+  onTaskDoubleClick,
+  statusFilter,
+  onStatusFilterChange
 }) {
   const [title, setTitle] = useState('')
   const [showContextMenu, setShowContextMenu] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
+  const [slideDirection, setSlideDirection] = useState('')
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [showDoneSection, setShowDoneSection] = useState(false)
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
+  const previousNoteIdRef = useRef(null)
 
+  // Detect navigation direction and trigger animation
   useEffect(() => {
+    if (note && previousNoteIdRef.current && previousNoteIdRef.current !== note.id) {
+      const previousNote = allNotes.find(n => n.id === previousNoteIdRef.current)
+
+      if (previousNote) {
+        // Determine direction based on link relationships
+        let direction = ''
+        if (previousNote.up_id === note.id) direction = 'from-bottom'
+        else if (previousNote.down_id === note.id) direction = 'from-top'
+        else if (previousNote.left_id === note.id) direction = 'from-right'
+        else if (previousNote.right_id === note.id) direction = 'from-left'
+        else direction = 'fade' // Default for non-directional navigation
+
+        setSlideDirection(direction)
+        setIsAnimating(true)
+
+        // Reset animation after it completes
+        setTimeout(() => {
+          setIsAnimating(false)
+          setSlideDirection('')
+        }, 300)
+      }
+    }
+
     if (note) {
       setTitle(note.title || '')
+      previousNoteIdRef.current = note.id
     } else {
       setTitle('')
+      previousNoteIdRef.current = null
     }
-  }, [note])
+  }, [note, allNotes])
 
   // Close context menu on click outside
   useEffect(() => {
@@ -252,10 +295,25 @@ export default function NoteEditor({
     return allNotes.find(n => n.id === id)?.title || 'Untitled'
   }
 
+  // Animation class based on direction
+  const getAnimationClass = () => {
+    if (!isAnimating || !slideDirection) return ''
+
+    const animations = {
+      'from-top': 'animate-slide-from-top',
+      'from-bottom': 'animate-slide-from-bottom',
+      'from-left': 'animate-slide-from-left',
+      'from-right': 'animate-slide-from-right',
+      'fade': 'animate-fade-in'
+    }
+
+    return animations[slideDirection] || ''
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Card Container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className={`flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden ${getAnimationClass()}`}>
         
         {/* Navigation Breadcrumb Panel */}
         <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
@@ -332,20 +390,30 @@ export default function NoteEditor({
                 <Home size={20} className="text-gray-400 dark:text-gray-600" />
               </div>
             )}
-            
-            <input
-              type="text"
-              value={title}
-              onChange={handleTitleChange}
-              onContextMenu={handleTitleContextMenu}
-              placeholder="Untitled"
-              className="text-3xl font-semibold outline-none flex-1 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-600"
-            />
-            
+
+            <div className="flex-1 flex items-baseline gap-3">
+              <input
+                type="text"
+                value={title}
+                onChange={handleTitleChange}
+                onContextMenu={handleTitleContextMenu}
+                placeholder="Untitled"
+                className="text-3xl font-semibold outline-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-600"
+                style={{ width: 'auto', minWidth: '100px' }}
+              />
+
+              {/* Date next to Today title */}
+              {note.title === 'Today' && (
+                <span className="text-lg text-gray-500 dark:text-gray-400 font-normal whitespace-nowrap" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {formatTodayLong()}
+                </span>
+              )}
+            </div>
+
             {/* Star button */}
             <button
               onClick={() => onToggleStar(note.id)}
-              className="mt-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="mt-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
               title={note.is_starred ? 'Unstar (hide from sidebar)' : 'Star (show in sidebar)'}
             >
               <Star
@@ -357,12 +425,104 @@ export default function NoteEditor({
         </div>
 
         {/* Editor Content Area */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <Editor
-            ref={editorRef}
-            initialContent={note.content}
-            onContentChange={triggerAutoSave}
-          />
+        <div className="flex-1 overflow-hidden flex flex-col relative">
+          {note.note_type === 'task_list' ? (
+            <>
+              {/* Status Filter - only show for Tasks, Today, and Week pages */}
+              {note.title !== 'Someday/Maybe' && (
+                <StatusFilter
+                  selectedStatuses={statusFilter}
+                  onChange={onStatusFilterChange}
+                />
+              )}
+
+              {/* Task List Content */}
+              <div className="flex-1 p-6 overflow-y-auto">
+                {note.title === 'Today' ? (
+                  // Today view: Optional split screen with Planned and Done
+                  <>
+                    {/* Toggle Done Section Button - Window Corner */}
+                    <button
+                      onClick={() => setShowDoneSection(!showDoneSection)}
+                      className={`absolute bottom-6 right-6 z-10 px-3 py-1.5 text-xs font-mono transition-all ${
+                        showDoneSection
+                          ? 'bg-gray-100 dark:bg-gray-750 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                          : 'bg-transparent text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                      } rounded border border-gray-200 dark:border-gray-700`}
+                      title={showDoneSection ? 'Hide Done section' : 'Show Done section'}
+                    >
+                      DONE ({(currentTasks || []).filter(t => t.status === 'DONE').length})
+                    </button>
+
+                    <div className={`h-full ${showDoneSection ? 'grid grid-cols-2 gap-8' : ''}`}>
+                      {/* Planned Section */}
+                      <div className="flex flex-col h-full">
+                        {showDoneSection && (
+                          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
+                            Planned
+                          </h3>
+                        )}
+                        <div className="flex-1 overflow-y-auto">
+                          <TaskList
+                            tasks={(currentTasks || []).filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')}
+                            allNotes={allNotes}
+                            onToggleComplete={onToggleTaskComplete}
+                            onToggleStar={onToggleTaskStar}
+                            onStatusChange={onChangeTaskStatus}
+                            onScheduleTask={onScheduleTask}
+                            onReorder={onReorderTasks}
+                            onTaskDoubleClick={onTaskDoubleClick}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Done Section - only shown when toggle is active */}
+                      {showDoneSection && (
+                        <div className="flex flex-col border-l border-gray-200 dark:border-gray-700 pl-8 h-full">
+                          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
+                            Done
+                          </h3>
+                          <div className="flex-1 overflow-y-auto">
+                            <TaskList
+                              tasks={(currentTasks || []).filter(t => t.status === 'DONE')}
+                              allNotes={allNotes}
+                              onToggleComplete={onToggleTaskComplete}
+                              onToggleStar={onToggleTaskStar}
+                              onStatusChange={onChangeTaskStatus}
+                              onScheduleTask={onScheduleTask}
+                              onReorder={onReorderTasks}
+                              onTaskDoubleClick={onTaskDoubleClick}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  // Other task views: Regular single list
+                  <TaskList
+                    tasks={currentTasks || []}
+                    allNotes={allNotes}
+                    onToggleComplete={onToggleTaskComplete}
+                    onToggleStar={onToggleTaskStar}
+                    onStatusChange={onChangeTaskStatus}
+                    onScheduleTask={onScheduleTask}
+                    onReorder={onReorderTasks}
+                    onTaskDoubleClick={onTaskDoubleClick}
+                  />
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 p-6 overflow-y-auto">
+              <Editor
+                ref={editorRef}
+                initialContent={note.content}
+                onContentChange={triggerAutoSave}
+                onRefIdNavigate={onRefIdNavigate}
+              />
+            </div>
+          )}
         </div>
       </div>
 

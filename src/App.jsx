@@ -38,27 +38,33 @@ import { useState, useEffect } from 'react'
 import NotesList from './components/NotesList'
 import NoteEditor from './components/NoteEditor'
 import Terminal from './components/Terminal'
+import Timer from './components/Timer'
+import TaskDetail from './components/TaskDetail'
 import { supabase } from './supabaseClient'
 import { Menu, Sun, Moon, Home } from 'lucide-react'
-import { 
-  parseCommand, 
-  generateTaskId, 
-  createTaskListContent, 
-  parseTaskListContent,
-  getNextTaskOrder 
+import {
+  parseCommand,
+  createTaskListContent
 } from './utils/commandParser'
 
 function App() {
   // Core state: all notes and current selection
   const [notes, setNotes] = useState([])
   const [selectedNote, setSelectedNote] = useState(null)
-  
+  const [secondaryNote, setSecondaryNote] = useState(null) // For side-by-side view
+
   // Special notes references
   const [homeNote, setHomeNote] = useState(null)
   const [tasksNote, setTasksNote] = useState(null)
   const [todayNote, setTodayNote] = useState(null)
   const [weekNote, setWeekNote] = useState(null)
-  
+  const [somedayNote, setSomedayNote] = useState(null)
+
+  // Tasks state (from tasks table)
+  const [currentTasks, setCurrentTasks] = useState([])
+  const [selectedTask, setSelectedTask] = useState(null) // For task detail panel
+  const [statusFilter, setStatusFilter] = useState([]) // Array of status values to filter by
+
   // UI state
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -67,6 +73,13 @@ function App() {
     if (saved) return saved
     return 'light' // Default to light theme
   })
+
+  // Timer state
+  const [timerConfig, setTimerConfig] = useState(null)
+  const [sessionContext, setSessionContext] = useState('')
+  const [isTimerMinimized, setIsTimerMinimized] = useState(false)
+  const [timerRemainingSeconds, setTimerRemainingSeconds] = useState(0)
+  const [isTimerPaused, setIsTimerPaused] = useState(false)
 
   // Apply theme changes to document
   // Apply theme changes to document
@@ -88,16 +101,60 @@ function App() {
   }, [])
 
   /**
-   * Initialize special notes (HOME, Tasks, Today, Week)
+   * Initialize special notes (HOME, Tasks, Today, Week, Someday/Maybe)
    * Runs whenever notes array changes
    */
   useEffect(() => {
+    const setupTaskNoteLinks = async (tasks, today, week, someday) => {
+      if (!tasks || !today || !week || !someday) return
+
+      try {
+        // Check if links already exist (check the full chain)
+        if (today.left_id === tasks.id &&
+            today.right_id === week.id &&
+            week.right_id === someday.id) {
+          return // Already linked
+        }
+
+        // Link: Tasks <-> Today <-> Week <-> Someday/Maybe
+
+        // Set Tasks' right to Today
+        await supabase
+          .from('notes')
+          .update({ right_id: today.id })
+          .eq('id', tasks.id)
+
+        // Set Today's left to Tasks and right to Week
+        await supabase
+          .from('notes')
+          .update({ left_id: tasks.id, right_id: week.id })
+          .eq('id', today.id)
+
+        // Set Week's left to Today and right to Someday
+        await supabase
+          .from('notes')
+          .update({ left_id: today.id, right_id: someday.id })
+          .eq('id', week.id)
+
+        // Set Someday's left to Week
+        await supabase
+          .from('notes')
+          .update({ left_id: week.id })
+          .eq('id', someday.id)
+
+        await fetchNotes()
+      } catch (error) {
+        console.error('Error linking task notes:', error.message)
+      }
+    }
+
     if (notes.length > 0) {
       const home = notes.find(n => n.is_home === true)
       const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
       const today = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
       const week = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
-      
+      const someday = notes.find(n => n.note_type === 'task_list' && n.title === 'Someday/Maybe')
+
       if (home) {
         setHomeNote(home)
         if (!selectedNote) {
@@ -111,13 +168,17 @@ function App() {
       setTasksNote(tasks)
       setTodayNote(today)
       setWeekNote(week)
+      setSomedayNote(someday)
 
       // Create task notes if they don't exist
-      if (!tasks || !today || !week) {
+      if (!tasks || !today || !week || !someday) {
         createTaskNotes()
+      } else {
+        // Link task notes if all exist
+        setupTaskNoteLinks(tasks, today, week, someday)
       }
     }
-  }, [notes])
+  }, [notes, selectedNote])
 
   /**
    * Fetch all notes from Supabase
@@ -201,7 +262,7 @@ function App() {
   const createTaskNotes = async () => {
     try {
       const taskNotes = []
-      
+
       if (!tasksNote) {
         taskNotes.push({
           title: 'Tasks',
@@ -235,6 +296,21 @@ function App() {
       if (!weekNote) {
         taskNotes.push({
           title: 'Week',
+          content: createTaskListContent([]),
+          note_type: 'task_list',
+          is_starred: true,
+          is_home: false,
+          up_id: null,
+          down_id: null,
+          left_id: null,
+          right_id: null,
+          updated_at: new Date().toISOString(),
+        })
+      }
+
+      if (!somedayNote) {
+        taskNotes.push({
+          title: 'Someday/Maybe',
           content: createTaskListContent([]),
           note_type: 'task_list',
           is_starred: true,
@@ -889,7 +965,7 @@ function App() {
 
   const navigateToLinkedNote = async (linkId) => {
     if (!linkId) return
-    
+
     const note = notes.find(n => n.id === linkId)
     if (note) {
       setSelectedNote(note)
@@ -899,32 +975,275 @@ function App() {
         .select('*')
         .eq('id', linkId)
         .single()
-      
+
       if (data) setSelectedNote(data)
     }
   }
 
-  // Get all tasks from the Tasks note
-  const getAllTasks = () => {
-    if (!tasksNote) return []
-    return parseTaskListContent(tasksNote.content)
+  /**
+   * Navigate to a note or task by its reference ID
+   * Called when clicking on ref_id badges in the editor
+   * @param {string} refId - The reference ID to navigate to
+   * @param {string} type - The type ('note' or 'task')
+   * @param {boolean} shiftKey - If true, open in side-by-side view
+   */
+  const navigateToRefId = async (refId, type, shiftKey = false) => {
+    try {
+      if (type === 'note') {
+        // Navigate to the note
+        const { data, error } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('ref_id', refId)
+          .single()
+
+        if (error) throw error
+
+        if (data) {
+          if (shiftKey) {
+            // Shift+click: open in secondary pane
+            setSecondaryNote(data)
+          } else {
+            // Normal click: replace current note
+            setSelectedNote(data)
+            setSidebarOpen(false)
+          }
+        }
+      } else if (type === 'task') {
+        // For tasks, fetch and show task detail panel
+        const { data: taskData, error: taskError } = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('ref_id', refId)
+          .single()
+
+        if (taskError) throw taskError
+
+        if (taskData) {
+          if (shiftKey) {
+            // Shift+click: open task detail in side panel
+            setSelectedTask(taskData)
+          } else {
+            // Normal click: show alert (or could also open detail panel)
+            alert(`Task: ${taskData.text}\nStatus: ${taskData.status}\nPriority: ${taskData.priority}`)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error navigating to ref_id:', refId, error)
+      alert(`Could not find ${type} with ref_id: ${refId}`)
+    }
   }
 
-  // Add task to a specific note (tasks, today, or week)
   /**
-   * Add a new task to a target note (Tasks, Today, or Week)
-   * Uses optimistic updates for instant UI feedback
-   * 
+   * Save task updates from the task detail panel
+   * @param {object} updatedTask - Updated task object
+   */
+  const saveTask = async (updatedTask) => {
+    try {
+      // Build update object with only fields that exist in the database
+      const updates = {
+        text: updatedTask.text,
+        status: updatedTask.status,
+        updated_at: new Date().toISOString()
+      }
+
+      // Add optional fields if they exist
+      if (updatedTask.context !== undefined) {
+        updates.context = updatedTask.context
+      }
+      if (updatedTask.work_notes !== undefined) {
+        updates.work_notes = updatedTask.work_notes
+      }
+      if (updatedTask.ref_id !== undefined) {
+        updates.ref_id = updatedTask.ref_id
+      }
+      if (updatedTask.scheduled_date !== undefined) {
+        updates.scheduled_date = updatedTask.scheduled_date
+      }
+
+      const { error } = await supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', updatedTask.id)
+
+      if (error) {
+        console.error('Supabase error details:', error)
+        throw error
+      }
+
+      // Update local state
+      setCurrentTasks(currentTasks.map(t =>
+        t.id === updatedTask.id ? { ...updatedTask, updated_at: new Date().toISOString() } : t
+      ))
+      setSelectedTask({ ...updatedTask, updated_at: new Date().toISOString() })
+
+      // Refresh the view if we're on a task list
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
+    } catch (error) {
+      console.error('Error saving task:', error)
+      console.error('Error message:', error.message)
+      console.error('Error details:', JSON.stringify(error, null, 2))
+      alert(`Error saving task: ${error.message}\nCheck console for details.`)
+    }
+  }
+
+  // Get all tasks from the tasks table
+  const getAllTasks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .order('priority', { ascending: true })
+
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching tasks:', error)
+      return []
+    }
+  }
+
+  /**
+   * Check and update overdue tasks
+   * If a task has a scheduled_date in the past and status is not DONE/CANCELLED, set it to OVERDUE
+   */
+  const checkAndUpdateOverdueTasks = async (tasks) => {
+    const today = new Date().toISOString().split('T')[0]
+    const overdueTasks = tasks.filter(task =>
+      task.scheduled_date &&
+      task.scheduled_date < today &&
+      task.status !== 'DONE' &&
+      task.status !== 'CANCELLED' &&
+      task.status !== 'OVERDUE'
+    )
+
+    // Update overdue tasks in database
+    for (const task of overdueTasks) {
+      try {
+        await supabase
+          .from('tasks')
+          .update({
+            status: 'OVERDUE',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', task.id)
+      } catch (error) {
+        console.error('Error updating overdue task:', task.id, error)
+      }
+    }
+
+    // Return updated tasks list
+    return tasks.map(task => {
+      if (overdueTasks.find(t => t.id === task.id)) {
+        return { ...task, status: 'OVERDUE' }
+      }
+      return task
+    })
+  }
+
+  // Fetch tasks based on the current note view
+  const fetchTasksForView = async (noteTitle) => {
+    try {
+      let query = supabase.from('tasks').select('*').order('priority', { ascending: true })
+
+      // Fetch all tasks and filter client-side
+      const { data, error } = await query
+
+      if (error) throw error
+
+      // Check and update overdue tasks
+      let updatedTasks = await checkAndUpdateOverdueTasks(data || [])
+
+      // Apply view-specific filtering
+      if (noteTitle === 'Today') {
+        // Today: show starred tasks OR tasks scheduled for today (excluding CANCELLED and SOMEDAY)
+        const today = new Date().toISOString().split('T')[0]
+        updatedTasks = updatedTasks.filter(task =>
+          (task.starred || task.scheduled_date === today) &&
+          task.status !== 'CANCELLED' &&
+          task.scheduled_date !== 'SOMEDAY'
+        )
+      } else if (noteTitle === 'Week') {
+        // Week: show active tasks (not done, not cancelled, not someday)
+        // Include: tasks scheduled this week OR tasks with no date OR tasks marked as THIS_WEEK
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+        const monday = new Date(today)
+        monday.setDate(today.getDate() + daysToMonday)
+        const sunday = new Date(monday)
+        sunday.setDate(monday.getDate() + 6)
+
+        const mondayISO = monday.toISOString().split('T')[0]
+        const sundayISO = sunday.toISOString().split('T')[0]
+
+        updatedTasks = updatedTasks.filter(task =>
+          task.status !== 'DONE' &&
+          task.status !== 'CANCELLED' &&
+          task.scheduled_date !== 'SOMEDAY' &&
+          (
+            (task.scheduled_date && task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO) ||
+            task.scheduled_date === 'THIS_WEEK' ||
+            task.scheduled_date === null
+          )
+        )
+      } else if (noteTitle === 'Tasks') {
+        // Tasks: show all active tasks (not done, not cancelled, not someday)
+        updatedTasks = updatedTasks.filter(task =>
+          task.status !== 'DONE' &&
+          task.status !== 'CANCELLED' &&
+          task.scheduled_date !== 'SOMEDAY'
+        )
+      } else if (noteTitle === 'Someday/Maybe') {
+        // Someday/Maybe: show only tasks scheduled as SOMEDAY
+        updatedTasks = updatedTasks.filter(task =>
+          task.scheduled_date === 'SOMEDAY' &&
+          task.status !== 'CANCELLED'
+        )
+      }
+
+      // Apply status filter if any filters are selected
+      if (statusFilter.length > 0) {
+        updatedTasks = updatedTasks.filter(task => statusFilter.includes(task.status))
+      }
+
+      setCurrentTasks(updatedTasks)
+    } catch (error) {
+      console.error('Error fetching tasks for view:', error)
+      setCurrentTasks([])
+    }
+  }
+
+  // Load tasks when a task list note is selected
+  useEffect(() => {
+    if (selectedNote?.note_type === 'task_list') {
+      fetchTasksForView(selectedNote.title)
+    } else {
+      setCurrentTasks([])
+    }
+  }, [selectedNote])
+
+  // Re-fetch tasks when status filter changes
+  useEffect(() => {
+    if (selectedNote?.note_type === 'task_list') {
+      fetchTasksForView(selectedNote.title)
+    }
+  }, [statusFilter])
+
+  /**
+   * Add a new task directly to the tasks table
+   *
    * @param {string} text - Task description
-   * @param {object} targetNote - Target note object (must have id and title)
-   * 
+   * @param {object} targetNote - Target note object (determines starred status)
+   *
    * Process:
-   * 1. Create new task object with unique ID
-   * 2. Update local state immediately (optimistic)
-   * 3. Persist to database (Tasks note always updated)
-   * 4. Also update target note if different from Tasks
-   * 5. Fetch from database to ensure consistency
-   * 6. On error: rollback by fetching from database
+   * 1. Get highest priority to determine new task's priority
+   * 2. Create new task with appropriate status and starred flag
+   * 3. Insert into tasks table
+   * 4. Refresh the current view
    */
   const addTask = async (text, targetNote) => {
     try {
@@ -932,330 +1251,251 @@ function App() {
         throw new Error('Target note not found')
       }
 
-      if (!tasksNote) {
-        throw new Error('Tasks note not initialized. Please refresh the page.')
-      }
+      // Get all tasks to determine next priority
+      const allTasks = await getAllTasks()
+      const maxPriority = allTasks.length > 0
+        ? Math.max(...allTasks.map(t => t.priority || 0))
+        : 0
 
-      const allTasks = getAllTasks()
       const newTask = {
-        id: generateTaskId(),
         text,
-        completed: false,
+        status: 'BACKLOG', // Default status for new tasks
+        priority: maxPriority + 1,
         starred: targetNote.title === 'Today', // Auto-star if adding to Today
-        project_id: null,
-        order: getNextTaskOrder(allTasks),
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
 
-      // OPTIMISTIC UPDATE: Update local state immediately
-      const updatedNotes = notes.map(note => {
-        if (note.id === tasksNote.id) {
-          // Update Tasks note
-          const tasksContent = parseTaskListContent(note.content)
-          tasksContent.push(newTask)
-          return {
-            ...note,
-            content: createTaskListContent(tasksContent),
-            updated_at: new Date().toISOString()
-          }
-        } else if (note.id === targetNote.id && targetNote.id !== tasksNote.id) {
-          // Update target note (Today/Week) if different from Tasks
-          const targetContent = parseTaskListContent(note.content)
-          targetContent.push(newTask)
-          return {
-            ...note,
-            content: createTaskListContent(targetContent),
-            updated_at: new Date().toISOString()
-          }
-        }
-        return note
-      })
+      // Insert into tasks table
+      const { error } = await supabase
+        .from('tasks')
+        .insert([newTask])
 
-      // Update state immediately for instant UI feedback
-      setNotes(updatedNotes)
-      
-      // Update selected note if it's one of the notes we modified
-      if (selectedNote?.id === tasksNote.id || selectedNote?.id === targetNote.id) {
-        const updatedSelectedNote = updatedNotes.find(n => n.id === selectedNote.id)
-        if (updatedSelectedNote) {
-          setSelectedNote(updatedSelectedNote)
-        }
+      if (error) throw error
+
+      // Refresh the current view
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
       }
-
-      // Then persist to database in the background
-      const tasksContent = parseTaskListContent(tasksNote.content)
-      tasksContent.push(newTask)
-      
-      const { error: tasksError } = await supabase
-        .from('notes')
-        .update({
-          content: createTaskListContent(tasksContent),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', tasksNote.id)
-
-      if (tasksError) throw tasksError
-
-      // If adding to Today or Week, also update that note
-      if (targetNote.id !== tasksNote.id) {
-        const targetContent = parseTaskListContent(targetNote.content)
-        targetContent.push(newTask)
-        
-        const { error: targetError } = await supabase
-          .from('notes')
-          .update({
-            content: createTaskListContent(targetContent),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', targetNote.id)
-
-        if (targetError) throw targetError
-      }
-
-      // Fetch from database to ensure consistency
-      await fetchNotes()
     } catch (error) {
       console.error('Error adding task:', error)
-      // Rollback: refresh from database on error
-      await fetchNotes()
       throw error // Re-throw so handleCommand can catch it
     }
   }
 
   /**
-   * Toggle task completion status (checkbox)
-   * Uses optimistic updates for instant UI feedback
-   * 
+   * Toggle task completion status by updating status field
+   * Completed tasks get status DONE, uncompleted get BACKLOG
+   *
    * @param {string} taskId - Unique task ID
-   * 
-   * Process:
-   * 1. Update local state immediately (optimistic)
-   * 2. Persist to current note
-   * 3. Also update Tasks note if on a different view
-   * 4. Fetch from database to ensure consistency
-   * 5. On error: rollback by fetching from database
    */
   const toggleTaskComplete = async (taskId) => {
     if (!selectedNote || selectedNote.note_type !== 'task_list') return
 
     try {
-      const tasks = parseTaskListContent(selectedNote.content)
-      const updatedTasks = tasks.map(task => 
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
+      // Find the task in current view
+      const task = currentTasks.find(t => t.id === taskId)
+      if (!task) return
 
-      // OPTIMISTIC UPDATE: Update local state immediately
-      const optimisticSelectedNote = {
-        ...selectedNote,
-        content: createTaskListContent(updatedTasks),
-        updated_at: new Date().toISOString()
-      }
-      setSelectedNote(optimisticSelectedNote)
+      const newStatus = task.status === 'DONE' ? 'BACKLOG' : 'DONE'
 
-      const optimisticNotes = notes.map(note => {
-        if (note.id === selectedNote.id) {
-          return optimisticSelectedNote
-        }
-        // Also update Tasks note if we're not on it
-        if (tasksNote && note.id === tasksNote.id && selectedNote.id !== tasksNote.id) {
-          const masterTasks = parseTaskListContent(note.content)
-          const updatedMasterTasks = masterTasks.map(task =>
-            task.id === taskId ? { ...task, completed: !task.completed } : task
-          )
-          return {
-            ...note,
-            content: createTaskListContent(updatedMasterTasks),
-            updated_at: new Date().toISOString()
-          }
-        }
-        return note
-      })
-      setNotes(optimisticNotes)
+      // Optimistic update
+      setCurrentTasks(currentTasks.map(t =>
+        t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+      ))
 
-      // Then persist to database
+      // Update in database
       const { error } = await supabase
-        .from('notes')
+        .from('tasks')
         .update({
-          content: createTaskListContent(updatedTasks),
+          status: newStatus,
           updated_at: new Date().toISOString()
         })
-        .eq('id', selectedNote.id)
+        .eq('id', taskId)
 
       if (error) throw error
 
-      // Also update Tasks note if we're not on it
-      if (tasksNote && selectedNote.id !== tasksNote.id) {
-        const masterTasks = parseTaskListContent(tasksNote.content)
-        const updatedMasterTasks = masterTasks.map(task =>
-          task.id === taskId ? { ...task, completed: !task.completed } : task
-        )
-
-        await supabase
-          .from('notes')
-          .update({
-            content: createTaskListContent(updatedMasterTasks),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', tasksNote.id)
-      }
-
-      await fetchNotes()
+      // Refresh the view
+      await fetchTasksForView(selectedNote.title)
     } catch (error) {
       console.error('Error toggling task completion:', error)
       // Rollback on error
-      await fetchNotes()
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
     }
   }
 
   /**
-   * Toggle task star status (add/remove from Today list)
-   * Uses optimistic updates for instant UI feedback
-   * 
+   * Change task status to a specific value
+   *
    * @param {string} taskId - Unique task ID
-   * 
-   * Behavior:
-   * - Starring: Adds task to Today note
-   * - Unstarring: Removes task from Today note
-   * - Always updates Tasks note (master list)
-   * 
-   * Process:
-   * 1. Find task in Tasks note
-   * 2. Toggle starred status
-   * 3. Update local state immediately (optimistic)
-   * 4. Update Today note (add or remove task)
-   * 5. Persist both notes to database
-   * 6. Fetch from database to ensure consistency
-   * 7. On error: rollback by fetching from database
+   * @param {string} newStatus - New status value
    */
-  const toggleTaskStar = async (taskId) => {
-    if (!tasksNote || !todayNote) return
+  const changeTaskStatus = async (taskId, newStatus) => {
+    if (!selectedNote || selectedNote.note_type !== 'task_list') return
 
     try {
-      const masterTasks = parseTaskListContent(tasksNote.content)
-      const task = masterTasks.find(t => t.id === taskId)
+      // Optimistic update
+      setCurrentTasks(currentTasks.map(t =>
+        t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+      ))
+
+      // Update in database
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId)
+
+      if (error) throw error
+
+      // Refresh the view
+      await fetchTasksForView(selectedNote.title)
+    } catch (error) {
+      console.error('Error changing task status:', error)
+      // Rollback on error
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
+    }
+  }
+
+  /**
+   * Toggle task star status in tasks table
+   *
+   * @param {string} taskId - Unique task ID
+   */
+  const toggleTaskStar = async (taskId) => {
+    try {
+      // Find the task in current view
+      const task = currentTasks.find(t => t.id === taskId)
       if (!task) return
 
       const newStarredState = !task.starred
 
-      // OPTIMISTIC UPDATE: Update local state immediately
-      const updatedMasterTasks = masterTasks.map(t =>
-        t.id === taskId ? { ...t, starred: newStarredState } : t
-      )
+      // Optimistic update
+      setCurrentTasks(currentTasks.map(t =>
+        t.id === taskId ? { ...t, starred: newStarredState, updated_at: new Date().toISOString() } : t
+      ))
 
-      const todayTasks = parseTaskListContent(todayNote.content)
-      let updatedTodayTasks
-
-      if (newStarredState) {
-        // Add to today if not already there
-        if (!todayTasks.find(t => t.id === taskId)) {
-          updatedTodayTasks = [...todayTasks, { ...task, starred: true }]
-        } else {
-          updatedTodayTasks = todayTasks.map(t =>
-            t.id === taskId ? { ...t, starred: true } : t
-          )
-        }
-      } else {
-        // Remove from today
-        updatedTodayTasks = todayTasks.filter(t => t.id !== taskId)
-      }
-
-      // Update local state immediately
-      const optimisticNotes = notes.map(note => {
-        if (note.id === tasksNote.id) {
-          return {
-            ...note,
-            content: createTaskListContent(updatedMasterTasks),
-            updated_at: new Date().toISOString()
-          }
-        } else if (note.id === todayNote.id) {
-          return {
-            ...note,
-            content: createTaskListContent(updatedTodayTasks),
-            updated_at: new Date().toISOString()
-          }
-        }
-        return note
-      })
-      setNotes(optimisticNotes)
-
-      // Update selected note if it's one we modified
-      if (selectedNote?.id === tasksNote.id) {
-        const updated = optimisticNotes.find(n => n.id === tasksNote.id)
-        if (updated) setSelectedNote(updated)
-      } else if (selectedNote?.id === todayNote.id) {
-        const updated = optimisticNotes.find(n => n.id === todayNote.id)
-        if (updated) setSelectedNote(updated)
-      }
-
-      // Then persist to database
-      await supabase
-        .from('notes')
+      // Update in database
+      const { error } = await supabase
+        .from('tasks')
         .update({
-          content: createTaskListContent(updatedMasterTasks),
+          starred: newStarredState,
           updated_at: new Date().toISOString()
         })
-        .eq('id', tasksNote.id)
+        .eq('id', taskId)
 
-      await supabase
-        .from('notes')
-        .update({
-          content: createTaskListContent(updatedTodayTasks),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', todayNote.id)
+      if (error) throw error
 
-      await fetchNotes()
+      // Refresh the view
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
     } catch (error) {
       console.error('Error toggling task star:', error)
       // Rollback on error
-      await fetchNotes()
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
     }
   }
 
-  // Reorder tasks
+  /**
+   * Schedule a task for a specific date
+   * When a date is set and status is BACKLOG, automatically change status to PLANNED
+   * Special values: 'SOMEDAY', 'THIS_WEEK'
+   *
+   * @param {string} taskId - Unique task ID
+   * @param {string} scheduledDate - Date string (YYYY-MM-DD), 'SOMEDAY', 'THIS_WEEK', or null to clear
+   */
+  const scheduleTask = async (taskId, scheduledDate) => {
+    try {
+      // Find the task in current view
+      const task = currentTasks.find(t => t.id === taskId)
+      if (!task) return
+
+      const updates = { scheduled_date: scheduledDate }
+
+      // If scheduling a date and status is BACKLOG, auto-set to PLANNED
+      // Don't auto-change status for SOMEDAY
+      if (scheduledDate && scheduledDate !== 'SOMEDAY' && task.status === 'BACKLOG') {
+        updates.status = 'PLANNED'
+      }
+
+      // Optimistic update
+      setCurrentTasks(currentTasks.map(t =>
+        t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+      ))
+
+      // Update in database
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId)
+
+      if (error) throw error
+
+      // Refresh the view
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
+    } catch (error) {
+      console.error('Error scheduling task:', error)
+      // Rollback on error
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
+    }
+  }
+
+  /**
+   * Reorder tasks by swapping priorities
+   * When a task is moved, we swap its priority with the task at the target position
+   */
   const reorderTasks = async (fromIndex, toIndex) => {
     if (!selectedNote || selectedNote.note_type !== 'task_list') return
 
     try {
-      const tasks = parseTaskListContent(selectedNote.content)
-      const reorderedTasks = [...tasks]
+      const reorderedTasks = [...currentTasks]
       const [movedTask] = reorderedTasks.splice(fromIndex, 1)
       reorderedTasks.splice(toIndex, 0, movedTask)
 
-      // Update order numbers
-      const updatedTasks = reorderedTasks.map((task, index) => ({
-        ...task,
-        order: index
+      // Assign new priorities based on position
+      const updates = reorderedTasks.map((task, index) => ({
+        id: task.id,
+        priority: index + 1
       }))
 
-      // OPTIMISTIC UPDATE: Update local state immediately
-      const optimisticSelectedNote = {
-        ...selectedNote,
-        content: createTaskListContent(updatedTasks),
-        updated_at: new Date().toISOString()
+      // Optimistic update
+      setCurrentTasks(reorderedTasks.map((task, index) => ({
+        ...task,
+        priority: index + 1
+      })))
+
+      // Update all priorities in database
+      for (const update of updates) {
+        await supabase
+          .from('tasks')
+          .update({ priority: update.priority, updated_at: new Date().toISOString() })
+          .eq('id', update.id)
       }
-      setSelectedNote(optimisticSelectedNote)
 
-      const optimisticNotes = notes.map(note =>
-        note.id === selectedNote.id ? optimisticSelectedNote : note
-      )
-      setNotes(optimisticNotes)
-
-      // Then persist to database
-      const { error } = await supabase
-        .from('notes')
-        .update({
-          content: createTaskListContent(updatedTasks),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', selectedNote.id)
-
-      if (error) throw error
-      await fetchNotes()
+      // Refresh the view
+      await fetchTasksForView(selectedNote.title)
     } catch (error) {
       console.error('Error reordering tasks:', error)
       // Rollback on error
-      await fetchNotes()
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      }
     }
   }
 
@@ -1293,6 +1533,9 @@ NAVIGATION:
   goto home                       Navigate to HOME
   goto "Note Title"               Navigate to any note by title
 
+TIMER:
+  start timer 30                  Start a 30-minute timer with dots
+
 COMING SOON:
   complete task 3                 Mark task #3 as complete
   star task 5                     Star task #5 (add to Today)
@@ -1302,6 +1545,7 @@ TIPS:
 • Colors appear after you finish typing each word
 • Star tasks to add them to Today list
 • Drag tasks to reorder them
+• Click timer to pause/unpause
 
 Type /help anytime to see this message.`
         }
@@ -1336,28 +1580,54 @@ Type /help anytime to see this message.`
 
         case 'GOTO': {
           const { target } = command.payload
-          let noteToGo = null
+          let noteIdToGo = null
+          let noteTitle = null
 
           if (target.toLowerCase() === 'today' && todayNote) {
-            noteToGo = todayNote
+            noteIdToGo = todayNote.id
+            noteTitle = 'Today'
           } else if (target.toLowerCase() === 'week' && weekNote) {
-            noteToGo = weekNote
+            noteIdToGo = weekNote.id
+            noteTitle = 'Week'
           } else if (target.toLowerCase() === 'tasks' && tasksNote) {
-            noteToGo = tasksNote
+            noteIdToGo = tasksNote.id
+            noteTitle = 'Tasks'
           } else if (target.toLowerCase() === 'home' && homeNote) {
-            noteToGo = homeNote
+            noteIdToGo = homeNote.id
+            noteTitle = 'HOME'
           } else {
             // Search by title
-            noteToGo = notes.find(n => n.title.toLowerCase() === target.toLowerCase())
+            const noteFound = notes.find(n => n.title.toLowerCase() === target.toLowerCase())
+            if (noteFound) {
+              noteIdToGo = noteFound.id
+              noteTitle = noteFound.title
+            }
           }
 
-          if (noteToGo) {
-            setSelectedNote(noteToGo)
-            setSidebarOpen(false)
-            return `✓ Navigated to ${noteToGo.title}`
-          } else {
-            return `✗ Note "${target}" not found`
+          if (noteIdToGo) {
+            // Always fetch fresh data from notes array by ID to ensure we have latest content
+            const freshNote = notes.find(n => n.id === noteIdToGo)
+            if (freshNote) {
+              setSelectedNote(freshNote)
+              setSidebarOpen(false)
+              return `✓ Navigated to ${noteTitle}`
+            }
           }
+
+          return `✗ Note "${target}" not found`
+        }
+
+        case 'START_TIMER': {
+          const { minutes } = command.payload
+          const totalSeconds = minutes * 60
+          const intervalSeconds = 30
+
+          setTimerConfig({
+            totalSeconds,
+            intervalSeconds
+          })
+
+          return `✓ Timer started for ${minutes} minute${minutes !== 1 ? 's' : ''}`
         }
 
         case 'UNKNOWN':
@@ -1389,6 +1659,20 @@ Type /help anytime to see this message.`
 
   return (
     <div className="h-screen flex flex-col bg-white dark:bg-gray-900">
+      {/* Session Context Band - only shown when timer is active */}
+      {timerConfig && (
+        <div className="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 py-2 px-4 flex items-center justify-center">
+          <input
+            type="text"
+            value={sessionContext}
+            onChange={(e) => setSessionContext(e.target.value)}
+            placeholder="What are you working on?"
+            className="max-w-md w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-800 text-center"
+            maxLength={60}
+          />
+        </div>
+      )}
+
       {/* Control Panel */}
       <div className="fixed top-6 left-6 z-50 flex gap-2">
         <button
@@ -1430,10 +1714,14 @@ Type /help anytime to see this message.`
           notes={notes}
           selectedNote={selectedNote}
           homeNote={homeNote}
-          onSelectNote={(note) => {
-            setSelectedNote(note)
-            if (window.innerWidth < 768) {
-              setSidebarOpen(false)
+          onSelectNote={(note, shiftKey) => {
+            if (shiftKey) {
+              setSecondaryNote(note)
+            } else {
+              setSelectedNote(note)
+              if (window.innerWidth < 768) {
+                setSidebarOpen(false)
+              }
             }
           }}
           onCreateNote={createNote}
@@ -1453,11 +1741,13 @@ Type /help anytime to see this message.`
       {/* Main content area - takes remaining space above terminal */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main content */}
-        <div className="flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16">
-          <div className="w-full max-w-3xl h-full max-h-[700px]">
+        <div className="flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16 gap-4">
+          {/* Primary note editor */}
+          <div className={`w-full h-full ${secondaryNote || selectedTask ? 'max-w-2xl' : 'max-w-4xl'} max-h-[800px] transition-all`}>
             <NoteEditor
               note={selectedNote}
               allNotes={notes}
+              currentTasks={currentTasks}
               onSave={saveNote}
               onDelete={deleteNote}
               onSetAsHome={setAsHome}
@@ -1474,14 +1764,172 @@ Type /help anytime to see this message.`
               onCreateDraftLinked={createDraftLinkedNote}
               onToggleTaskComplete={toggleTaskComplete}
               onToggleTaskStar={toggleTaskStar}
+              onChangeTaskStatus={changeTaskStatus}
+              onScheduleTask={scheduleTask}
               onReorderTasks={reorderTasks}
+              onRefIdNavigate={navigateToRefId}
+              onTaskDoubleClick={setSelectedTask}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
             />
           </div>
+
+          {/* Secondary note editor (side-by-side) */}
+          {secondaryNote && (
+            <div className="w-full h-full max-w-2xl max-h-[800px] relative">
+              {/* Close button */}
+              <button
+                onClick={() => setSecondaryNote(null)}
+                className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-400 text-sm font-bold"
+                title="Close side panel"
+              >
+                ×
+              </button>
+              <NoteEditor
+                note={secondaryNote}
+                allNotes={notes}
+                currentTasks={[]} // No tasks in secondary view
+                onSave={async (updatedNote) => {
+                  await saveNote(updatedNote)
+                  // Update secondary note with latest data
+                  setSecondaryNote(updatedNote)
+                }}
+                onDelete={async (noteId) => {
+                  await deleteNote(noteId)
+                  setSecondaryNote(null)
+                }}
+                onSetAsHome={setAsHome}
+                onToggleStar={toggleStar}
+                onSetUp={setUpLink}
+                onRemoveUp={removeUpLink}
+                onSetDown={setDownLink}
+                onRemoveDown={removeDownLink}
+                onSetLeft={setLeftLink}
+                onSetRight={setRightLink}
+                onRemoveLeft={removeLeftLink}
+                onRemoveRight={removeRightLink}
+                onNavigate={async (linkId) => {
+                  // Navigate within secondary pane only
+                  if (!linkId) return
+
+                  const note = notes.find(n => n.id === linkId)
+                  if (note) {
+                    setSecondaryNote(note)
+                  } else {
+                    const { data } = await supabase
+                      .from('notes')
+                      .select('*')
+                      .eq('id', linkId)
+                      .single()
+
+                    if (data) setSecondaryNote(data)
+                  }
+                }}
+                onCreateDraftLinked={createDraftLinkedNote}
+                onToggleTaskComplete={() => {}}
+                onToggleTaskStar={() => {}}
+                onChangeTaskStatus={() => {}}
+                onReorderTasks={() => {}}
+                onRefIdNavigate={async (refId, type) => {
+                  // Secondary editor navigation - always navigate within secondary pane
+                  try {
+                    if (type === 'note') {
+                      const { data, error } = await supabase
+                        .from('notes')
+                        .select('*')
+                        .eq('ref_id', refId)
+                        .single()
+
+                      if (error) throw error
+
+                      if (data) {
+                        // Always update secondary note, ignore shiftKey
+                        setSecondaryNote(data)
+                      }
+                    } else if (type === 'task') {
+                      const { data: taskData, error: taskError } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .eq('ref_id', refId)
+                        .single()
+
+                      if (taskError) throw taskError
+
+                      if (taskData) {
+                        alert(`Task: ${taskData.text}\nStatus: ${taskData.status}\nPriority: ${taskData.priority}`)
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error navigating to ref_id in secondary:', refId, error)
+                    alert(`Could not find ${type} with ref_id: ${refId}`)
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {/* Task Detail Panel */}
+          {selectedTask && !secondaryNote && (
+            <div className="w-full h-full max-w-xl max-h-[800px]">
+              <TaskDetail
+                task={selectedTask}
+                onClose={() => setSelectedTask(null)}
+                onSave={saveTask}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Terminal - fixed at bottom */}
       <Terminal onCommand={handleCommand} />
+
+      {/* Timer - overlay when active (always mounted, just hidden when minimized) */}
+      {timerConfig && (
+        <div className={isTimerMinimized ? 'hidden' : ''}>
+          <Timer
+            totalSeconds={timerConfig.totalSeconds}
+            intervalSeconds={timerConfig.intervalSeconds}
+            onComplete={() => {
+              setTimerConfig(null)
+              setSessionContext('')
+              setIsTimerMinimized(false)
+            }}
+            onClose={() => {
+              setTimerConfig(null)
+              setSessionContext('')
+              setIsTimerMinimized(false)
+            }}
+            onMinimize={() => setIsTimerMinimized(true)}
+            onTick={(remaining, paused) => {
+              setTimerRemainingSeconds(remaining)
+              setIsTimerPaused(paused)
+            }}
+          />
+        </div>
+      )}
+
+      {/* Minimized timer badge - above terminal */}
+      {timerConfig && isTimerMinimized && (
+        <div className="fixed bottom-48 left-0 right-0 flex justify-center z-40 pointer-events-none">
+          <div
+            onClick={() => setIsTimerMinimized(false)}
+            className="bg-[#2a2a2a] border border-gray-700 rounded-full px-4 py-2 shadow-lg flex items-center gap-3 cursor-pointer pointer-events-auto hover:bg-[#333333] transition-colors"
+          >
+            {sessionContext && (
+              <span className="text-xs text-gray-400 max-w-[200px] truncate">
+                {sessionContext}
+              </span>
+            )}
+            <span className="text-sm font-mono text-purple-400">
+              {Math.floor(timerRemainingSeconds / 60)}:{(timerRemainingSeconds % 60).toString().padStart(2, '0')}
+            </span>
+            {isTimerPaused && (
+              <span className="text-[9px] text-yellow-500">PAUSED</span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

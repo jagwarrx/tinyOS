@@ -48,8 +48,9 @@ export default function NotesList({
             <div className="flex items-center gap-2 mb-1">
               <Home size={14} className="text-gray-500 dark:text-gray-400" />
               <button
-                onClick={() => onSelectNote(homeNote)}
+                onClick={(e) => onSelectNote(homeNote, e.shiftKey)}
                 className="font-medium text-sm text-gray-900 dark:text-gray-100 flex-1 text-left"
+                title="Click to open | Shift+Click for side-by-side"
               >
                 {homeNote.title || 'HOME'}
               </button>
@@ -93,8 +94,9 @@ export default function NotesList({
               >
                 <div className="flex items-start justify-between mb-1">
                   <button
-                    onClick={() => onSelectNote(note)}
+                    onClick={(e) => onSelectNote(note, e.shiftKey)}
                     className="font-medium text-sm flex-1 text-left text-gray-900 dark:text-gray-100"
+                    title="Click to open | Shift+Click for side-by-side"
                   >
                     {note.title || 'Untitled'}
                   </button>
