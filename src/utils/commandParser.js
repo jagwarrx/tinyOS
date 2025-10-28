@@ -41,6 +41,75 @@ export function parseCommand(input) {
     }
   }
 
+  // AI Commands
+  // /joke - Get a programming joke
+  if (lower === '/joke') {
+    return {
+      type: 'AI_JOKE',
+      payload: {}
+    }
+  }
+
+  // /tip - Get a productivity tip
+  if (lower === '/tip') {
+    return {
+      type: 'AI_TIP',
+      payload: {}
+    }
+  }
+
+  // /quote - Get an inspiring quote
+  if (lower === '/quote') {
+    return {
+      type: 'AI_QUOTE',
+      payload: {}
+    }
+  }
+
+  // /fact - Get an interesting tech fact
+  if (lower === '/fact') {
+    return {
+      type: 'AI_FACT',
+      payload: {}
+    }
+  }
+
+  // /ask <question> - Ask Claude a question
+  const askPattern = /^\/ask\s+(.+)$/i
+  const askMatch = trimmed.match(askPattern)
+  if (askMatch) {
+    return {
+      type: 'AI_ASK',
+      payload: {
+        question: askMatch[1]
+      }
+    }
+  }
+
+  // /explain <concept> - Get an explanation
+  const explainPattern = /^\/explain\s+(.+)$/i
+  const explainMatch = trimmed.match(explainPattern)
+  if (explainMatch) {
+    return {
+      type: 'AI_EXPLAIN',
+      payload: {
+        concept: explainMatch[1]
+      }
+    }
+  }
+
+  // /brainstorm <topic> - Get brainstorming ideas
+  const brainstormPattern = /^\/brainstorm\s+(.+)$/i
+  const brainstormMatch = trimmed.match(brainstormPattern)
+  if (brainstormMatch) {
+    return {
+      type: 'AI_BRAINSTORM',
+      payload: {
+        topic: brainstormMatch[1]
+      }
+    }
+  }
+
   // Quick task command: /task text [:today] [:note "text"] [:project] - adds to Tasks page (quotes optional)
   // Inbox command: /inbox "title" :note "text" - adds to Inbox page
   // First, extract any :note "text" suffix (including multi-line content)

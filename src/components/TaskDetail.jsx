@@ -13,16 +13,17 @@
  * - Shift+clicking a task reference badge
  */
 
-import { X, Circle, Clock, CheckCircle2, XCircle, AlertCircle, Calendar } from 'lucide-react'
+import { X, Circle, Clock, CheckCircle2, XCircle, AlertCircle, Calendar, ChevronDown } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
 
-export default function TaskDetail({ task, onClose, onSave }) {
+export default function TaskDetail({ task, taskNumber, onClose, onSave, showPriorityFormula = true }) {
   const [editedTask, setEditedTask] = useState(task)
   const [isEditingRefId, setIsEditingRefId] = useState(false)
   const [isEditingDates, setIsEditingDates] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showPriorityPanel, setShowPriorityPanel] = useState(false)
 
   useEffect(() => {
     setEditedTask(task)
@@ -156,12 +157,12 @@ export default function TaskDetail({ task, onClose, onSave }) {
   }
 
   const statusOptions = [
-    { value: 'BACKLOG', label: 'Backlog', icon: Circle, color: 'text-gray-500' },
-    { value: 'PLANNED', label: 'Planned', icon: Circle, color: 'text-purple-500' },
-    { value: 'DOING', label: 'Doing', icon: Clock, color: 'text-blue-500' },
-    { value: 'BLOCKED', label: 'Blocked', icon: AlertCircle, color: 'text-yellow-500' },
-    { value: 'DONE', label: 'Done', icon: CheckCircle2, color: 'text-green-500' },
-    { value: 'CANCELLED', label: 'Cancelled', icon: XCircle, color: 'text-red-500' }
+    { value: 'BACKLOG', label: 'Backlog', icon: Circle, color: 'text-fg-tertiary' },
+    { value: 'PLANNED', label: 'Planned', icon: Circle, color: 'text-syntax-purple' },
+    { value: 'DOING', label: 'Doing', icon: Clock, color: 'text-syntax-blue' },
+    { value: 'BLOCKED', label: 'Blocked', icon: AlertCircle, color: 'text-syntax-yellow' },
+    { value: 'DONE', label: 'Done', icon: CheckCircle2, color: 'text-syntax-green' },
+    { value: 'CANCELLED', label: 'Cancelled', icon: XCircle, color: 'text-syntax-red' }
   ]
 
   const taskTypeOptions = [
@@ -169,7 +170,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
     { value: 'QUICK_WINS', label: 'Quick Wins', description: 'momentum makers' },
     { value: 'GRUNT_WORK', label: 'Grunt Work', description: 'has to get done' },
     { value: 'PEOPLE_TIME', label: 'People Time', description: 'meetings, comms' },
-    { value: 'STRATEGIC', label: 'Strategic', description: 'planning, thinking' }
+    { value: 'PLANNING', label: 'Planning', description: 'planning, thinking' }
   ]
 
   const getRelativeTime = (dateString) => {
@@ -205,69 +206,47 @@ export default function TaskDetail({ task, onClose, onSave }) {
   }
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded shadow-lg flex flex-col">
+    <div className="w-full h-full bg-bg-primary border border-border-primary rounded shadow-lg flex flex-col">
       {/* Header - Task Title */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary flex-shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
+          {/* Task Number Badge */}
+          {taskNumber && (
+            <span className="flex-shrink-0 flex items-center justify-center min-w-[1.75rem] h-7 px-2 bg-bg-tertiary text-fg-primary text-xs font-bold rounded">
+              #{taskNumber}
+            </span>
+          )}
+
           <input
             type="text"
             value={editedTask.text || ''}
             onChange={(e) => setEditedTask({ ...editedTask, text: e.target.value })}
             onBlur={handleSave}
-            className="flex-1 min-w-0 text-base font-medium text-gray-900 dark:text-gray-100 bg-transparent border-none focus:outline-none"
+            className="flex-1 min-w-0 text-base font-medium text-fg-primary bg-transparent border-none focus:outline-none"
             placeholder="Task description..."
           />
           {task.ref_id && (
-            <span className="font-mono text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2 py-1 rounded flex-shrink-0">
+            <span className="font-mono text-xs text-fg-tertiary bg-bg-secondary px-2 py-1 rounded flex-shrink-0">
               {task.ref_id}
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-2 flex-shrink-0"
+          className="p-1 rounded hover:bg-bg-tertiary transition-colors ml-2 flex-shrink-0"
           title="Close"
         >
-          <X size={16} className="text-gray-600 dark:text-gray-400" />
+          <X size={16} className="text-fg-secondary" />
         </button>
       </div>
 
       {/* Content - No scrollbar, fits in viewport */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-hidden flex flex-col min-h-0">
-        {/* Priority - Manual */}
-        <div className="flex-shrink-0 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Priority</span>
-            <input
-              type="number"
-              value={editedTask.priority || ''}
-              onChange={(e) => setEditedTask({ ...editedTask, priority: parseInt(e.target.value) || null })}
-              onBlur={handleSave}
-              placeholder="N/A"
-              className="w-16 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:border-gray-400 dark:focus:border-gray-600"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Value Score</span>
-            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-              {(() => {
-                const value = editedTask.value || 0
-                const pressure = editedTask.urgency || 0
-                const confidence = editedTask.momentum || 0
-                const timeCost = editedTask.effort || 1 // Default to 1 to avoid division by zero
-                // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
-                const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
-                return score
-              })()}
-            </span>
-          </div>
-        </div>
-
         {/* Status and Scheduled Date - Side by Side */}
         <div className="flex-shrink-0 flex gap-4">
           {/* Status Icons */}
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+            <label className="block text-xs font-medium text-fg-secondary mb-1.5">
               Status
             </label>
             <div className="flex items-center gap-3">
@@ -284,7 +263,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
                   className={`flex flex-col items-center gap-1 transition-all ${
                     editedTask.status === value
                       ? `${color} opacity-100`
-                      : 'text-gray-300 dark:text-gray-700 opacity-60 hover:opacity-100'
+                      : 'text-fg-tertiary opacity-40 hover:opacity-80'
                   }`}
                   title={label}
                 >
@@ -297,15 +276,15 @@ export default function TaskDetail({ task, onClose, onSave }) {
 
           {/* Scheduled Date */}
           <div className="flex-1 relative">
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+            <label className="block text-xs font-medium text-fg-secondary mb-1.5">
               Scheduled Date
             </label>
             <button
               onClick={() => setShowDatePicker(!showDatePicker)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded text-sm text-gray-800 dark:text-gray-200 hover:border-gray-400 dark:hover:border-gray-600 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 bg-bg-secondary border border-border-primary rounded text-sm text-fg-primary hover:border-border-focus transition-colors"
             >
               <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-gray-500 dark:text-gray-400" />
+                <Calendar size={14} className="text-fg-tertiary" />
                 <span className="text-xs">
                   {editedTask.scheduled_date ? formatDateNatural(editedTask.scheduled_date) : 'Not scheduled'}
                 </span>
@@ -320,7 +299,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
                       onSave(updatedTask)
                     }
                   }}
-                  className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  className="text-xs text-fg-tertiary hover:text-semantic-error transition-colors"
                   title="Clear date"
                 >
                   ×
@@ -352,153 +331,67 @@ export default function TaskDetail({ task, onClose, onSave }) {
           </div>
         </div>
 
-        {/* Priority Dimensions - Visual Formula */}
+        {/* Work Type Selector - Reactive vs Planning */}
         <div className="flex-shrink-0">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
-            Priority Dimensions
+          <label className="block text-xs font-medium text-fg-secondary mb-1.5">
+            Work Type
           </label>
-
-          {/* Formula Visualization */}
-          <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-            {/* Top Row: Numerator */}
-            <div className="flex items-center justify-center gap-2 mb-3">
-              {/* Value */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Value</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, value: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.value || 0) >= level
-                          ? 'bg-green-500 border-green-500'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-green-400'
-                      }`}
-                      title={`Value: ${level}/5`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">×</span>
-
-              {/* Pressure */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Pressure</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, urgency: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.urgency || 0) >= level
-                          ? 'bg-red-500 border-red-500'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-red-400'
-                      }`}
-                      title={`Pressure: ${level}/5`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">×</span>
-
-              {/* Confidence */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Confidence</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, momentum: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.momentum || 0) >= level
-                          ? 'bg-purple-500 border-purple-500'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-purple-400'
-                      }`}
-                      title={`Confidence: ${level}/5`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Division Line */}
-            <div className="border-t-2 border-gray-300 dark:border-gray-700 mb-3"></div>
-
-            {/* Bottom Row: Denominator */}
-            <div className="flex items-center justify-center gap-2 mb-3">
-              {/* Time Cost with Square Root Symbol */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="flex items-center gap-1">
-                  <span className="text-lg text-gray-500 dark:text-gray-400">√</span>
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Time Cost</span>
-                </div>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, effort: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.effort || 0) >= level
-                          ? 'bg-blue-500 border-blue-500'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
-                      }`}
-                      title={`Time Cost: ${level}/5`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">=</span>
-
-              {/* Score Display */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Score</span>
-                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(() => {
-                    const value = editedTask.value || 0
-                    const pressure = editedTask.urgency || 0
-                    const confidence = editedTask.momentum || 0
-                    const timeCost = editedTask.effort || 1
-                    // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
-                    const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
-                    return score
-                  })()}
-                </div>
-              </div>
-            </div>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                const updatedTask = { ...editedTask, work_type: 'reactive' }
+                setEditedTask(updatedTask)
+                if (onSave) {
+                  await onSave(updatedTask)
+                }
+              }}
+              className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-all ${
+                editedTask.work_type === 'reactive'
+                  ? 'bg-syntax-orange text-fg-inverse'
+                  : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+              }`}
+              title="Responding to external demands, urgent items, firefighting"
+            >
+              Reactive
+            </button>
+            <button
+              onClick={async () => {
+                const updatedTask = { ...editedTask, work_type: 'strategic' }
+                setEditedTask(updatedTask)
+                if (onSave) {
+                  await onSave(updatedTask)
+                }
+              }}
+              className={`flex-1 px-3 py-2 rounded text-xs font-medium transition-all ${
+                editedTask.work_type === 'strategic'
+                  ? 'bg-syntax-purple text-fg-inverse'
+                  : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+              }`}
+              title="Proactive, goal-oriented work, long-term planning"
+            >
+              Planning
+            </button>
+            {editedTask.work_type && (
+              <button
+                onClick={async () => {
+                  const updatedTask = { ...editedTask, work_type: null }
+                  setEditedTask(updatedTask)
+                  if (onSave) {
+                    await onSave(updatedTask)
+                  }
+                }}
+                className="px-3 py-2 rounded text-xs font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors"
+                title="Clear work type"
+              >
+                ×
+              </button>
+            )}
           </div>
         </div>
 
         {/* Task Type Selector */}
         <div className="flex-shrink-0">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+          <label className="block text-xs font-medium text-fg-secondary mb-1.5">
             Task Type
           </label>
           <div className="flex flex-wrap gap-2">
@@ -514,8 +407,8 @@ export default function TaskDetail({ task, onClose, onSave }) {
                 }}
                 className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
                   editedTask.task_type === value
-                    ? 'bg-gray-900 dark:bg-gray-700 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    ? 'bg-accent-primary text-fg-inverse'
+                    : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
                 }`}
                 title={description}
               >
@@ -531,7 +424,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
                     await onSave(updatedTask)
                   }
                 }}
-                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                className="px-3 py-1.5 rounded text-xs font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors"
                 title="Clear task type"
               >
                 Clear
@@ -540,9 +433,188 @@ export default function TaskDetail({ task, onClose, onSave }) {
           </div>
         </div>
 
+        {/* Collapsible Task Score Panel */}
+        {showPriorityFormula && (
+        <div className="flex-shrink-0">
+          {/* Global Position Label */}
+          {task.priority !== null && task.priority !== undefined && (
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-xs font-medium text-fg-secondary">Global Position:</span>
+              <span className="text-sm font-semibold text-fg-primary">
+                {task.priority}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowPriorityPanel(!showPriorityPanel)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-bg-secondary border border-border-primary rounded hover:bg-bg-tertiary transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-fg-secondary">Task Score</span>
+              <span className="text-sm font-semibold text-accent-primary">
+                {(() => {
+                  const value = editedTask.value || 0
+                  const pressure = editedTask.urgency || 0
+                  const confidence = editedTask.momentum || 0
+                  const timeCost = editedTask.effort || 1
+                  const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
+                  return score
+                })()}
+              </span>
+            </div>
+            <ChevronDown
+              size={16}
+              className={`text-fg-tertiary transition-transform ${showPriorityPanel ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {showPriorityPanel && (
+            <div className="mt-2 space-y-3">
+              {/* Formula Visualization */}
+              <div className="bg-bg-secondary border border-border-primary rounded-lg p-4">
+            {/* Top Row: Numerator */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {/* Value */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-fg-secondary">Value</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, value: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.value || 0) >= level
+                          ? 'bg-syntax-green border-syntax-green'
+                          : 'border-border-primary hover:border-syntax-green'
+                      }`}
+                      title={`Value: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-fg-tertiary text-lg mb-4">×</span>
+
+              {/* Pressure */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-fg-secondary">Pressure</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, urgency: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.urgency || 0) >= level
+                          ? 'bg-syntax-red border-syntax-red'
+                          : 'border-border-primary hover:border-syntax-red'
+                      }`}
+                      title={`Pressure: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-fg-tertiary text-lg mb-4">×</span>
+
+              {/* Confidence */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-fg-secondary">Confidence</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, momentum: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.momentum || 0) >= level
+                          ? 'bg-syntax-purple border-syntax-purple'
+                          : 'border-border-primary hover:border-syntax-purple'
+                      }`}
+                      title={`Confidence: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Division Line */}
+            <div className="border-t-2 border-border-primary mb-3"></div>
+
+            {/* Bottom Row: Denominator */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {/* Time Cost with Square Root Symbol */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-lg text-fg-tertiary">√</span>
+                  <span className="text-xs font-medium text-fg-secondary">Time Cost</span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, effort: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.effort || 0) >= level
+                          ? 'bg-syntax-blue border-syntax-blue'
+                          : 'border-border-primary hover:border-syntax-blue'
+                      }`}
+                      title={`Time Cost: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-fg-tertiary text-lg mb-4">=</span>
+
+              {/* Score Display */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-fg-secondary">Score</span>
+                <div className="text-2xl font-bold text-accent-primary">
+                  {(() => {
+                    const value = editedTask.value || 0
+                    const pressure = editedTask.urgency || 0
+                    const confidence = editedTask.momentum || 0
+                    const timeCost = editedTask.effort || 1
+                    // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
+                    const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
+                    return score
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+            </div>
+          )}
+        </div>
+        )}
+
         {/* Notes */}
         <div className="flex-1 min-h-0 flex flex-col">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 flex-shrink-0">
+          <label className="block text-xs font-medium text-fg-secondary mb-1 flex-shrink-0">
             Notes
           </label>
           <textarea
@@ -551,7 +623,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
             onInput={(e) => handleTextareaInput(e, 'context')}
             onKeyDown={(e) => handleTextareaKeyDown(e, 'context')}
             onBlur={handleSave}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-950 resize-none font-mono leading-relaxed"
+            className="flex-1 min-h-0 w-full bg-bg-secondary border border-border-primary rounded px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed"
             placeholder="What's this task about?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
@@ -560,7 +632,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
 
         {/* Work Notes */}
         <div className="flex-1 min-h-0 flex flex-col">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 flex-shrink-0">
+          <label className="block text-xs font-medium text-fg-secondary mb-1 flex-shrink-0">
             Work Notes
           </label>
           <textarea
@@ -569,7 +641,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
             onInput={(e) => handleTextareaInput(e, 'work_notes')}
             onKeyDown={(e) => handleTextareaKeyDown(e, 'work_notes')}
             onBlur={handleSave}
-            className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-950 resize-none font-mono leading-relaxed"
+            className="flex-1 min-h-0 w-full bg-bg-secondary border border-border-primary rounded px-3 py-2 text-sm text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed"
             placeholder="How's it going? Any blockers?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
@@ -577,12 +649,12 @@ export default function TaskDetail({ task, onClose, onSave }) {
         </div>
 
         {/* Metadata */}
-        <div className="flex-shrink-0 pt-2 border-t border-gray-200 dark:border-gray-800 space-y-1.5">
+        <div className="flex-shrink-0 pt-2 border-t border-border-primary space-y-1.5">
           {task.created_at && (
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Created</span>
+              <span className="text-fg-secondary">Created</span>
               <span
-                className="text-gray-700 dark:text-gray-300 cursor-help"
+                className="text-fg-primary cursor-help"
                 title={formatFullDate(task.created_at)}
               >
                 {getRelativeTime(task.created_at)}
@@ -591,9 +663,9 @@ export default function TaskDetail({ task, onClose, onSave }) {
           )}
           {task.updated_at && (
             <div className="flex justify-between text-xs">
-              <span className="text-gray-500 dark:text-gray-400">Updated</span>
+              <span className="text-fg-secondary">Updated</span>
               <span
-                className="text-gray-700 dark:text-gray-300 cursor-help"
+                className="text-fg-primary cursor-help"
                 title={formatFullDate(task.updated_at)}
               >
                 {getRelativeTime(task.updated_at)}

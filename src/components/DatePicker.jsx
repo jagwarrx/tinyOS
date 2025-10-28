@@ -139,16 +139,16 @@ export default function DatePicker({ value, onChange, onClose }) {
   }
 
   return (
-    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 z-50 min-w-[240px]">
+    <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded-lg shadow-lg p-3 z-50 min-w-[240px]">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Calendar size={14} className="text-gray-500" />
-          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Schedule</span>
+          <Calendar size={14} className="text-fg-tertiary" />
+          <span className="text-xs font-medium text-fg-primary">Schedule</span>
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          className="text-fg-tertiary hover:text-fg-primary"
         >
           <X size={14} />
         </button>
@@ -164,11 +164,11 @@ export default function DatePicker({ value, onChange, onClose }) {
             setError('')
           }}
           placeholder='Try "tomorrow", "monday", "3 days"...'
-          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500 dark:focus:border-blue-400"
+          className="w-full px-3 py-2 text-sm border border-border-primary rounded bg-bg-primary text-fg-primary placeholder-fg-tertiary focus:outline-none focus:border-border-focus"
           autoFocus
         />
         {error && (
-          <p className="text-[10px] text-red-500 dark:text-red-400 mt-1">{error}</p>
+          <p className="text-[10px] text-semantic-error mt-1">{error}</p>
         )}
       </form>
 
@@ -176,25 +176,25 @@ export default function DatePicker({ value, onChange, onClose }) {
       <div className="space-y-1">
         <button
           onClick={() => handleQuickSelect(getTodayISO())}
-          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-bg-tertiary transition-colors text-fg-primary"
         >
           Today
         </button>
         <button
           onClick={() => handleQuickSelect(getTomorrowISO())}
-          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
+          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-bg-tertiary transition-colors text-fg-primary"
         >
           Tomorrow
         </button>
         <button
           onClick={() => handleSpecialSelect('THIS_WEEK')}
-          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-purple-600 dark:text-purple-400"
+          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-syntax-purple/10 transition-colors text-syntax-purple"
         >
           This Week
         </button>
         <button
           onClick={() => handleSpecialSelect('SOMEDAY')}
-          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-blue-600 dark:text-blue-400"
+          className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-syntax-blue/10 transition-colors text-syntax-blue"
         >
           Someday
         </button>
@@ -202,10 +202,10 @@ export default function DatePicker({ value, onChange, onClose }) {
 
       {/* Clear button */}
       {value && (
-        <div className="pt-2 mt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="pt-2 mt-2 border-t border-border-primary">
           <button
             onClick={handleClear}
-            className="w-full text-center px-2 py-1.5 text-xs rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-red-600 dark:text-red-400"
+            className="w-full text-center px-2 py-1.5 text-xs rounded hover:bg-semantic-error/10 transition-colors text-semantic-error"
           >
             Clear
           </button>

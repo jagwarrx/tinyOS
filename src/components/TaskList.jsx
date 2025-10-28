@@ -91,20 +91,20 @@ export default function TaskList({
   const getStatusColor = (status) => {
     switch (status) {
       case 'DOING':
-        return 'text-blue-600 dark:text-blue-400'
+        return 'text-syntax-blue'
       case 'PLANNED':
-        return 'text-purple-600 dark:text-purple-400'
+        return 'text-syntax-purple'
       case 'BLOCKED':
-        return 'text-yellow-600 dark:text-yellow-400'
+        return 'text-syntax-yellow'
       case 'OVERDUE':
-        return 'text-red-600 dark:text-red-400 font-semibold'
+        return 'text-syntax-red font-semibold'
       case 'DONE':
-        return 'text-green-600 dark:text-green-400'
+        return 'text-syntax-green'
       case 'CANCELLED':
-        return 'text-red-600 dark:text-red-400'
+        return 'text-syntax-red'
       case 'BACKLOG':
       default:
-        return 'text-gray-500 dark:text-gray-500'
+        return 'text-fg-tertiary'
     }
   }
 
@@ -147,7 +147,7 @@ export default function TaskList({
   // Empty state: show helpful message when no tasks
   if (!tasks || tasks.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-400 dark:text-gray-600">
+      <div className="p-8 text-center text-fg-tertiary">
         <Circle size={40} className="mx-auto mb-3 opacity-40" />
         <p className="text-sm">No tasks yet</p>
         <p className="text-xs mt-2">Use terminal to add tasks</p>
@@ -184,6 +184,18 @@ export default function TaskList({
           }
         }
 
+        // Debug: Log computed styles for selected task
+        if (isSelected) {
+          console.log('🎨 Selected task styles:', {
+            taskId: task.id,
+            taskText: task.text.substring(0, 30),
+            isSelected,
+            expectedBg: 'bg-accent-primary/20',
+            expectedBorder: 'border-accent-primary/50',
+            accentPrimaryColor: getComputedStyle(document.documentElement).getPropertyValue('--accent-primary')
+          })
+        }
+
         return (
           <div
             key={task.id}
@@ -192,15 +204,15 @@ export default function TaskList({
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, index)}
             onClick={handleTaskClick}
-            className={`group flex items-start gap-3 py-1.5 px-2 rounded cursor-pointer transition-all border hover:bg-blue-100 dark:hover:bg-blue-900/30 ${
+            className={`group flex items-center gap-3 py-1 px-2 rounded cursor-pointer transition-all border hover:bg-accent-hover ${
               isSelected
-                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                ? 'bg-accent-hover border-accent-primary'
                 : 'border-transparent'
             }`}
             title={isSelected ? "Click to open details" : "Click to select"}
           >
           {/* Number */}
-          <span className="text-gray-400 dark:text-gray-600 select-none w-8 flex-shrink-0">
+          <span className="text-fg-tertiary select-none w-8 flex-shrink-0">
             {index + 1}.
           </span>
 
@@ -210,24 +222,24 @@ export default function TaskList({
               e.stopPropagation()
               onToggleComplete(task.id)
             }}
-            className="mt-0.5 flex-shrink-0"
+            className="flex-shrink-0"
           >
             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
               task.status === 'DONE'
-                ? 'bg-green-500 border-green-500'
-                : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
+                ? 'bg-syntax-green border-syntax-green'
+                : 'border-border-primary hover:border-syntax-green'
             }`}>
-              {task.status === 'DONE' && <Check size={10} className="text-white" strokeWidth={3} />}
+              {task.status === 'DONE' && <Check size={10} className="text-fg-inverse" strokeWidth={3} />}
             </div>
           </button>
 
           {/* Task text, project, and status */}
-          <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+          <div className="flex-1 min-w-0 flex items-baseline gap-2">
             {/* Task text */}
             <span className={`${
               task.status === 'DONE'
-                ? 'line-through text-gray-400 dark:text-gray-600'
-                : 'text-gray-900 dark:text-gray-100'
+                ? 'line-through text-fg-tertiary'
+                : 'text-fg-primary'
             }`}>
               {task.text}
             </span>
@@ -236,140 +248,135 @@ export default function TaskList({
             {task.context && task.context.trim() && (
               <FileText
                 size={12}
-                className="text-gray-400 dark:text-gray-600 flex-shrink-0"
+                className="text-fg-tertiary flex-shrink-0"
                 title="Has notes"
               />
             )}
 
             {/* Project */}
             {task.project_id && (
-              <span className="text-gray-400 dark:text-gray-600 text-xs">
+              <span className="text-fg-tertiary text-xs">
                 [{getProjectName(task.project_id)}]
               </span>
             )}
 
-            {/* Spacer to push status to the right */}
+            {/* Spacer to push badges to the right */}
             <span className="flex-1" />
 
             {/* Task Type */}
             {task.task_type && (
-              <span className="text-gray-500 dark:text-gray-500 text-xs font-medium flex-shrink-0">
+              <span className="text-fg-secondary text-xs font-medium flex-shrink-0">
                 [{task.task_type.replace(/_/g, ' ')}]
               </span>
             )}
 
-            {/* Status - clickable, hidden on Today unless hovering (always show if DOING) */}
-            <div className={`relative flex-shrink-0 transition-opacity ${
-              viewType === 'Today' && task.status !== 'DOING' ? 'opacity-0 group-hover:opacity-100' : ''
-            }`} ref={openDropdown === task.id ? dropdownRef : null}>
+            {/* Badge container - slides status left on hover after delay */}
+            <div className="flex items-baseline gap-2 task-badges-container">
+              {/* Scheduled date display - always visible */}
+              {task.scheduled_date && (
+                <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                    }}
+                    className="flex items-center gap-1 text-xs text-syntax-purple hover:opacity-70 transition-opacity"
+                    title="Scheduled date"
+                  >
+                    <Calendar size={12} />
+                    {formatDateNatural(task.scheduled_date)}
+                  </button>
+
+                  {/* Date picker */}
+                  {openDatePicker === task.id && (
+                    <DatePicker
+                      value={task.scheduled_date}
+                      onChange={(date) => {
+                        onScheduleTask?.(task.id, date)
+                        setOpenDatePicker(null)
+                      }}
+                      onClose={() => setOpenDatePicker(null)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Calendar icon for scheduling (shown when no date) - always hidden on hover on all pages */}
+              {!task.scheduled_date && (
+                <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                    }}
+                    className="text-fg-tertiary hover:text-syntax-purple transition-all duration-200 opacity-0 group-hover:opacity-100"
+                    title="Schedule task"
+                  >
+                    <Calendar size={14} />
+                  </button>
+
+                  {/* Date picker */}
+                  {openDatePicker === task.id && (
+                    <DatePicker
+                      value={task.scheduled_date}
+                      onChange={(date) => {
+                        onScheduleTask?.(task.id, date)
+                        setOpenDatePicker(null)
+                      }}
+                      onClose={() => setOpenDatePicker(null)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Star button - hidden initially, shown on hover after delay */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleStatusClick(task.id)
+                  onToggleStar(task.id)
                 }}
-                className={`flex items-center gap-1 hover:opacity-70 transition-opacity font-mono ${getStatusColor(task.status)}`}
+                className="flex-shrink-0"
+                title={task.starred ? "Remove from Today" : "Add to Today"}
               >
-                {task.status === 'OVERDUE' && <AlertCircle size={12} className="opacity-70" />}
-                [{task.status}]
-                <ChevronDown size={12} className="opacity-50" />
+                <Star
+                  size={14}
+                  className={task.starred ? "fill-syntax-yellow text-syntax-yellow" : "text-fg-tertiary"}
+                />
               </button>
 
-              {/* Dropdown menu */}
-              {openDropdown === task.id && (
-                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg py-1 z-50 min-w-[120px]">
-                  {statusOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => handleStatusChange(task.id, option.value)}
-                      className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 font-mono ${getStatusColor(option.value)}`}
-                    >
-                      {option.icon && <option.icon size={12} className="opacity-60" />}
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* Status - clickable, animated position */}
+              <div className={`relative flex-shrink-0 transition-all duration-300 status-badge ${
+                viewType === 'Today' ? 'today-status' : ''
+              }`} ref={openDropdown === task.id ? dropdownRef : null}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleStatusClick(task.id)
+                  }}
+                  className={`flex items-center gap-1 hover:opacity-70 transition-opacity font-mono ${getStatusColor(task.status)}`}
+                >
+                  {task.status === 'OVERDUE' && <AlertCircle size={12} className="opacity-70" />}
+                  [{task.status}]
+                  <ChevronDown size={12} className="opacity-50" />
+                </button>
+
+                {/* Dropdown menu */}
+                {openDropdown === task.id && (
+                  <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[120px]">
+                    {statusOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => handleStatusChange(task.id, option.value)}
+                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors flex items-center gap-1.5 font-mono ${getStatusColor(option.value)}`}
+                      >
+                        {option.icon && <option.icon size={12} className="opacity-60" />}
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-
-            {/* Scheduled date display - hidden on Today unless hovering (always show if DOING) */}
-            {task.scheduled_date && (
-              <div className={`relative flex-shrink-0 transition-opacity ${
-                viewType === 'Today' && task.status !== 'DOING' ? 'opacity-0 group-hover:opacity-100' : ''
-              }`} ref={openDatePicker === task.id ? datePickerRef : null}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setOpenDatePicker(openDatePicker === task.id ? null : task.id)
-                  }}
-                  className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 hover:opacity-70 transition-opacity"
-                  title="Scheduled date"
-                >
-                  <Calendar size={12} />
-                  {formatDateNatural(task.scheduled_date)}
-                </button>
-
-                {/* Date picker */}
-                {openDatePicker === task.id && (
-                  <DatePicker
-                    value={task.scheduled_date}
-                    onChange={(date) => {
-                      onScheduleTask?.(task.id, date)
-                      setOpenDatePicker(null)
-                    }}
-                    onClose={() => setOpenDatePicker(null)}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Calendar icon for scheduling (shown when no date) - always hidden on hover on all pages */}
-            {!task.scheduled_date && (
-              <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setOpenDatePicker(openDatePicker === task.id ? null : task.id)
-                  }}
-                  className="text-gray-400 dark:text-gray-600 hover:text-purple-600 dark:hover:text-purple-400 transition-colors opacity-0 group-hover:opacity-100"
-                  title="Schedule task"
-                >
-                  <Calendar size={14} />
-                </button>
-
-                {/* Date picker */}
-                {openDatePicker === task.id && (
-                  <DatePicker
-                    value={task.scheduled_date}
-                    onChange={(date) => {
-                      onScheduleTask?.(task.id, date)
-                      setOpenDatePicker(null)
-                    }}
-                    onClose={() => setOpenDatePicker(null)}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Star button - on Today page, only show on hover (always show if DOING) */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggleStar(task.id)
-              }}
-              className={`flex-shrink-0 transition-opacity ${
-                viewType === 'Today' && task.status !== 'DOING'
-                  ? "opacity-0 group-hover:opacity-100"
-                  : (viewType === 'Today' && task.status === 'DOING'
-                      ? "opacity-100"
-                      : (task.starred ? "opacity-100" : "opacity-0 group-hover:opacity-100"))
-              }`}
-              title={task.starred ? "Remove from Today" : "Add to Today"}
-            >
-              <Star
-                size={14}
-                className={task.starred ? "fill-yellow-500 text-yellow-500" : "text-gray-400 dark:text-gray-600"}
-              />
-            </button>
           </div>
         </div>
       )

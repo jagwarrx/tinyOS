@@ -3,8 +3,9 @@ import Editor from './Editor'
 import TaskList from './TaskList'
 import ProjectsList from './ProjectsList'
 import InboxList from './InboxList'
+import LogPage from './LogPage'
 import CollapsibleFilterBar from './CollapsibleFilterBar'
-import { Home, Star } from 'lucide-react'
+import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
 
 export default function NoteEditor({
@@ -184,8 +185,20 @@ export default function NoteEditor({
   }
 
   const handleTitleChange = (e) => {
+    // Don't allow title changes for special system pages
+    if (isSpecialSystemPage(note)) return
+
     setTitle(e.target.value)
     triggerAutoSave()
+  }
+
+  // Check if this is a special system page that shouldn't be renamed
+  const isSpecialSystemPage = (note) => {
+    if (!note) return false
+    return note.note_type === 'task_list' ||
+           note.note_type === 'project_list' ||
+           note.note_type === 'inbox_list' ||
+           note.note_type === 'log_list'
   }
 
   const handleSave = async () => {
@@ -269,11 +282,19 @@ export default function NoteEditor({
         }
 
         if (e.key === 'ArrowUp' && canNavigate('up')) {
+          // Don't navigate if on a task list with a selected task
+          if (note.note_type === 'task_list' && selectedTaskId) {
+            return
+          }
           e.preventDefault()
           onNavigate(note.up_id)
           return
         }
         if (e.key === 'ArrowDown' && canNavigate('down')) {
+          // Don't navigate if on a task list with a selected task
+          if (note.note_type === 'task_list' && selectedTaskId) {
+            return
+          }
           e.preventDefault()
           onNavigate(note.down_id)
           return
@@ -368,17 +389,17 @@ export default function NoteEditor({
   if (!note) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 max-w-lg">
+        <div className="bg-bg-elevated rounded-2xl shadow-lg border border-border-primary p-12 max-w-lg">
           <div className="text-center">
-            <p className="text-xl text-gray-400 dark:text-gray-600 mb-6">Select a note or create a new one</p>
-            <div className="text-xs text-gray-500 dark:text-gray-500 space-y-2 bg-gray-50 dark:bg-gray-850 p-6 rounded">
-              <p className="font-medium mb-3 text-gray-600 dark:text-gray-400">Keyboard Shortcuts:</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+S</kbd> Save note</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Backspace</kbd> Delete note</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">↑↓←→</kbd> Navigate (when not editing)</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+↑↓←→</kbd> Force navigate (while editing)</p>
-              <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Shift+↑↓←→</kbd> Create linked note</p>
-              <p className="pt-2 border-t border-gray-200 dark:border-gray-700 mt-3"><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Right-click title</kbd> Set as HOME</p>
+            <p className="text-xl text-fg-secondary mb-6">Select a note or create a new one</p>
+            <div className="text-xs text-fg-secondary space-y-2 bg-bg-secondary p-6 rounded">
+              <p className="font-medium mb-3 text-fg-tertiary">Keyboard Shortcuts:</p>
+              <p><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">Ctrl+S</kbd> Save note</p>
+              <p><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">Ctrl+Backspace</kbd> Delete note</p>
+              <p><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">↑↓←→</kbd> Navigate (when not editing)</p>
+              <p><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">Ctrl+↑↓←→</kbd> Force navigate (while editing)</p>
+              <p><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">Ctrl+Shift+↑↓←→</kbd> Create linked note</p>
+              <p className="pt-2 border-t border-border-primary mt-3"><kbd className="px-2 py-1 bg-bg-primary border border-border-primary rounded text-xs">Right-click title</kbd> Set as HOME</p>
             </div>
           </div>
         </div>
@@ -408,41 +429,41 @@ export default function NoteEditor({
   return (
     <div className="h-full flex flex-col">
       {/* Card Container */}
-      <div className={`flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden ${getAnimationClass()}`}>
-        
+      <div className={`flex-1 flex flex-col bg-bg-primary rounded-2xl shadow-lg border border-border-primary overflow-hidden ${getAnimationClass()}`}>
+
         {/* Navigation Breadcrumb Panel */}
-        <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-6 py-3 bg-bg-secondary border-b border-border-primary">
           <div className="flex items-center justify-center gap-3 text-sm flex-wrap">
             {/* Up Link */}
             {note.up_id ? (
               <button
                 onClick={() => onNavigate(note.up_id)}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                className="text-fg-secondary hover:text-fg-primary transition-colors"
                 title="Navigate up (↑)"
               >
                 ↑ {getNoteTitleById(note.up_id)}
               </button>
             ) : (
-              <span className="text-gray-400 dark:text-gray-600 text-xs">up ()</span>
+              <span className="text-fg-tertiary text-xs">up ()</span>
             )}
 
-            <span className="text-gray-300 dark:text-gray-700">|</span>
+            <span className="text-border-primary">|</span>
 
             {/* Left Link */}
             {note.left_id ? (
               <button
                 onClick={() => onNavigate(note.left_id)}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                className="text-fg-secondary hover:text-fg-primary transition-colors"
                 title="Navigate left (←)"
               >
                 ← {getNoteTitleById(note.left_id)}
               </button>
             ) : (
-              <span className="text-gray-400 dark:text-gray-600 text-xs">left ()</span>
+              <span className="text-fg-tertiary text-xs">left ()</span>
             )}
 
             {/* Current Note */}
-            <span className="font-semibold text-gray-900 dark:text-gray-100 px-3 py-1 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600">
+            <span className="font-semibold text-fg-primary px-3 py-1 bg-bg-elevated rounded border border-border-focus">
               {title || 'Untitled'}
             </span>
 
@@ -450,39 +471,53 @@ export default function NoteEditor({
             {note.right_id ? (
               <button
                 onClick={() => onNavigate(note.right_id)}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                className="text-fg-secondary hover:text-fg-primary transition-colors"
                 title="Navigate right (→)"
               >
                 {getNoteTitleById(note.right_id)} →
               </button>
             ) : (
-              <span className="text-gray-400 dark:text-gray-600 text-xs">right ()</span>
+              <span className="text-fg-tertiary text-xs">right ()</span>
             )}
 
-            <span className="text-gray-300 dark:text-gray-700">|</span>
+            <span className="text-border-primary">|</span>
 
             {/* Down Link */}
             {note.down_id ? (
               <button
                 onClick={() => onNavigate(note.down_id)}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                className="text-fg-secondary hover:text-fg-primary transition-colors"
                 title="Navigate down (↓)"
               >
                 ↓ {getNoteTitleById(note.down_id)}
               </button>
             ) : (
-              <span className="text-gray-400 dark:text-gray-600 text-xs">down ()</span>
+              <span className="text-fg-tertiary text-xs">down ()</span>
             )}
           </div>
         </div>
 
         {/* Title Section */}
-        <div className="p-6 pb-4 border-b border-gray-100 dark:border-gray-750">
+        <div className="p-6 pb-4 border-b border-border-primary">
           <div className="relative flex items-start gap-3">
-            {/* Home indicator */}
-            {note.is_home && (
+            {/* Page icon indicators */}
+            {(note.is_home || isSpecialSystemPage(note)) && (
               <div className="mt-2">
-                <Home size={20} className="text-gray-400 dark:text-gray-600" />
+                {note.is_home && !isSpecialSystemPage(note) && (
+                  <Home size={20} className="text-fg-tertiary" />
+                )}
+                {note.note_type === 'task_list' && (
+                  <ListTodo size={20} className="text-fg-tertiary" />
+                )}
+                {note.note_type === 'inbox_list' && (
+                  <Inbox size={20} className="text-fg-tertiary" />
+                )}
+                {note.note_type === 'project_list' && (
+                  <FolderKanban size={20} className="text-fg-tertiary" />
+                )}
+                {note.note_type === 'log_list' && (
+                  <ScrollText size={20} className="text-fg-tertiary" />
+                )}
               </div>
             )}
 
@@ -493,20 +528,23 @@ export default function NoteEditor({
                 onChange={handleTitleChange}
                 onContextMenu={handleTitleContextMenu}
                 placeholder="Untitled"
-                className="text-3xl font-semibold outline-none bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-600"
+                readOnly={isSpecialSystemPage(note)}
+                className={`text-3xl font-semibold outline-none bg-transparent text-fg-primary placeholder-fg-tertiary ${
+                  isSpecialSystemPage(note) ? 'cursor-default' : ''
+                }`}
                 style={{ width: 'auto', minWidth: '100px' }}
               />
 
               {/* Date next to Today title */}
               {note.title === 'Today' && (
-                <span className="text-lg text-gray-500 dark:text-gray-400 font-normal whitespace-nowrap" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <span className="text-lg text-fg-secondary font-normal whitespace-nowrap" style={{ fontFamily: 'Inter, sans-serif' }}>
                   {formatTodayLong()}
                 </span>
               )}
 
               {/* Project ID badge for project notes */}
               {note.note_type === 'project' && note.ref_id && (
-                <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-xs font-mono rounded whitespace-nowrap">
+                <span className="px-2 py-1 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary text-xs font-mono rounded whitespace-nowrap">
                   {note.ref_id}
                 </span>
               )}
@@ -514,7 +552,7 @@ export default function NoteEditor({
 
             {/* Saved badge - subtle and unobtrusive */}
             {showSavedBadge && (
-              <div className="mt-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-medium text-gray-500 dark:text-gray-400 opacity-0 animate-saved-badge">
+              <div className="mt-2 px-2 py-0.5 bg-bg-tertiary rounded text-[10px] font-medium text-fg-tertiary opacity-0 animate-saved-badge">
                 Saved
               </div>
             )}
@@ -522,12 +560,12 @@ export default function NoteEditor({
             {/* Star button */}
             <button
               onClick={() => onToggleStar(note.id)}
-              className="mt-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
+              className="mt-2 p-2 hover:bg-bg-tertiary rounded transition-colors flex-shrink-0"
               title={note.is_starred ? 'Unstar (hide from sidebar)' : 'Star (show in sidebar)'}
             >
               <Star
                 size={20}
-                className={note.is_starred ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400 dark:text-gray-600'}
+                className={note.is_starred ? 'fill-syntax-yellow text-syntax-yellow' : 'text-fg-tertiary'}
               />
             </button>
           </div>
@@ -553,11 +591,18 @@ export default function NoteEditor({
                 onItemClick={onProjectClick}
               />
             </div>
+          ) : note.note_type === 'log_list' ? (
+            /* Activity Log View */
+            <div className="flex-1 overflow-y-auto">
+              <LogPage
+                onRefIdNavigate={onRefIdNavigate}
+              />
+            </div>
           ) : note.note_type === 'project' ? (
             /* Project Note View - Editor + Tasks */
             <div className="flex-1 overflow-hidden flex flex-col">
               {/* Editor Section - Project Notes */}
-              <div className="flex-1 p-6 overflow-y-auto border-b border-gray-200 dark:border-gray-700">
+              <div className="flex-1 p-6 overflow-y-auto border-b border-border-primary">
                 <Editor
                   ref={editorRef}
                   initialContent={note.content}
@@ -567,12 +612,12 @@ export default function NoteEditor({
               </div>
 
               {/* Tasks Section - Project Tasks */}
-              <div className="flex-none h-80 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+              <div className="flex-none h-80 p-6 overflow-y-auto bg-bg-secondary">
                 <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                  <h3 className="text-sm font-semibold text-fg-secondary uppercase tracking-wider">
                     Project Tasks ({projectTasks.length})
                   </h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-500">
+                  <span className="text-xs text-fg-tertiary">
                     Use /task "text" :project to add tasks
                   </span>
                 </div>
@@ -591,7 +636,7 @@ export default function NoteEditor({
                     onTaskDoubleClick={onTaskDoubleClick}
                   />
                 ) : (
-                  <div className="text-center py-8 text-gray-400 dark:text-gray-600 text-sm">
+                  <div className="text-center py-8 text-fg-tertiary text-sm">
                     No tasks yet. Use the terminal to add tasks to this project.
                   </div>
                 )}
@@ -620,9 +665,9 @@ export default function NoteEditor({
                       onClick={() => setShowDoneSection(!showDoneSection)}
                       className={`absolute bottom-6 right-6 z-10 px-3 py-1.5 text-xs font-mono transition-all ${
                         showDoneSection
-                          ? 'bg-gray-100 dark:bg-gray-750 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                          : 'bg-transparent text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                      } rounded border border-gray-200 dark:border-gray-700`}
+                          ? 'bg-bg-tertiary text-fg-primary hover:bg-bg-secondary'
+                          : 'bg-transparent text-fg-tertiary hover:text-fg-secondary hover:bg-bg-tertiary/50'
+                      } rounded border border-border-primary`}
                       title={showDoneSection ? 'Hide Done section' : 'Show Done section'}
                     >
                       DONE ({(currentTasks || []).filter(t => t.status === 'DONE').length})
@@ -635,7 +680,7 @@ export default function NoteEditor({
                         style={showDoneSection ? { width: `${100 - doneSectionWidth}%` } : {}}
                       >
                         {showDoneSection && (
-                          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
+                          <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
                             Planned
                           </h3>
                         )}
@@ -659,7 +704,7 @@ export default function NoteEditor({
                       {/* Resizable Divider */}
                       {showDoneSection && (
                         <div
-                          className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors mx-4 flex-shrink-0"
+                          className="w-1 bg-border-primary hover:bg-accent-primary cursor-col-resize transition-colors mx-4 flex-shrink-0"
                           onMouseDown={handleResizeStart}
                           style={{ userSelect: 'none' }}
                           title="Drag to resize"
@@ -672,7 +717,7 @@ export default function NoteEditor({
                           className="flex flex-col h-full"
                           style={{ width: `${doneSectionWidth}%` }}
                         >
-                          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
+                          <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
                             Done
                           </h3>
                           <div className="flex-1 overflow-y-auto">
@@ -735,23 +780,23 @@ export default function NoteEditor({
             left: `${contextMenuPosition.x}px`,
             zIndex: 1000,
           }}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-xl py-1 min-w-[180px]"
+          className="bg-bg-elevated border border-border-secondary rounded shadow-xl py-1 min-w-[180px]"
         >
           <button
             onClick={handleSetAsHome}
-            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-sm text-fg-primary hover:bg-bg-tertiary flex items-center gap-2"
           >
             <Home size={14} />
             {note.is_home ? 'Unset as HOME' : 'Set as HOME'}
           </button>
-          
+
           {!note.is_home && (
             <button
               onClick={() => {
                 handleDelete()
                 setShowContextMenu(false)
               }}
-              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="w-full px-4 py-2 text-left text-sm text-semantic-error hover:bg-bg-tertiary"
             >
               Delete Note
             </button>

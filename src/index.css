@@ -1,19 +1,92 @@
+/* Import JetBrains Mono font */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global Developer/Terminal-style Typography */
+@layer base {
+  body {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Consolas', 'Menlo', monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: 0.01em; /* Slightly wider for monospace readability */
+    font-feature-settings: 'liga' 1, 'calt' 1; /* Enable ligatures for Fira Code */
+  }
+
+  /* Terminal-style font weights */
+  .font-light { font-weight: 300; }
+  .font-normal { font-weight: 400; }
+  .font-medium { font-weight: 500; }
+  .font-semibold { font-weight: 600; }
+  .font-bold { font-weight: 700; }
+
+  /* Clean, high-contrast text rendering */
+  * {
+    text-rendering: geometricPrecision;
+  }
+}
+
+/* Theme System CSS Variables */
+/* These are dynamically set by the theme system */
+:root {
+  /* Background colors */
+  --color-bg-primary: #2c2e34;
+  --color-bg-secondary: #23252b;
+  --color-bg-tertiary: #1d1f24;
+  --color-bg-elevated: #33353b;
+
+  /* Foreground/text colors */
+  --color-fg-primary: #e2e2e3;
+  --color-fg-secondary: #a7a9b0;
+  --color-fg-tertiary: #7f8490;
+  --color-fg-inverse: #2c2e34;
+
+  /* Border colors */
+  --color-border-primary: #3f4149;
+  --color-border-secondary: #2f3139;
+  --color-border-focus: #b39df3;
+
+  /* Semantic colors */
+  --color-semantic-error: #fc5d7c;
+  --color-semantic-warning: #e7c664;
+  --color-semantic-success: #9ed072;
+  --color-semantic-info: #76cce0;
+
+  /* Accent colors */
+  --color-accent-primary: #b39df3;
+  --color-accent-secondary: #76cce0;
+  --color-accent-hover: #c4b0f7;
+  --color-accent-active: #9d83ef;
+
+  /* Editor colors */
+  --color-editor-text: #e2e2e3;
+  --color-editor-bg: #2c2e34;
+  --color-editor-bold: #e7c664;
+  --color-editor-code: #76cce0;
+  --color-editor-highlight: #e7c664;
+  --color-editor-highlight-text: #2c2e34;
+
+  /* Syntax colors */
+  --color-syntax-red: #fc5d7c;
+  --color-syntax-orange: #f39660;
+  --color-syntax-yellow: #e7c664;
+  --color-syntax-green: #9ed072;
+  --color-syntax-blue: #76cce0;
+  --color-syntax-purple: #b39df3;
+  --color-syntax-grey: #7f8490;
+}
 
 /* Custom editor styles - Sublime Text inspired */
 .editor-input {
   min-height: 200px;
   line-height: 1.6;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  color: #f8f8f2;
+  color: var(--color-editor-text);
+  background-color: var(--color-editor-bg);
   outline: none;
-}
-
-/* Light theme overrides */
-:root:not(.dark) .editor-input {
-  color: #24292e;
 }
 
 .editor-placeholder {
@@ -21,13 +94,8 @@
   top: 0;
   left: 0;
   pointer-events: none;
-  color: #75715e;
+  color: var(--color-fg-tertiary);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-}
-
-/* Light theme placeholder */
-:root:not(.dark) .editor-placeholder {
-  color: #6a737d;
 }
 
 /* Remove ALL list styling by default */
@@ -39,12 +107,7 @@
 }
 
 .editor-input li {
-  color: #f8f8f2;
-}
-
-/* Light theme list items */
-:root:not(.dark) .editor-input li {
-  color: #24292e;
+  color: var(--color-editor-text);
 }
 
 /* Drag and drop styling */
@@ -79,15 +142,10 @@
   content: "•";
   position: absolute;
   left: 8px;
-  color: #f8f8f2;
+  color: var(--color-editor-text);
   font-size: 0.7em;
   line-height: 1.8;
   pointer-events: none;
-}
-
-/* Light theme bullet */
-:root:not(.dark) .editor-input ul > li::before {
-  color: #24292e;
 }
 
 /* Nested bullets - consistent 24px indent per level */
@@ -123,14 +181,9 @@
   content: counter(item) ". ";
   position: absolute;
   left: 0;
-  color: #f8f8f2;
+  color: var(--color-editor-text);
   min-width: 24px;
   pointer-events: none;
-}
-
-/* Light theme numbered list */
-:root:not(.dark) .editor-input ol > li::before {
-  color: #24292e;
 }
 
 /* Level 2: i. ii. iii. - consistent 24px indent */
@@ -189,32 +242,14 @@
 .editor-input .editor-text-bold,
 .editor-input span[data-lexical-text="true"][style*="font-weight: bold"],
 .editor-input span[data-lexical-text="true"][style*="font-weight:bold"] {
-  color: #facc15 !important;
-  font-weight: normal !important;
-}
-
-:root:not(.dark) .editor-input .editor-text-bold,
-:root:not(.dark) .editor-input span[data-lexical-text="true"][style*="font-weight: bold"],
-:root:not(.dark) .editor-input span[data-lexical-text="true"][style*="font-weight:bold"] {
-  color: #eab308 !important;
+  color: var(--color-editor-bold) !important;
   font-weight: normal !important;
 }
 
 /* Electric blue text (code format repurposed) */
 .editor-input .editor-text-blue,
 .editor-input code.editor-text-blue {
-  color: #00d4ff !important;
-  font-weight: normal !important;
-  font-family: inherit !important;
-  background: none !important;
-  padding: 0 !important;
-  border-radius: 0 !important;
-  font-size: inherit !important;
-}
-
-:root:not(.dark) .editor-input .editor-text-blue,
-:root:not(.dark) .editor-input code.editor-text-blue {
-  color: #0ea5e9 !important;
+  color: var(--color-editor-code) !important;
   font-weight: normal !important;
   font-family: inherit !important;
   background: none !important;
@@ -236,49 +271,226 @@
 }
 
 .editor-input .editor-text-highlight {
-  background-color: #fef08a;
-  color: #854d0e;
-}
-
-:root:not(.dark) .editor-input .editor-text-highlight {
-  background-color: #fef08a;
-  color: #854d0e;
-}
-
-/* Dark theme highlight */
-.dark .editor-input .editor-text-highlight {
-  background-color: #a16207;
-  color: #fef3c7;
+  background-color: var(--color-editor-highlight);
+  color: var(--color-editor-highlight-text);
 }
 
 /* Bold - yellow text (for strong tags if rendered) */
 .editor-input strong,
 .editor-input .text-yellow-400 {
-  color: #facc15;
-  font-weight: normal;
-}
-
-:root:not(.dark) .editor-input strong,
-:root:not(.dark) .editor-input .text-yellow-400 {
-  color: #eab308;
+  color: var(--color-editor-bold);
   font-weight: normal;
 }
 
 /* Highlight */
 .editor-input mark {
-  background-color: #49483e;
-  color: #f8f8f2;
-}
-
-/* Light theme highlight */
-:root:not(.dark) .editor-input mark {
-  background-color: #fff3cd;
-  color: #24292e;
+  background-color: var(--color-editor-highlight);
+  color: var(--color-editor-highlight-text);
 }
 
 /* Smooth transitions for theme switching */
 * {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ============================================
+   HACKER / TERMINAL UI MODE
+   ============================================ */
+
+.ui-hacker {
+  /* Remove all rounded corners */
+  --border-radius: 0px;
+}
+
+/* Remove rounded corners globally */
+.ui-hacker * {
+  border-radius: 0 !important;
+}
+
+/* Typography hierarchy - Bold for headings/labels */
+.ui-hacker h1,
+.ui-hacker h2,
+.ui-hacker h3,
+.ui-hacker h4,
+.ui-hacker label,
+.ui-hacker .font-semibold,
+.ui-hacker .font-bold {
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+}
+
+/* Regular weight for secondary text */
+.ui-hacker .text-xs,
+.ui-hacker .text-sm:not(.font-medium):not(.font-semibold):not(.font-bold),
+.ui-hacker p,
+.ui-hacker span:not(.font-medium):not(.font-semibold):not(.font-bold) {
+  font-weight: 400;
+}
+
+/* Remove all box shadows */
+.ui-hacker *,
+.ui-hacker *:hover,
+.ui-hacker *:focus {
+  box-shadow: none !important;
+}
+
+/* Simple border-based focus states */
+.ui-hacker *:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: -2px;
+}
+
+/* Text-based buttons (no background fills) */
+.ui-hacker button:not(.primary-action) {
+  background: transparent !important;
+  border: 1px solid var(--color-border-primary);
+}
+
+.ui-hacker button:not(.primary-action):hover {
+  border-color: var(--color-border-focus);
+  background: transparent !important;
+}
+
+/* Primary actions keep their background */
+.ui-hacker button.primary-action,
+.ui-hacker .bg-accent-primary,
+.ui-hacker .bg-\[#1DB954\],
+.ui-hacker .bg-red-600 {
+  /* Keep colored backgrounds for important actions */
+}
+
+/* List items with text-based indicators */
+.ui-hacker .task-item::before {
+  content: "[ ]";
+  margin-right: 8px;
+  color: var(--color-border-primary);
+}
+
+.ui-hacker .task-item.completed::before {
+  content: "[×]";
+  color: var(--color-syntax-green);
+}
+
+/* Tab navigation - text underline only */
+.ui-hacker .tab-nav {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.ui-hacker .tab-nav button {
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+}
+
+.ui-hacker .tab-nav button.active {
+  border-bottom-color: var(--color-accent-primary);
+  font-weight: 700;
+}
+
+/* Cards/panels - border only, no background differentiation */
+.ui-hacker .card,
+.ui-hacker .panel {
+  border: 1px solid var(--color-border-primary);
+  background: transparent;
+}
+
+/* Inputs - simple borders */
+.ui-hacker input,
+.ui-hacker textarea,
+.ui-hacker select {
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+}
+
+.ui-hacker input:focus,
+.ui-hacker textarea:focus,
+.ui-hacker select:focus {
+  border-color: var(--color-border-focus);
+  outline: none;
+}
+
+/* Status badges - text-based with brackets */
+.ui-hacker .status-badge {
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  background: transparent !important;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* Modal - full border, no shadow */
+.ui-hacker .modal {
+  border: 2px solid var(--color-border-primary);
+}
+
+/* Icons - reduce visual weight */
+.ui-hacker svg {
+  stroke-width: 1.5;
+}
+
+/* Progress bars - ASCII style */
+.ui-hacker .progress-bar {
+  border: 1px solid var(--color-border-primary);
+  background: transparent;
+}
+
+.ui-hacker .progress-fill {
+  background: var(--color-accent-primary);
+}
+
+/* Sidebar - clear separation with border */
+.ui-hacker .sidebar {
+  border-right: 1px solid var(--color-border-primary);
+}
+
+/* Table-like layouts for data */
+.ui-hacker .data-row {
+  border-bottom: 1px solid var(--color-border-secondary);
+  padding: 8px 0;
+}
+
+.ui-hacker .data-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.ui-hacker .data-value {
+  font-weight: 400;
+}
+
+/* Terminal-style timestamps and metadata */
+.ui-hacker .timestamp,
+.ui-hacker .metadata {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--color-fg-tertiary);
+  font-family: inherit;
+}
+
+/* Remove hover elevation effects */
+.ui-hacker *:hover {
+  transform: none !important;
+}
+
+/* Scrollbar - minimal */
+.ui-hacker *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ui-hacker *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ui-hacker *::-webkit-scrollbar-thumb {
+  background: var(--color-border-primary);
+  border: none;
+}
+
+.ui-hacker *::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-focus);
 }
 
 /* Custom Scrollbar - Light Theme */
@@ -429,4 +641,74 @@
 
 .animate-saved-badge {
   animation: savedBadgeFadeIn 0.4s ease-out forwards;
+}
+
+/* Task badge sliding animation */
+.task-badges-container {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Initially hide all badges except status */
+.task-badges-container > *:not(.status-badge) {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  transition: max-width 0.3s ease, opacity 0.2s ease, margin 0.3s ease, padding 0.3s ease;
+}
+
+/* On hover, reveal other badges and slide status left */
+.group:hover .task-badges-container > *:not(.status-badge) {
+  max-width: 100px;
+  opacity: 1;
+  transition: max-width 0.3s ease 0.5s, opacity 0.2s ease 0.5s, margin 0.3s ease 0.5s, padding 0.3s ease 0.5s;
+}
+
+/* Status badge animation - starts at right, slides left on hover */
+.task-badges-container .status-badge {
+  transition: all 0.3s ease;
+  transition-delay: 0s;
+}
+
+.group:hover .task-badges-container .status-badge {
+  transition-delay: 0.5s;
+}
+
+/* On Today page, hide status badge initially */
+.task-badges-container .today-status {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  transition: max-width 0.3s ease, opacity 0.2s ease, margin 0.3s ease, padding 0.3s ease;
+}
+
+/* On Today page hover, reveal status badge after delay */
+.group:hover .task-badges-container .today-status {
+  max-width: 100px;
+  opacity: 1;
+  transition: max-width 0.3s ease 0.5s, opacity 0.2s ease 0.5s, margin 0.3s ease 0.5s, padding 0.3s ease 0.5s;
+}
+
+/* Claude-style loading animation - innovative wave bounce */
+@keyframes loadingWave {
+  0%, 60%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-8px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+.animate-loading-wave {
+  animation: loadingWave 1.4s ease-in-out infinite;
 }

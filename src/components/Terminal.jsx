@@ -39,7 +39,10 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
   
   // Whether terminal is collapsed (minimized)
   const [isCollapsed, setIsCollapsed] = useState(false)
-  
+
+  // Loading state for async commands
+  const [isLoading, setIsLoading] = useState(false)
+
   // Refs for input focus and output scrolling
   const inputRef = useRef(null)
   const outputRef = useRef(null)
@@ -79,9 +82,13 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
     const command = input
     setInput('')
 
+    // Show loading indicator
+    setIsLoading(true)
+
     // Execute command asynchronously and display result
     try {
       const result = await onCommand(command)
+      setIsLoading(false)
       
       // Add result to output if command returned something
       if (result) {
@@ -92,6 +99,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       }
     } catch (error) {
       // Display error message if command failed
+      setIsLoading(false)
       console.error('Terminal command error:', error)
       setOutput(prev => [
         ...prev,
@@ -156,7 +164,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
 
     // Special case: /help command - highlight entirely in blue
     if (text.match(/^\/?help$/i)) {
-      return <span className="text-blue-500">{text}</span>
+      return <span className="text-syntax-blue">{text}</span>
     }
 
     const parts = []
@@ -173,56 +181,56 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       
       // Spaces don't count as words, just render them as-is
       if (token.match(/^\s+$/)) {
-        parts.push(<span key={position++} className="text-gray-300">{token}</span>)
+        parts.push(<span key={position++} className="text-fg-primary">{token}</span>)
         continue
       }
-      
+
       // Check if this is the last token (being actively typed)
       const isLastToken = i === tokens.length - 1
-      
+
       // Determine color based on word position in command structure
-      let colorClass = 'text-gray-300'
-      
+      let colorClass = 'text-fg-primary'
+
       if (wordIndex === 0) {
         // First word: command verbs (add, complete, star, goto)
         if (token.match(/^(add|complete|star|goto)$/i) && (!isLastToken || token.length >= 3)) {
-          colorClass = 'text-blue-500'
+          colorClass = 'text-syntax-blue'
         }
       } else if (wordIndex === 1) {
         // Second word: entity type (task)
         if (token.match(/^task$/i) && (!isLastToken || token.length === 4)) {
-          colorClass = 'text-green-500'
+          colorClass = 'text-syntax-green'
         }
       } else if (wordIndex === 2) {
         // Third word: content in quotes (task description)
         if (token.startsWith('"')) {
-          colorClass = 'text-gray-400'
+          colorClass = 'text-fg-secondary'
         }
       } else if (wordIndex === 3) {
         // Fourth word: connector (to)
         if (token.match(/^to$/i) && (!isLastToken || token.length === 2)) {
-          colorClass = 'text-gray-300'
+          colorClass = 'text-fg-primary'
         }
       } else if (wordIndex === 4) {
         // Fifth word: target destination (today, week, tasks)
         if (token.match(/^(today|week|tasks)$/i)) {
-          colorClass = 'text-purple-500'
+          colorClass = 'text-syntax-purple'
         } else if (isLastToken) {
           // Partial match: show lighter purple while typing
           const partial = token.toLowerCase()
           if ('today'.startsWith(partial) || 'week'.startsWith(partial) || 'tasks'.startsWith(partial)) {
             if (partial.length >= 2) {
-              colorClass = 'text-purple-400' // Lighter purple for incomplete
+              colorClass = 'text-accent-primary' // Theme accent for incomplete
             }
           }
         }
       }
-      
+
       // Special handling for quoted strings (treat entire quote as one word)
       if (token.startsWith('"')) {
         let quotedContent = token
         let j = i
-        
+
         // Look ahead to find closing quote if not in current token
         if (!token.endsWith('"') || token.length === 1) {
           while (j < tokens.length - 1 && !tokens[j].endsWith('"')) {
@@ -234,13 +242,13 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
             quotedContent += tokens[j]
           }
         }
-        
-        parts.push(<span key={position++} className="text-gray-400">{quotedContent}</span>)
+
+        parts.push(<span key={position++} className="text-fg-secondary">{quotedContent}</span>)
         i = j // Skip ahead past the quoted content
         wordIndex++ // Count entire quoted string as one word
         continue
       }
-      
+
       // Add the colored token
       parts.push(<span key={position++} className={colorClass}>{token}</span>)
       wordIndex++ // Move to next word position
@@ -252,16 +260,16 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
   // Collapsed state: show minimal bar with expand button
   if (isCollapsed) {
     return (
-      <div className="h-12 bg-gray-900 dark:bg-gray-950 border-t border-gray-700 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+      <div className="h-12 bg-bg-secondary border-t border-border-primary flex items-center justify-between px-4">
+        <div className="flex items-center gap-2 text-fg-secondary text-sm">
           <TerminalIcon size={16} />
           <span>Terminal</span>
         </div>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="p-1 hover:bg-gray-800 rounded transition-colors"
+          className="p-1 hover:bg-bg-tertiary rounded transition-colors"
         >
-          <ChevronUp size={16} className="text-gray-400" />
+          <ChevronUp size={16} className="text-fg-secondary" />
         </button>
       </div>
     )
@@ -269,18 +277,18 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
 
   // Expanded state: full terminal interface
   return (
-    <div className="h-48 bg-gray-900 dark:bg-gray-950 border-t border-gray-700 flex flex-col">
+    <div className="h-48 bg-bg-secondary border-t border-border-primary flex flex-col">
       {/* Header */}
-      <div className="h-10 bg-gray-800 dark:bg-gray-900 border-b border-gray-700 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
+      <div className="h-10 bg-bg-tertiary border-b border-border-primary flex items-center justify-between px-4">
+        <div className="flex items-center gap-2 text-fg-secondary text-sm">
           <TerminalIcon size={16} />
           <span>Terminal</span>
         </div>
         <button
           onClick={() => setIsCollapsed(true)}
-          className="p-1 hover:bg-gray-700 rounded transition-colors"
+          className="p-1 hover:bg-bg-secondary rounded transition-colors"
         >
-          <ChevronDown size={16} className="text-gray-400" />
+          <ChevronDown size={16} className="text-fg-secondary" />
         </button>
       </div>
 
@@ -288,10 +296,10 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       <div ref={outputRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm">
         {/* Output history */}
         {output.map((item, idx) => (
-          <div key={idx} className={item.type === 'command' ? 'mb-1 text-gray-500' : 'mb-3 text-gray-300'}>
+          <div key={idx} className={item.type === 'command' ? 'mb-1 text-fg-tertiary' : 'mb-3 text-fg-primary'}>
             {item.type === 'command' ? (
               <>
-                <span className="text-green-400">→</span> {String(item.text)}
+                <span className="text-syntax-green">→</span> {String(item.text)}
               </>
             ) : (
               <div className="ml-4 whitespace-pre-wrap">{String(item.text)}</div>
@@ -299,9 +307,21 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
           </div>
         ))}
 
+        {/* Loading indicator - Claude-style wave animation */}
+        {isLoading && (
+          <div className="ml-4 mb-3 flex items-center gap-2">
+            <div className="flex gap-1 items-end">
+              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '0ms' }}></span>
+              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '200ms' }}></span>
+              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '400ms' }}></span>
+            </div>
+            <span className="text-fg-tertiary text-xs animate-pulse">Thinking...</span>
+          </div>
+        )}
+
         {/* Input line */}
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <span className="text-green-400">→</span>
+          <span className="text-syntax-green">→</span>
           <div className="flex-1 relative">
             {/* Hidden input for actual typing */}
             <input
@@ -310,15 +330,15 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full bg-transparent outline-none text-gray-300 absolute inset-0 caret-gray-300"
-              style={{ color: 'transparent', caretColor: '#d1d5db' }}
+              className="w-full bg-transparent outline-none text-fg-primary absolute inset-0"
+              style={{ color: 'transparent', caretColor: 'var(--color-fg-primary)' }}
               placeholder="Type /help for commands"
               autoFocus
             />
             {/* Syntax highlighted overlay */}
             <div className="pointer-events-none whitespace-pre">
               {input ? highlightSyntax(input) : (
-                <span className="text-gray-600">Type /help for commands</span>
+                <span className="text-fg-tertiary">Type /help for commands</span>
               )}
             </div>
           </div>

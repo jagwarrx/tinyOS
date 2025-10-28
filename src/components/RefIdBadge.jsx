@@ -16,21 +16,21 @@ export default function RefIdBadge({ refId, type, title, onClick, inline = true 
     e.preventDefault()
     e.stopPropagation()
     if (onClick) {
-      onClick(refId, type)
+      onClick(e)
     }
   }
 
   const bgColor = type === 'task'
-    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-    : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+    ? 'bg-syntax-blue/10 border-syntax-blue/30'
+    : 'bg-syntax-purple/10 border-syntax-purple/30'
 
   const textColor = type === 'task'
-    ? 'text-blue-700 dark:text-blue-300'
-    : 'text-purple-700 dark:text-purple-300'
+    ? 'text-syntax-blue'
+    : 'text-syntax-purple'
 
   const labelColor = type === 'task'
-    ? 'text-blue-500 dark:text-blue-400'
-    : 'text-purple-500 dark:text-purple-400'
+    ? 'text-syntax-blue'
+    : 'text-syntax-purple'
 
   const displayStyle = inline
     ? 'inline-flex'
@@ -39,7 +39,7 @@ export default function RefIdBadge({ refId, type, title, onClick, inline = true 
   return (
     <span
       onClick={handleClick}
-      className={`${displayStyle} items-center gap-1.5 px-2 py-0.5 rounded border ${bgColor} cursor-pointer hover:shadow-sm transition-all font-mono text-xs whitespace-nowrap max-w-md`}
+      className={`${displayStyle} items-center gap-1.5 px-2 py-0.5 rounded border ${bgColor} cursor-pointer hover:shadow-sm transition-all font-mono text-xs whitespace-nowrap max-w-md select-none`}
       title={`Click to open ${type}: ${title}`}
       contentEditable={false}
       suppressContentEditableWarning
@@ -50,7 +50,7 @@ export default function RefIdBadge({ refId, type, title, onClick, inline = true 
       </span>
 
       {/* Separator */}
-      <span className="text-gray-400 dark:text-gray-600">|</span>
+      <span className="text-fg-tertiary">|</span>
 
       {/* Title */}
       <span className={`${textColor} truncate max-w-[200px]`}>
@@ -58,7 +58,7 @@ export default function RefIdBadge({ refId, type, title, onClick, inline = true 
       </span>
 
       {/* Ref ID */}
-      <span className="text-gray-400 dark:text-gray-600 text-[10px]">
+      <span className="text-fg-tertiary text-[10px]">
         {refId}
       </span>
     </span>

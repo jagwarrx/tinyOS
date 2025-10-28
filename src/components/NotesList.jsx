@@ -23,12 +23,12 @@ export default function NotesList({
   const starredNotes = notes.filter(n => !n.is_home && n.is_starred)
 
   return (
-    <div className="w-72 h-screen bg-white dark:bg-gray-900 flex flex-col border-r border-gray-200 dark:border-gray-800">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Notes</h2>
+    <div className="w-72 h-screen bg-bg-secondary flex flex-col border-r border-border-primary">
+      <div className="p-4 border-b border-border-primary flex justify-between items-center">
+        <h2 className="text-lg font-medium text-fg-primary">Notes</h2>
         <button
           onClick={onCreateNote}
-          className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          className="p-2 text-fg-secondary hover:bg-bg-tertiary rounded-lg transition-colors"
           title="New Note"
         >
           <Plus size={18} />
@@ -37,19 +37,19 @@ export default function NotesList({
 
       {/* HOME Note */}
       {homeNote && (
-        <div className="border-b border-gray-200 dark:border-gray-800">
+        <div className="border-b border-border-primary">
           <div
             className={`p-3 cursor-pointer transition-colors group ${
-              selectedNote?.id === homeNote.id 
-                ? 'bg-gray-100 dark:bg-gray-800' 
-                : 'hover:bg-gray-50 dark:hover:bg-gray-850'
+              selectedNote?.id === homeNote.id
+                ? 'bg-bg-tertiary'
+                : 'hover:bg-bg-tertiary/50'
             }`}
           >
             <div className="flex items-center gap-2 mb-1">
-              <Home size={14} className="text-gray-500 dark:text-gray-400" />
+              <Home size={14} className="text-fg-tertiary" />
               <button
                 onClick={(e) => onSelectNote(homeNote, e.shiftKey)}
-                className="font-medium text-sm text-gray-900 dark:text-gray-100 flex-1 text-left"
+                className="font-medium text-sm text-fg-primary flex-1 text-left"
                 title="Click to open | Shift+Click for side-by-side"
               >
                 {homeNote.title || 'HOME'}
@@ -64,7 +64,7 @@ export default function NotesList({
               >
                 <Star
                   size={14}
-                  className={homeNote.is_starred ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}
+                  className={homeNote.is_starred ? 'fill-syntax-yellow text-syntax-yellow' : 'text-fg-tertiary'}
                 />
               </button>
             </div>
@@ -74,7 +74,7 @@ export default function NotesList({
 
       <div className="flex-1 overflow-y-auto">
         {starredNotes.length === 0 ? (
-          <div className="p-8 text-center text-gray-400 dark:text-gray-600">
+          <div className="p-8 text-center text-fg-tertiary">
             <Star size={40} className="mx-auto mb-3 opacity-40" />
             <p className="text-sm">No starred notes</p>
             <p className="text-xs mt-2">Star notes to pin them here</p>
@@ -82,20 +82,20 @@ export default function NotesList({
         ) : (
           starredNotes.map((note) => {
             const isSelected = selectedNote?.id === note.id
-            
+
             return (
               <div
                 key={note.id}
-                className={`p-3 border-b border-gray-100 dark:border-gray-850 cursor-pointer transition-colors group ${
-                  isSelected 
-                    ? 'bg-gray-100 dark:bg-gray-800' 
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-850'
+                className={`p-3 border-b border-border-secondary cursor-pointer transition-colors group ${
+                  isSelected
+                    ? 'bg-bg-tertiary'
+                    : 'hover:bg-bg-tertiary/50'
                 }`}
               >
                 <div className="flex items-start justify-between mb-1">
                   <button
                     onClick={(e) => onSelectNote(note, e.shiftKey)}
-                    className="font-medium text-sm flex-1 text-left text-gray-900 dark:text-gray-100"
+                    className="font-medium text-sm flex-1 text-left text-fg-primary"
                     title="Click to open | Shift+Click for side-by-side"
                   >
                     {note.title || 'Untitled'}
@@ -110,16 +110,16 @@ export default function NotesList({
                   >
                     <Star
                       size={14}
-                      className="fill-yellow-400 text-yellow-400"
+                      className="fill-syntax-yellow text-syntax-yellow"
                     />
                   </button>
                 </div>
-                
-                <div className="text-xs text-gray-500 dark:text-gray-500 line-clamp-2">
+
+                <div className="text-xs text-fg-secondary line-clamp-2">
                   {getPreview(note.content)}
                 </div>
-                
-                <div className="text-xs text-gray-400 dark:text-gray-600 mt-1.5">
+
+                <div className="text-xs text-fg-tertiary mt-1.5">
                   {new Date(note.updated_at).toLocaleDateString()}
                 </div>
               </div>

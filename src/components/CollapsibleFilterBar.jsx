@@ -35,7 +35,7 @@ export default function CollapsibleFilterBar({
     { value: 'QUICK_WINS', label: 'Quick Wins', icon: Zap },
     { value: 'GRUNT_WORK', label: 'Grunt Work', icon: Wrench },
     { value: 'PEOPLE_TIME', label: 'People Time', icon: Users },
-    { value: 'STRATEGIC', label: 'Strategic', icon: Compass }
+    { value: 'STRATEGIC', label: 'Planning', icon: Compass }
   ]
 
   const statusOptions = [
@@ -74,30 +74,30 @@ export default function CollapsibleFilterBar({
 
   const getStatusColorClasses = (color, isActive) => {
     if (!isActive) {
-      return 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+      return 'text-fg-tertiary hover:text-fg-secondary'
     }
 
     switch (color) {
       case 'amber':
-        return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-500'
+        return 'bg-syntax-yellow/20 text-syntax-yellow'
       case 'green':
-        return 'bg-green-500/20 text-green-600 dark:text-green-500'
+        return 'bg-syntax-green/20 text-syntax-green'
       case 'gray':
-        return 'bg-gray-500/20 text-gray-600 dark:text-gray-400'
+        return 'bg-fg-tertiary/20 text-fg-secondary'
       default:
-        return 'text-gray-400 dark:text-gray-500'
+        return 'text-fg-tertiary'
     }
   }
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-800">
+    <div className="flex items-center gap-3 px-3 py-2 bg-bg-secondary border-b border-border-primary">
       {/* Task Type Filter Bar */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">Type</span>
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Experience</span>
 
         <div className={`flex items-center gap-1 rounded border transition-all duration-200 ${
           isTaskTypeExpanded ? 'px-2 py-1' : 'px-1.5 py-0.5'
-        } bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
+        } bg-bg-primary border-border-primary`}>
           {taskTypeOptions.map(({ value, label, icon: Icon }) => {
             const isActive = selectedTaskType === value
             const count = getTaskTypeCount(value)
@@ -109,8 +109,8 @@ export default function CollapsibleFilterBar({
                   isTaskTypeExpanded ? 'px-1.5 py-0.5' : 'p-1'
                 } ${
                   isActive
-                    ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                    ? 'bg-accent-primary/20 text-accent-primary'
+                    : 'text-fg-tertiary hover:text-fg-secondary'
                 }`}
                 title={!isTaskTypeExpanded ? label : undefined}
               >
@@ -126,11 +126,11 @@ export default function CollapsibleFilterBar({
             )
           })}
 
-          <div className="w-px h-3 bg-gray-200 dark:bg-gray-700" />
+          <div className="w-px h-3 bg-border-primary" />
 
           <button
             onClick={() => setIsTaskTypeExpanded(!isTaskTypeExpanded)}
-            className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="p-0.5 rounded hover:bg-bg-tertiary text-fg-tertiary hover:text-fg-secondary transition-colors"
             title={isTaskTypeExpanded ? 'Collapse' : 'Expand'}
           >
             {isTaskTypeExpanded ? (
@@ -144,11 +144,11 @@ export default function CollapsibleFilterBar({
 
       {/* Status Filter Bar */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500">Status</span>
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Status</span>
 
         <div className={`flex items-center gap-1 rounded border transition-all duration-200 ${
           isStatusExpanded ? 'px-2 py-1' : 'px-1.5 py-0.5'
-        } bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
+        } bg-bg-primary border-border-primary`}>
           {statusOptions.map(({ value, label, icon: Icon, color }) => {
             const isActive = selectedStatuses.includes(value)
             const count = getStatusCount(value)
@@ -173,11 +173,11 @@ export default function CollapsibleFilterBar({
             )
           })}
 
-          <div className="w-px h-3 bg-gray-200 dark:bg-gray-700" />
+          <div className="w-px h-3 bg-border-primary" />
 
           <button
             onClick={() => setIsStatusExpanded(!isStatusExpanded)}
-            className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="p-0.5 rounded hover:bg-bg-tertiary text-fg-tertiary hover:text-fg-secondary transition-colors"
             title={isStatusExpanded ? 'Collapse' : 'Expand'}
           >
             {isStatusExpanded ? (
@@ -196,7 +196,7 @@ export default function CollapsibleFilterBar({
             onTaskTypeChange?.(null)
             onStatusChange?.([])
           }}
-          className="ml-auto text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          className="ml-auto text-[10px] text-fg-tertiary hover:text-fg-secondary transition-colors"
         >
           Clear
         </button>

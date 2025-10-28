@@ -40,12 +40,28 @@ import NoteEditor from './components/NoteEditor'
 import Terminal from './components/Terminal'
 import Timer from './components/Timer'
 import TaskDetail from './components/TaskDetail'
+import FloatingAudioPlayer from './components/FloatingAudioPlayer'
+import SettingsModal from './components/SettingsModal'
+import LogPage from './components/LogPage'
 import { supabase } from './supabaseClient'
-import { Menu, Sun, Moon, Home, Inbox, ListTodo, FolderKanban, ScrollText } from 'lucide-react'
+import { Menu, Sun, Moon, Home, Inbox, ListTodo, FolderKanban, ScrollText, Settings } from 'lucide-react'
 import {
   parseCommand,
   createTaskListContent
 } from './utils/commandParser'
+import { loadAndApplyTheme, changeTheme } from './services/themeService'
+import { applyFont, loadFontPreference } from './config/fonts'
+import { applyUIMode, loadUIModePreference } from './config/uiModes'
+import {
+  getJoke,
+  getTip,
+  getQuote,
+  getFact,
+  callClaude,
+  explainConcept,
+  brainstormIdeas
+} from './services/claudeService'
+import * as activityLogger from './utils/activityLogger'
 
 function App() {
   // Core state: all notes and current selection
@@ -64,12 +80,14 @@ function App() {
   const [todayNote, setTodayNote] = useState(null)
   const [weekNote, setWeekNote] = useState(null)
   const [somedayNote, setSomedayNote] = useState(null)
+  const [logNote, setLogNote] = useState(null)
 
   // Tasks state (from tasks table)
   const [currentTasks, setCurrentTasks] = useState([])
   const [secondaryTasks, setSecondaryTasks] = useState([]) // Tasks for secondary pane
   const [allTasks, setAllTasks] = useState([]) // All tasks for project statistics
   const [selectedTask, setSelectedTask] = useState(null) // For task detail panel
+  const [selectedTaskNumber, setSelectedTaskNumber] = useState(null) // Task number in current view
   const [selectedTaskId, setSelectedTaskId] = useState(null) // For task selection (single click)
   const [deselectionPending, setDeselectionPending] = useState(false) // For two-step deselection on Today page
   const [statusFilter, setStatusFilter] = useState([]) // Array of status values to filter by
@@ -78,11 +96,7 @@ function App() {
   // UI state
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('theme')
-    if (saved) return saved
-    return 'light' // Default to light theme
-  })
+  const [currentThemeId, setCurrentThemeId] = useState('sonokai-default')
 
   // Timer state
   const [timerConfig, setTimerConfig] = useState(null)
@@ -91,12 +105,30 @@ function App() {
   const [timerRemainingSeconds, setTimerRemainingSeconds] = useState(0)
   const [isTimerPaused, setIsTimerPaused] = useState(false)
 
-  // Apply theme changes to document
-  // Apply theme changes to document
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem('theme', theme)
-  }, [theme])
+  // Settings state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [musicLinksUpdateTrigger, setMusicLinksUpdateTrigger] = useState(0)
+  const [uiPreferences, setUiPreferences] = useState({ show_priority_formula: true })
+
+  // Trigger music links reload in FloatingAudioPlayer
+  const handleMusicLinksChanged = () => {
+    setMusicLinksUpdateTrigger(prev => prev + 1)
+  }
+
+  // Handle UI preferences changes
+  const handleUIPreferencesChanged = async () => {
+    // Import settingsService dynamically to avoid circular dependency
+    const { getUIPreferences } = await import('./services/settingsService')
+    try {
+      const prefs = await getUIPreferences()
+      setUiPreferences(prefs)
+    } catch (error) {
+      console.error('Failed to load UI preferences:', error)
+    }
+  }
+
+  // Theme is now applied via the theme service (loadAndApplyTheme)
+  // No need for a useEffect here anymore
 
   /**
    * Get the navigable tasks array that matches what TaskList receives
@@ -151,6 +183,13 @@ function App() {
         return
       }
 
+      // L key: Navigate to Log page
+      if (e.key === 'l' && isNotEditing) {
+        e.preventDefault()
+        goToLog()
+        return
+      }
+
       // Left arrow: Close panel, reset navigation, or navigate left
       if (e.key === 'ArrowLeft' && isNotEditing) {
         console.log('⬅️  Left Arrow:', {
@@ -166,6 +205,7 @@ function App() {
           e.stopPropagation()
           console.log('  → Closing task panel')
           setSelectedTask(null)
+          setSelectedTaskNumber(null)
           return
         }
 
@@ -306,17 +346,48 @@ function App() {
   }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote])
 
   /**
-   * Toggle between light and dark themes
+   * Handle theme change from settings modal
    */
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  const handleThemeChange = async (themeId) => {
+    try {
+      await changeTheme(themeId)
+      setCurrentThemeId(themeId)
+    } catch (error) {
+      console.error('Failed to change theme:', error)
+    }
   }
 
   // Initial data fetch on mount
   useEffect(() => {
+    loadTheme()
+    loadFont()
+    loadUIMode()
     fetchNotes()
     fetchAllTasks()
+    handleUIPreferencesChanged()
   }, [])
+
+  // Load and apply font
+  const loadFont = () => {
+    const fontId = loadFontPreference()
+    applyFont(fontId)
+  }
+
+  // Load and apply UI mode
+  const loadUIMode = () => {
+    const modeId = loadUIModePreference()
+    applyUIMode(modeId)
+  }
+
+  // Load and apply theme
+  const loadTheme = async () => {
+    try {
+      const theme = await loadAndApplyTheme()
+      setCurrentThemeId(theme.id)
+    } catch (error) {
+      console.error('Failed to load theme:', error)
+    }
+  }
 
   // Fetch all tasks for project statistics
   const fetchAllTasks = async () => {
@@ -409,6 +480,7 @@ function App() {
       const today = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
       const week = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
       const someday = notes.find(n => n.note_type === 'task_list' && n.title === 'Someday/Maybe')
+      const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
 
       if (home) {
         setHomeNote(home)
@@ -426,6 +498,7 @@ function App() {
       setTodayNote(today)
       setWeekNote(week)
       setSomedayNote(someday)
+      setLogNote(log)
 
       // Create Projects note if it doesn't exist
       if (!projects) {
@@ -682,6 +755,9 @@ function App() {
       await fetchNotes()
       await fetchAllTasks() // Refresh tasks for project statistics
 
+      // Log project creation
+      await activityLogger.logProjectCreated(data)
+
       return data
     } catch (error) {
       console.error('Error creating project note:', error.message)
@@ -897,6 +973,9 @@ function App() {
       if (data && data[0]) {
         setNotes([data[0], ...notes])
         setSelectedNote(data[0])
+
+        // Log note creation
+        await activityLogger.logNoteCreated(data[0])
       }
     } catch (error) {
       console.error('Error creating note:', error.message)
@@ -1001,12 +1080,15 @@ function App() {
 
       if (error) throw error
 
-      setNotes(notes.map(note => 
-        note.id === updatedNote.id 
+      setNotes(notes.map(note =>
+        note.id === updatedNote.id
           ? { ...note, ...updatedNote, updated_at: new Date().toISOString() }
           : note
       ))
       setSelectedNote({ ...updatedNote, updated_at: new Date().toISOString() })
+
+      // Log note update (with intelligent collapsing)
+      await activityLogger.logNoteUpdated(updatedNote)
     } catch (error) {
       console.error('Error saving note:', error.message)
       alert('Error saving note. Check console for details.')
@@ -1080,6 +1162,9 @@ function App() {
         .from('notes')
         .update({ right_id: null })
         .eq('right_id', noteId)
+
+      // Log note deletion before deleting
+      await activityLogger.logNoteDeleted(noteToDelete)
 
       // Now delete the note
       const { error } = await supabase
@@ -1872,6 +1957,51 @@ function App() {
     fetchSecondaryTasks()
   }, [secondaryNote, currentTasks])
 
+  // Keyboard shortcuts for navigation
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Don't trigger shortcuts when typing in input fields
+      const activeElement = document.activeElement
+      const isTyping = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.isContentEditable
+      )
+
+      if (isTyping) return
+
+      // Handle keyboard shortcuts
+      const key = event.key.toLowerCase()
+      let foundNote = null
+
+      switch (key) {
+        case 't': // Today
+          foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
+          break
+        case 'h': // Home
+          foundNote = notes.find(n => n.is_home === true)
+          break
+        case 'p': // Projects
+          foundNote = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
+          break
+        case 'i': // Inbox
+          foundNote = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
+          break
+        default:
+          return // Ignore other keys
+      }
+
+      if (foundNote) {
+        event.preventDefault() // Prevent default behavior
+        setSelectedNote(foundNote)
+        setSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [notes]) // Re-bind when notes change
+
   /**
    * Add a new task directly to the tasks table
    *
@@ -1912,11 +2042,17 @@ function App() {
       }
 
       // Insert into tasks table
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tasks')
         .insert([newTask])
+        .select()
 
       if (error) throw error
+
+      // Log task creation
+      if (data && data[0]) {
+        await activityLogger.logTaskCreated(data[0])
+      }
 
       // Refresh the appropriate view
       if (selectedNote?.note_type === 'task_list') {
@@ -1963,6 +2099,11 @@ function App() {
 
       if (error) throw error
 
+      // Log task completion (only when marking as DONE)
+      if (newStatus === 'DONE') {
+        await activityLogger.logTaskCompleted(task)
+      }
+
       // Refresh the view
       await fetchTasksForView(selectedNote.title)
     } catch (error) {
@@ -1984,6 +2125,12 @@ function App() {
     if (!selectedNote || selectedNote.note_type !== 'task_list') return
 
     try {
+      // Find the task to get old status
+      const task = currentTasks.find(t => t.id === taskId)
+      if (!task) return
+
+      const oldStatus = task.status
+
       // Optimistic update
       setCurrentTasks(currentTasks.map(t =>
         t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
@@ -1999,6 +2146,9 @@ function App() {
         .eq('id', taskId)
 
       if (error) throw error
+
+      // Log status change
+      await activityLogger.logTaskStatusChanged(task, oldStatus, newStatus)
 
       // Refresh the view
       await fetchTasksForView(selectedNote.title)
@@ -2061,6 +2211,9 @@ function App() {
 
       if (error) throw error
 
+      // Log star toggle
+      await activityLogger.logTaskStarred(task, newStarredState)
+
       // Refresh the view
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
@@ -2111,6 +2264,11 @@ function App() {
         .eq('id', taskId)
 
       if (error) throw error
+
+      // Log task scheduling (only if a date is set)
+      if (scheduledDate) {
+        await activityLogger.logTaskScheduled(task, scheduledDate)
+      }
 
       // Refresh the view
       if (selectedNote?.note_type === 'task_list') {
@@ -2216,11 +2374,21 @@ NAVIGATION:
   goto week                       Navigate to Week
   goto tasks                      Navigate to Tasks
   goto inbox                      Navigate to Inbox
+  goto log                        Navigate to Log
   goto home                       Navigate to HOME
   goto "Note Title"               Navigate to any note by title
 
 TIMER:
   start timer 30                  Start a 30-minute timer with dots
+
+AI COMMANDS (requires Claude API key):
+  /joke                           Get a programming joke
+  /tip                            Get a productivity tip
+  /quote                          Get an inspiring quote
+  /fact                           Get a tech fact
+  /ask <question>                 Ask Claude anything
+  /explain <concept>              Get an explanation
+  /brainstorm <topic>             Get brainstorming ideas
 
 COMING SOON:
   complete task 3                 Mark task #3 as complete
@@ -2235,6 +2403,7 @@ TIPS:
 • Star tasks to add them to Today list
 • Drag tasks to reorder them
 • Use /inbox for quick capture of ideas and information
+• Add VITE_CLAUDE_API_KEY to .env to enable AI commands
 
 Type /help anytime to see this message.`
         }
@@ -2297,6 +2466,8 @@ Type /help anytime to see this message.`
             foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
           } else if (target.toLowerCase() === 'inbox') {
             foundNote = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
+          } else if (target.toLowerCase() === 'log') {
+            foundNote = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
           } else if (target.toLowerCase() === 'home') {
             foundNote = notes.find(n => n.is_home === true)
           } else {
@@ -2328,8 +2499,12 @@ Type /help anytime to see this message.`
 
           setTimerConfig({
             totalSeconds,
-            intervalSeconds
+            intervalSeconds,
+            durationMinutes: minutes // Store original duration for logging
           })
+
+          // Log timer start
+          await activityLogger.logTimerStarted(minutes)
 
           return `✓ Timer started for ${minutes} minute${minutes !== 1 ? 's' : ''}`
         }
@@ -2358,6 +2533,73 @@ Type /help anytime to see this message.`
             return `✓ Item added to Inbox: "${title}"${statusMsg}`
           } catch (error) {
             return `✗ Error adding to inbox: ${error.message}`
+          }
+        }
+
+        // AI Commands
+        case 'AI_JOKE': {
+          try {
+            const joke = await getJoke()
+            return `🤖 ${joke}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_TIP': {
+          try {
+            const tip = await getTip()
+            return `💡 ${tip}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_QUOTE': {
+          try {
+            const quote = await getQuote()
+            return `✨ ${quote}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_FACT': {
+          try {
+            const fact = await getFact()
+            return `🔬 ${fact}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_ASK': {
+          const { question } = command.payload
+          try {
+            const answer = await callClaude(question, { maxTokens: 500 })
+            return `🤖 ${answer}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_EXPLAIN': {
+          const { concept } = command.payload
+          try {
+            const explanation = await explainConcept(concept)
+            return `📚 ${explanation}`
+          } catch (error) {
+            return `✗ ${error.message}`
+          }
+        }
+
+        case 'AI_BRAINSTORM': {
+          const { topic } = command.payload
+          try {
+            const ideas = await brainstormIdeas(topic)
+            return `💭 ${ideas}`
+          } catch (error) {
+            return `✗ ${error.message}`
           }
         }
 
@@ -2421,25 +2663,35 @@ Type /help anytime to see this message.`
     }
   }
 
+  const goToLog = () => {
+    const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
+    if (log) {
+      setSelectedNote(log)
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    }
+  }
+
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-gray-400">Loading notes...</div>
+      <div className="h-screen flex items-center justify-center bg-bg-primary">
+        <div className="text-fg-secondary">Loading notes...</div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-gray-900">
+    <div className="h-screen flex flex-col bg-bg-primary">
       {/* Session Context Band - only shown when timer is active */}
       {timerConfig && (
-        <div className="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 py-2 px-4 flex items-center justify-center">
+        <div className="w-full bg-bg-primary border-b border-border-secondary py-2 px-4 flex items-center justify-center">
           <input
             type="text"
             value={sessionContext}
             onChange={(e) => setSessionContext(e.target.value)}
             placeholder="What are you working on?"
-            className="max-w-md w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-gray-300 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-800 text-center"
+            className="max-w-md w-full bg-bg-secondary border border-border-primary rounded px-3 py-1.5 text-sm text-fg-primary placeholder-fg-tertiary focus:outline-none focus:border-border-focus focus:bg-bg-tertiary text-center"
             maxLength={60}
           />
         </div>
@@ -2453,24 +2705,14 @@ Type /help anytime to see this message.`
          selectedNote?.note_type !== 'project_list' && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="p-2.5 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-colors"
             title="Toggle sidebar"
           >
-            <Menu size={18} className="text-gray-600 dark:text-gray-400" />
+            <Menu size={18} className="text-fg-secondary" />
           </button>
         )}
 
-        <button
-          onClick={toggleTheme}
-          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          title="Toggle theme"
-        >
-          {theme === 'dark' ? (
-            <Sun size={18} className="text-yellow-500" />
-          ) : (
-            <Moon size={18} className="text-gray-600" />
-          )}
-        </button>
+        {/* Theme toggle removed - use Settings > Theme tab instead */}
       </div>
 
       {/* Vertical Navigation Sidebar */}
@@ -2484,10 +2726,10 @@ Type /help anytime to see this message.`
               goToInbox()
             }
           }}
-          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
           title="Inbox (Shift+click for side-by-side)"
         >
-          <Inbox size={20} className="text-gray-600 dark:text-gray-400" />
+          <Inbox size={20} className="text-fg-secondary" />
         </button>
 
         <button
@@ -2499,10 +2741,10 @@ Type /help anytime to see this message.`
               goToTasks()
             }
           }}
-          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
           title="Tasks (Shift+click for side-by-side)"
         >
-          <ListTodo size={20} className="text-gray-600 dark:text-gray-400" />
+          <ListTodo size={20} className="text-fg-secondary" />
         </button>
 
         <button
@@ -2514,10 +2756,10 @@ Type /help anytime to see this message.`
               goToProjects()
             }
           }}
-          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
           title="Projects (Shift+click for side-by-side)"
         >
-          <FolderKanban size={20} className="text-gray-600 dark:text-gray-400" />
+          <FolderKanban size={20} className="text-fg-secondary" />
         </button>
 
         <button
@@ -2529,18 +2771,36 @@ Type /help anytime to see this message.`
               goToHome()
             }
           }}
-          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
           title="Home (Shift+click for side-by-side)"
         >
-          <Home size={20} className="text-gray-600 dark:text-gray-400" />
+          <Home size={20} className="text-fg-secondary" />
         </button>
 
         <button
-          onClick={() => {}}
-          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 cursor-not-allowed"
-          title="Logs (Coming Soon)"
+          onClick={(e) => {
+            const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
+            if (e.shiftKey && log) {
+              setSecondaryNote(log)
+            } else {
+              goToLog()
+            }
+          }}
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Log (Shift+click for side-by-side)"
         >
-          <ScrollText size={20} className="text-gray-600 dark:text-gray-400" />
+          <ScrollText size={20} className="text-fg-secondary" />
+        </button>
+
+        {/* Spacer to push settings to bottom */}
+        <div className="flex-1"></div>
+
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Settings"
+        >
+          <Settings size={20} className="text-fg-secondary" />
         </button>
       </div>
 
@@ -2616,6 +2876,8 @@ Type /help anytime to see this message.`
               onRefIdNavigate={navigateToRefId}
               onTaskDoubleClick={(task) => {
                 console.log('📋 Opening task panel:', { taskId: task?.id, taskText: task?.text })
+                const taskIndex = currentTasks.findIndex(t => t.id === task.id)
+                setSelectedTaskNumber(taskIndex >= 0 ? taskIndex + 1 : null)
                 setSelectedTask(task)
               }}
               onProjectClick={handleProjectClick}
@@ -2632,7 +2894,7 @@ Type /help anytime to see this message.`
               {/* Close button */}
               <button
                 onClick={() => setSecondaryNote(null)}
-                className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center text-gray-600 dark:text-gray-400 text-sm font-bold"
+                className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-bg-elevated hover:bg-bg-tertiary flex items-center justify-center text-fg-secondary text-sm font-bold border border-border-primary"
                 title="Close side panel"
               >
                 ×
@@ -2726,8 +2988,13 @@ Type /help anytime to see this message.`
             <div className="w-full h-full max-w-xl max-h-[800px]">
               <TaskDetail
                 task={selectedTask}
-                onClose={() => setSelectedTask(null)}
+                taskNumber={selectedTaskNumber}
+                onClose={() => {
+                  setSelectedTask(null)
+                  setSelectedTaskNumber(null)
+                }}
                 onSave={saveTask}
+                showPriorityFormula={uiPreferences.show_priority_formula}
               />
             </div>
           )}
@@ -2743,12 +3010,18 @@ Type /help anytime to see this message.`
           <Timer
             totalSeconds={timerConfig.totalSeconds}
             intervalSeconds={timerConfig.intervalSeconds}
-            onComplete={() => {
+            onComplete={async () => {
+              // Log timer completion
+              await activityLogger.logTimerCompleted(timerConfig.durationMinutes)
               setTimerConfig(null)
               setSessionContext('')
               setIsTimerMinimized(false)
             }}
-            onClose={() => {
+            onClose={async () => {
+              // Log timer cancellation (if remaining time > 0)
+              if (timerRemainingSeconds > 0) {
+                await activityLogger.logTimerCancelled(timerConfig.durationMinutes, timerRemainingSeconds)
+              }
               setTimerConfig(null)
               setSessionContext('')
               setIsTimerMinimized(false)
@@ -2783,6 +3056,19 @@ Type /help anytime to see this message.`
           </div>
         </div>
       )}
+
+      {/* Floating Audio Player */}
+      <FloatingAudioPlayer key={musicLinksUpdateTrigger} />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        currentThemeId={currentThemeId}
+        onThemeChange={handleThemeChange}
+        onMusicLinksChanged={handleMusicLinksChanged}
+        onUIPreferencesChanged={handleUIPreferencesChanged}
+      />
     </div>
   )
 }
