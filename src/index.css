@@ -281,6 +281,66 @@
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+/* Custom Scrollbar - Light Theme */
+:root:not(.dark) * {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+:root:not(.dark) *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+:root:not(.dark) *::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+:root:not(.dark) *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+  border: 2px solid #f8fafc;
+}
+
+:root:not(.dark) *::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+:root:not(.dark) *::-webkit-scrollbar-corner {
+  background: #f8fafc;
+}
+
+/* Custom Scrollbar - Dark Theme */
+.dark * {
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+}
+
+.dark *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.dark *::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 6px;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 6px;
+  border: 2px solid #1f2937;
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+.dark *::-webkit-scrollbar-corner {
+  background: #1f2937;
+}
+
 /* Note navigation animations */
 @keyframes slideFromTop {
   from {

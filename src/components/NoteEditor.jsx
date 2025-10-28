@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import Editor from './Editor'
 import TaskList from './TaskList'
+import ProjectsList from './ProjectsList'
+import InboxList from './InboxList'
 import CollapsibleFilterBar from './CollapsibleFilterBar'
 import { Home, Star } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
@@ -9,6 +11,7 @@ export default function NoteEditor({
   note,
   allNotes,
   currentTasks,
+  allTasks,
   selectedTaskId,
   onTaskSelect,
   onSave,
@@ -32,6 +35,7 @@ export default function NoteEditor({
   onReorderTasks,
   onRefIdNavigate,
   onTaskDoubleClick,
+  onProjectClick,
   statusFilter,
   taskTypeFilter,
   onStatusFilterChange,
@@ -46,12 +50,24 @@ export default function NoteEditor({
   const [doneSectionWidth, setDoneSectionWidth] = useState(50) // Percentage width of done section
   const [isResizing, setIsResizing] = useState(false)
   const [showSavedBadge, setShowSavedBadge] = useState(false)
+  const [projectTasks, setProjectTasks] = useState([]) // Tasks for the current project
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
   const previousNoteIdRef = useRef(null)
   const resizeContainerRef = useRef(null)
   const savedBadgeTimerRef = useRef(null)
+
+  // Fetch project tasks when viewing a project note
+  useEffect(() => {
+    if (note && note.note_type === 'project' && allTasks) {
+      // Filter tasks that belong to this project
+      const tasksForProject = allTasks.filter(task => task.project_id === note.id)
+      setProjectTasks(tasksForProject)
+    } else {
+      setProjectTasks([])
+    }
+  }, [note, allTasks])
 
   // Detect navigation direction and trigger animation
   useEffect(() => {
@@ -487,6 +503,13 @@ export default function NoteEditor({
                   {formatTodayLong()}
                 </span>
               )}
+
+              {/* Project ID badge for project notes */}
+              {note.note_type === 'project' && note.ref_id && (
+                <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 text-xs font-mono rounded whitespace-nowrap">
+                  {note.ref_id}
+                </span>
+              )}
             </div>
 
             {/* Saved badge - subtle and unobtrusive */}
@@ -512,7 +535,69 @@ export default function NoteEditor({
 
         {/* Editor Content Area */}
         <div className="flex-1 overflow-hidden flex flex-col relative">
-          {note.note_type === 'task_list' ? (
+          {note.note_type === 'project_list' ? (
+            /* Projects List View */
+            <div className="flex-1 overflow-y-auto">
+              <ProjectsList
+                projects={allNotes.filter(n => n.note_type === 'project')}
+                allTasks={allTasks}
+                onProjectClick={onProjectClick}
+              />
+            </div>
+          ) : note.note_type === 'inbox_list' ? (
+            /* Inbox List View */
+            <div className="flex-1 overflow-y-auto">
+              <InboxList
+                inboxNote={note}
+                allNotes={allNotes}
+                onItemClick={onProjectClick}
+              />
+            </div>
+          ) : note.note_type === 'project' ? (
+            /* Project Note View - Editor + Tasks */
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Editor Section - Project Notes */}
+              <div className="flex-1 p-6 overflow-y-auto border-b border-gray-200 dark:border-gray-700">
+                <Editor
+                  ref={editorRef}
+                  initialContent={note.content}
+                  onContentChange={triggerAutoSave}
+                  onRefIdNavigate={onRefIdNavigate}
+                />
+              </div>
+
+              {/* Tasks Section - Project Tasks */}
+              <div className="flex-none h-80 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    Project Tasks ({projectTasks.length})
+                  </h3>
+                  <span className="text-xs text-gray-500 dark:text-gray-500">
+                    Use /task "text" :project to add tasks
+                  </span>
+                </div>
+                {projectTasks.length > 0 ? (
+                  <TaskList
+                    tasks={projectTasks}
+                    allNotes={allNotes}
+                    viewType="project"
+                    selectedTaskId={selectedTaskId}
+                    onTaskSelect={onTaskSelect}
+                    onToggleComplete={onToggleTaskComplete}
+                    onToggleStar={onToggleTaskStar}
+                    onStatusChange={onChangeTaskStatus}
+                    onScheduleTask={onScheduleTask}
+                    onReorder={onReorderTasks}
+                    onTaskDoubleClick={onTaskDoubleClick}
+                  />
+                ) : (
+                  <div className="text-center py-8 text-gray-400 dark:text-gray-600 text-sm">
+                    No tasks yet. Use the terminal to add tasks to this project.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : note.note_type === 'task_list' ? (
             <>
               {/* Collapsible Filter Bar - only show for Tasks, Today, and Week pages */}
               {note.title !== 'Someday/Maybe' && (
@@ -521,6 +606,7 @@ export default function NoteEditor({
                   selectedStatuses={statusFilter}
                   onTaskTypeChange={onTaskTypeFilterChange}
                   onStatusChange={onStatusFilterChange}
+                  tasks={currentTasks || []}
                 />
               )}
 

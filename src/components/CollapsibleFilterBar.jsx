@@ -24,7 +24,8 @@ export default function CollapsibleFilterBar({
   selectedTaskType = null,
   selectedStatuses = [],
   onTaskTypeChange,
-  onStatusChange
+  onStatusChange,
+  tasks = []
 }) {
   const [isTaskTypeExpanded, setIsTaskTypeExpanded] = useState(true)
   const [isStatusExpanded, setIsStatusExpanded] = useState(true)
@@ -61,6 +62,16 @@ export default function CollapsibleFilterBar({
     onStatusChange?.(newSelected)
   }
 
+  // Count tasks for each task type
+  const getTaskTypeCount = (taskType) => {
+    return tasks.filter(task => task.task_type === taskType).length
+  }
+
+  // Count tasks for each status
+  const getStatusCount = (status) => {
+    return tasks.filter(task => task.status === status).length
+  }
+
   const getStatusColorClasses = (color, isActive) => {
     if (!isActive) {
       return 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
@@ -89,6 +100,7 @@ export default function CollapsibleFilterBar({
         } bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
           {taskTypeOptions.map(({ value, label, icon: Icon }) => {
             const isActive = selectedTaskType === value
+            const count = getTaskTypeCount(value)
             return (
               <button
                 key={value}
@@ -105,10 +117,10 @@ export default function CollapsibleFilterBar({
                 <Icon size={12} strokeWidth={isActive ? 2.5 : 2} />
                 <span
                   className={`text-[10px] font-medium whitespace-nowrap overflow-hidden transition-all duration-200 ${
-                    isTaskTypeExpanded ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'
+                    isTaskTypeExpanded ? 'max-w-[150px] opacity-100' : 'max-w-0 opacity-0'
                   }`}
                 >
-                  {label}
+                  {label} {count > 0 && `(${count})`}
                 </span>
               </button>
             )
@@ -139,6 +151,7 @@ export default function CollapsibleFilterBar({
         } bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700`}>
           {statusOptions.map(({ value, label, icon: Icon, color }) => {
             const isActive = selectedStatuses.includes(value)
+            const count = getStatusCount(value)
             return (
               <button
                 key={value}
@@ -154,7 +167,7 @@ export default function CollapsibleFilterBar({
                     isStatusExpanded ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'
                   }`}
                 >
-                  {label}
+                  {label} {count > 0 && `(${count})`}
                 </span>
               </button>
             )

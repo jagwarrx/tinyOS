@@ -29,8 +29,8 @@ function CustomCodeHighlightPlugin() {
   return null
 }
 
-// Plugin to handle paste in code blocks
-function CodeBlockPastePlugin() {
+// Plugin to handle paste - preserves formatting for all text
+function SmartPastePlugin() {
   const [editor] = useLexicalComposerContext()
 
   useEffect(() => {
@@ -42,6 +42,16 @@ function CodeBlockPastePlugin() {
           return false
         }
 
+        const clipboardData = event.clipboardData
+        if (!clipboardData) {
+          return false
+        }
+
+        const text = clipboardData.getData('text/plain')
+        if (!text) {
+          return false
+        }
+
         // Check if we're inside a code block
         const nodes = selection.getNodes()
         const isInCodeBlock = nodes.some(node => {
@@ -49,28 +59,45 @@ function CodeBlockPastePlugin() {
           return $isCodeNode(parent) || $isCodeNode(node)
         })
 
-        // Only handle paste if we're in a code block
-        if (isInCodeBlock) {
-          const clipboardData = event.clipboardData
-          if (!clipboardData) {
-            return false
-          }
+        // Check if text contains ASCII art or structured formatting
+        // (multiple spaces, box-drawing characters, or looks like structured content)
+        const hasMultipleSpaces = /  {2,}/.test(text)
+        const hasBoxDrawing = /[─│┌┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬]/.test(text)
+        const hasMultipleLines = text.split('\n').length > 2
+        const looksLikeCode = /^[\s\t]*[{}\[\]()<>]/.test(text) // Starts with code-like characters
+        const needsPreformatting = hasMultipleSpaces || hasBoxDrawing || (hasMultipleLines && looksLikeCode)
 
+        // If in code block OR looks like structured content, preserve as-is
+        if (isInCodeBlock || needsPreformatting) {
           event.preventDefault()
-          const text = clipboardData.getData('text/plain')
-          if (text) {
-            editor.update(() => {
-              const sel = $getSelection()
-              if ($isRangeSelection(sel)) {
-                // Insert as plain text, preserving newlines
-                sel.insertText(text)
-              }
-            })
-            return true
-          }
+
+          editor.update(() => {
+            const sel = $getSelection()
+            if (!$isRangeSelection(sel)) return
+
+            if (isInCodeBlock) {
+              // Already in code block - just insert text
+              sel.insertText(text)
+            } else {
+              // Create a new code block for structured content
+              const codeNode = $createCodeNode()
+
+              // Remove selected content and insert code block
+              sel.removeText()
+              sel.insertNodes([codeNode])
+
+              // Insert text into code block
+              const textNode = $createTextNode(text)
+              codeNode.append(textNode)
+
+              // Position cursor at end of code block
+              textNode.select()
+            }
+          })
+          return true
         }
 
-        // Let Lexical handle all other paste events
+        // For simple text, let Lexical handle it normally
         return false
       },
       COMMAND_PRIORITY_HIGH
@@ -694,7 +721,7 @@ const Editor = forwardRef(({ initialContent, onContentChange, onRefIdNavigate },
           <FormattingShortcutsPlugin />
           <ListReorderPlugin />
           <CustomCodeHighlightPlugin />
-          <CodeBlockPastePlugin />
+          <SmartPastePlugin />
           <HistoryPlugin />
           <ListPlugin />
           <TabIndentationPlugin />

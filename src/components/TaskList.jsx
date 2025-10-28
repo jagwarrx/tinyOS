@@ -232,13 +232,6 @@ export default function TaskList({
               {task.text}
             </span>
 
-            {/* Task Type */}
-            {task.task_type && (
-              <span className="text-gray-500 dark:text-gray-500 text-xs font-medium">
-                [{task.task_type.replace(/_/g, ' ')}]
-              </span>
-            )}
-
             {/* Project */}
             {task.project_id && (
               <span className="text-gray-400 dark:text-gray-600 text-xs">
@@ -248,6 +241,13 @@ export default function TaskList({
 
             {/* Spacer to push status to the right */}
             <span className="flex-1" />
+
+            {/* Task Type */}
+            {task.task_type && (
+              <span className="text-gray-500 dark:text-gray-500 text-xs font-medium flex-shrink-0">
+                [{task.task_type.replace(/_/g, ' ')}]
+              </span>
+            )}
 
             {/* Status - clickable, hidden on Today unless hovering (always show if DOING) */}
             <div className={`relative flex-shrink-0 transition-opacity ${

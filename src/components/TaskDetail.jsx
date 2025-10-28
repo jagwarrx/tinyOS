@@ -234,10 +234,33 @@ export default function TaskDetail({ task, onClose, onSave }) {
 
       {/* Content - No scrollbar, fits in viewport */}
       <div className="flex-1 px-4 py-3 space-y-3 overflow-hidden flex flex-col min-h-0">
-        {/* Priority */}
-        <div className="flex-shrink-0 flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Priority</span>
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">#{task.priority || 'N/A'}</span>
+        {/* Priority - Manual */}
+        <div className="flex-shrink-0 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Priority</span>
+            <input
+              type="number"
+              value={editedTask.priority || ''}
+              onChange={(e) => setEditedTask({ ...editedTask, priority: parseInt(e.target.value) || null })}
+              onBlur={handleSave}
+              placeholder="N/A"
+              className="w-16 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded focus:outline-none focus:border-gray-400 dark:focus:border-gray-600"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Value Score</span>
+            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+              {(() => {
+                const value = editedTask.value || 0
+                const pressure = editedTask.urgency || 0
+                const confidence = editedTask.momentum || 0
+                const timeCost = editedTask.effort || 1 // Default to 1 to avoid division by zero
+                // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
+                const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
+                return score
+              })()}
+            </span>
+          </div>
         </div>
 
         {/* Status and Scheduled Date - Side by Side */}
@@ -326,6 +349,150 @@ export default function TaskDetail({ task, onClose, onSave }) {
                 />
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Priority Dimensions - Visual Formula */}
+        <div className="flex-shrink-0">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-3">
+            Priority Dimensions
+          </label>
+
+          {/* Formula Visualization */}
+          <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            {/* Top Row: Numerator */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {/* Value */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Value</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, value: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.value || 0) >= level
+                          ? 'bg-green-500 border-green-500'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-green-400'
+                      }`}
+                      title={`Value: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">×</span>
+
+              {/* Pressure */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Pressure</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, urgency: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.urgency || 0) >= level
+                          ? 'bg-red-500 border-red-500'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-red-400'
+                      }`}
+                      title={`Pressure: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">×</span>
+
+              {/* Confidence */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Confidence</span>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, momentum: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.momentum || 0) >= level
+                          ? 'bg-purple-500 border-purple-500'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                      }`}
+                      title={`Confidence: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Division Line */}
+            <div className="border-t-2 border-gray-300 dark:border-gray-700 mb-3"></div>
+
+            {/* Bottom Row: Denominator */}
+            <div className="flex items-center justify-center gap-2 mb-3">
+              {/* Time Cost with Square Root Symbol */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-1">
+                  <span className="text-lg text-gray-500 dark:text-gray-400">√</span>
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Time Cost</span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <button
+                      key={level}
+                      onClick={async () => {
+                        const updatedTask = { ...editedTask, effort: level }
+                        setEditedTask(updatedTask)
+                        if (onSave) {
+                          await onSave(updatedTask)
+                        }
+                      }}
+                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
+                        (editedTask.effort || 0) >= level
+                          ? 'bg-blue-500 border-blue-500'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                      }`}
+                      title={`Time Cost: ${level}/5`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <span className="text-gray-400 dark:text-gray-600 text-lg mb-4">=</span>
+
+              {/* Score Display */}
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Score</span>
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {(() => {
+                    const value = editedTask.value || 0
+                    const pressure = editedTask.urgency || 0
+                    const confidence = editedTask.momentum || 0
+                    const timeCost = editedTask.effort || 1
+                    // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
+                    const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
+                    return score
+                  })()}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

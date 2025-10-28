@@ -41,8 +41,9 @@ export function parseCommand(input) {
     }
   }
 
-  // Quick task command: /task text [:today] [:note "text"] - adds to Tasks page (quotes optional)
-  // First, extract any :note "text" suffix
+  // Quick task command: /task text [:today] [:note "text"] [:project] - adds to Tasks page (quotes optional)
+  // Inbox command: /inbox "title" :note "text" - adds to Inbox page
+  // First, extract any :note "text" suffix (including multi-line content)
   const notePattern = /:note\s+"([^"]*)"/i
   const noteMatch = trimmed.match(notePattern)
   const noteText = noteMatch ? noteMatch[1] : null
@@ -50,7 +51,7 @@ export function parseCommand(input) {
   // Remove :note suffix from command for further parsing
   const withoutNote = noteText ? trimmed.replace(notePattern, '').trim() : trimmed
 
-  const quickTaskPattern = /^\/task\s+(.+?)(?:\s+:today)?$/i
+  const quickTaskPattern = /^\/task\s+(.+?)(?:\s+:today)?(?:\s+:project)?$/i
   const quickTaskMatch = withoutNote.match(quickTaskPattern)
 
   if (quickTaskMatch) {
@@ -63,13 +64,56 @@ export function parseCommand(input) {
     // Check if :today suffix was present
     const scheduleToday = withoutNote.toLowerCase().includes(':today')
 
+    // Check if :project suffix was present
+    const addToProject = withoutNote.toLowerCase().includes(':project')
+
     return {
       type: 'ADD_TASK',
       payload: {
         text: taskText,
-        target: 'tasks',
+        target: addToProject ? 'project' : 'tasks',
         scheduleToday,
+        note: noteText,
+        addToProject
+      }
+    }
+  }
+
+  // Inbox command: /inbox "title" :note "multi-line text"
+  const inboxPattern = /^\/inbox\s+(.+?)(?:\s+:note)?$/i
+  const inboxMatch = withoutNote.match(inboxPattern)
+
+  if (inboxMatch) {
+    let itemTitle = inboxMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (itemTitle.startsWith('"') && itemTitle.endsWith('"')) {
+      itemTitle = itemTitle.slice(1, -1)
+    }
+
+    return {
+      type: 'INBOX',
+      payload: {
+        title: itemTitle,
         note: noteText
+      }
+    }
+  }
+
+  // Project command: /project "Project Name" or /project ProjectName
+  const projectPattern = /^\/project\s+(.+)$/i
+  const projectMatch = trimmed.match(projectPattern)
+
+  if (projectMatch) {
+    let projectName = projectMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (projectName.startsWith('"') && projectName.endsWith('"')) {
+      projectName = projectName.slice(1, -1)
+    }
+
+    return {
+      type: 'PROJECT',
+      payload: {
+        name: projectName
       }
     }
   }

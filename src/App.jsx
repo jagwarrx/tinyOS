@@ -41,7 +41,7 @@ import Terminal from './components/Terminal'
 import Timer from './components/Timer'
 import TaskDetail from './components/TaskDetail'
 import { supabase } from './supabaseClient'
-import { Menu, Sun, Moon, Home, Inbox } from 'lucide-react'
+import { Menu, Sun, Moon, Home, Inbox, ListTodo, FolderKanban, ScrollText } from 'lucide-react'
 import {
   parseCommand,
   createTaskListContent
@@ -58,6 +58,8 @@ function App() {
 
   // Special notes references
   const [homeNote, setHomeNote] = useState(null)
+  const [projectsNote, setProjectsNote] = useState(null)
+  const [inboxNote, setInboxNote] = useState(null)
   const [tasksNote, setTasksNote] = useState(null)
   const [todayNote, setTodayNote] = useState(null)
   const [weekNote, setWeekNote] = useState(null)
@@ -65,6 +67,8 @@ function App() {
 
   // Tasks state (from tasks table)
   const [currentTasks, setCurrentTasks] = useState([])
+  const [secondaryTasks, setSecondaryTasks] = useState([]) // Tasks for secondary pane
+  const [allTasks, setAllTasks] = useState([]) // All tasks for project statistics
   const [selectedTask, setSelectedTask] = useState(null) // For task detail panel
   const [selectedTaskId, setSelectedTaskId] = useState(null) // For task selection (single click)
   const [deselectionPending, setDeselectionPending] = useState(false) // For two-step deselection on Today page
@@ -311,10 +315,17 @@ function App() {
   // Initial data fetch on mount
   useEffect(() => {
     fetchNotes()
+    fetchAllTasks()
   }, [])
 
+  // Fetch all tasks for project statistics
+  const fetchAllTasks = async () => {
+    const tasks = await getAllTasks()
+    setAllTasks(tasks)
+  }
+
   /**
-   * Initialize special notes (HOME, Tasks, Today, Week, Someday/Maybe)
+   * Initialize special notes (HOME, Tasks, Today, Week, Someday/Maybe, Projects)
    * Runs whenever notes array changes
    */
   useEffect(() => {
@@ -361,8 +372,39 @@ function App() {
       }
     }
 
+    const setupProjectsLink = async (projects, tasks) => {
+      if (!projects || !tasks) return
+
+      try {
+        // Check if link already exists
+        if (projects.right_id === tasks.id && tasks.left_id === projects.id) {
+          return // Already linked
+        }
+
+        // Link: Projects <-> Tasks (left/right bidirectional)
+
+        // Set Projects' right to Tasks
+        await supabase
+          .from('notes')
+          .update({ right_id: tasks.id })
+          .eq('id', projects.id)
+
+        // Set Tasks' left to Projects
+        await supabase
+          .from('notes')
+          .update({ left_id: projects.id })
+          .eq('id', tasks.id)
+
+        await fetchNotes()
+      } catch (error) {
+        console.error('Error linking Projects to Tasks:', error.message)
+      }
+    }
+
     if (notes.length > 0) {
       const home = notes.find(n => n.is_home === true)
+      const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
+      const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
       const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
       const today = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
       const week = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
@@ -377,11 +419,23 @@ function App() {
         createHomeNote()
       }
 
-      // Set task notes
+      // Set special notes
+      setProjectsNote(projects)
+      setInboxNote(inbox)
       setTasksNote(tasks)
       setTodayNote(today)
       setWeekNote(week)
       setSomedayNote(someday)
+
+      // Create Projects note if it doesn't exist
+      if (!projects) {
+        createProjectsNote()
+      }
+
+      // Create Inbox note if it doesn't exist
+      if (!inbox) {
+        createInboxNote()
+      }
 
       // Create task notes if they don't exist
       if (!tasks || !today || !week || !someday) {
@@ -389,6 +443,11 @@ function App() {
       } else {
         // Link task notes if all exist
         setupTaskNoteLinks(tasks, today, week, someday)
+      }
+
+      // Link Projects to Tasks if both exist
+      if (projects && tasks) {
+        setupProjectsLink(projects, tasks)
       }
     }
   }, [notes, selectedNote])
@@ -469,6 +528,254 @@ function App() {
       }
     } catch (error) {
       console.error('Error creating home note:', error.message)
+    }
+  }
+
+  const createProjectsNote = async () => {
+    try {
+      const projectsNoteData = {
+        title: 'Projects',
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        note_type: 'project_list',
+        is_starred: true,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: null,
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error } = await supabase
+        .from('notes')
+        .insert([projectsNoteData])
+
+      if (error) throw error
+      await fetchNotes()
+    } catch (error) {
+      console.error('Error creating Projects note:', error.message)
+    }
+  }
+
+  const createInboxNote = async () => {
+    try {
+      const inboxNoteData = {
+        title: 'Inbox',
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        note_type: 'inbox_list',
+        is_starred: true,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: null,
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error } = await supabase
+        .from('notes')
+        .insert([inboxNoteData])
+
+      if (error) throw error
+      await fetchNotes()
+    } catch (error) {
+      console.error('Error creating Inbox note:', error.message)
+    }
+  }
+
+  /**
+   * Create a new project note
+   * Project notes have note_type='project' and link back to Projects page
+   *
+   * @param {string} projectName - The name/title of the project
+   * @returns {object} - The created project note
+   */
+  const createProjectNote = async (projectName) => {
+    try {
+      if (!projectsNote) {
+        throw new Error('Projects page not found')
+      }
+
+      const projectNoteData = {
+        title: projectName,
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        note_type: 'project',
+        project_status: 'ACTIVE',
+        project_start_date: new Date().toISOString().split('T')[0], // Today's date
+        is_starred: true,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: projectsNote.id, // Link back to Projects page
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('notes')
+        .insert([projectNoteData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Update the Projects page to link to this new project (bidirectional)
+      await supabase
+        .from('notes')
+        .update({ right_id: data.id })
+        .eq('id', projectsNote.id)
+
+      await fetchNotes()
+      await fetchAllTasks() // Refresh tasks for project statistics
+
+      return data
+    } catch (error) {
+      console.error('Error creating project note:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new inbox item as a child note
+   * Inbox items are regular notes that link back to the Inbox page
+   *
+   * @param {string} itemTitle - The title of the inbox item
+   * @param {string} noteText - The multi-line content for the note (optional)
+   * @returns {object} - The created inbox item note
+   */
+  const createInboxItem = async (itemTitle, noteText = null) => {
+    try {
+      if (!inboxNote) {
+        throw new Error('Inbox page not found')
+      }
+
+      // Create Lexical content from the note text
+      let content
+      if (noteText) {
+        // Split note text into lines and create paragraph nodes
+        const lines = noteText.split('\n')
+        const paragraphs = lines.map(line => ({
+          children: line.trim() ? [{ text: line, type: 'text' }] : [],
+          direction: null,
+          format: '',
+          indent: 0,
+          type: 'paragraph',
+          version: 1,
+        }))
+
+        content = JSON.stringify({
+          root: {
+            children: paragraphs,
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        })
+      } else {
+        // Empty content
+        content = JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        })
+      }
+
+      const inboxItemData = {
+        title: itemTitle,
+        content,
+        is_starred: false,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: inboxNote.id, // Link back to Inbox page
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('notes')
+        .insert([inboxItemData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      await fetchNotes()
+
+      return data
+    } catch (error) {
+      console.error('Error creating inbox item:', error.message)
+      throw error
     }
   }
 
@@ -1194,6 +1501,15 @@ function App() {
   }
 
   /**
+   * Navigate to a project note
+   * Called when clicking on a project card in ProjectsList
+   */
+  const handleProjectClick = (project) => {
+    setSelectedNote(project)
+    setSidebarOpen(false)
+  }
+
+  /**
    * Navigate to a note or task by its reference ID
    * Called when clicking on ref_id badges in the editor
    * @param {string} refId - The reference ID to navigate to
@@ -1485,12 +1801,83 @@ function App() {
     }
   }, [taskTypeFilter])
 
+  // Load tasks for secondary pane when a task list note is opened
+  useEffect(() => {
+    const fetchSecondaryTasks = async () => {
+      if (secondaryNote?.note_type === 'task_list') {
+        try {
+          let query = supabase.from('tasks').select('*').order('priority', { ascending: true })
+          const { data, error } = await query
+
+          if (error) throw error
+
+          let updatedTasks = await checkAndUpdateOverdueTasks(data || [])
+
+          // Apply same view-specific filtering as primary view
+          if (secondaryNote.title === 'Today') {
+            const today = new Date().toISOString().split('T')[0]
+            updatedTasks = updatedTasks.filter(task => {
+              if (task.status === 'DONE' && task.updated_at) {
+                const taskUpdatedDate = task.updated_at.split('T')[0]
+                if (taskUpdatedDate === today) return true
+              }
+              return (task.starred || task.scheduled_date === today) &&
+                task.status !== 'CANCELLED' &&
+                task.scheduled_date !== 'SOMEDAY'
+            })
+          } else if (secondaryNote.title === 'Week') {
+            const today = new Date()
+            const dayOfWeek = today.getDay()
+            const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+            const monday = new Date(today)
+            monday.setDate(today.getDate() + daysToMonday)
+            const sunday = new Date(monday)
+            sunday.setDate(monday.getDate() + 6)
+            const mondayISO = monday.toISOString().split('T')[0]
+            const sundayISO = sunday.toISOString().split('T')[0]
+
+            updatedTasks = updatedTasks.filter(task =>
+              task.status !== 'DONE' &&
+              task.status !== 'CANCELLED' &&
+              task.scheduled_date !== 'SOMEDAY' &&
+              (
+                (task.scheduled_date && task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO) ||
+                task.scheduled_date === 'THIS_WEEK' ||
+                task.scheduled_date === null
+              )
+            )
+          } else if (secondaryNote.title === 'Tasks') {
+            updatedTasks = updatedTasks.filter(task =>
+              task.status !== 'DONE' &&
+              task.status !== 'CANCELLED' &&
+              task.scheduled_date !== 'SOMEDAY'
+            )
+          } else if (secondaryNote.title === 'Someday/Maybe') {
+            updatedTasks = updatedTasks.filter(task =>
+              task.scheduled_date === 'SOMEDAY' &&
+              task.status !== 'CANCELLED'
+            )
+          }
+
+          setSecondaryTasks(updatedTasks)
+        } catch (error) {
+          console.error('Error fetching tasks for secondary view:', error)
+          setSecondaryTasks([])
+        }
+      } else {
+        setSecondaryTasks([])
+      }
+    }
+
+    fetchSecondaryTasks()
+  }, [secondaryNote, currentTasks])
+
   /**
    * Add a new task directly to the tasks table
    *
    * @param {string} text - Task description
    * @param {object} targetNote - Target note object (determines starred status)
-   * @param {object} options - Optional parameters { scheduleToday: boolean, note: string }
+   * @param {object} options - Optional parameters { scheduleToday: boolean, note: string, projectId: string }
    *
    * Process:
    * 1. Get highest priority to determine new task's priority
@@ -1500,8 +1887,8 @@ function App() {
    */
   const addTask = async (text, targetNote, options = {}) => {
     try {
-      if (!targetNote) {
-        throw new Error('Target note not found')
+      if (!targetNote && !options.projectId) {
+        throw new Error('Target note or project not found')
       }
 
       // Get all tasks to determine next priority
@@ -1516,9 +1903,10 @@ function App() {
         text,
         status: options.scheduleToday ? 'PLANNED' : 'BACKLOG', // PLANNED if scheduled for today
         priority: maxPriority + 1,
-        starred: targetNote.title === 'Today' || options.scheduleToday, // Auto-star if adding to Today OR if scheduled for today
+        starred: targetNote?.title === 'Today' || options.scheduleToday, // Auto-star if adding to Today OR if scheduled for today
         scheduled_date: options.scheduleToday ? today : null, // Set today's date if requested
         context: options.note || null, // Add context/note if provided
+        project_id: options.projectId || null, // Add to project if projectId provided
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
@@ -1530,9 +1918,12 @@ function App() {
 
       if (error) throw error
 
-      // Refresh the current view
+      // Refresh the appropriate view
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (selectedNote?.note_type === 'project') {
+        // Refresh allTasks to update project task list
+        await fetchAllTasks()
       }
     } catch (error) {
       console.error('Error adding task:', error)
@@ -1802,19 +2193,29 @@ function App() {
 TASK MANAGEMENT:
   /task "text"                    Quick add task to Tasks list
   /task "text" :today             Add task scheduled for today (status: PLANNED)
+  /task "text" :project           Add task to current project (when on project page)
   /task "text" :note "details"    Add task with context notes
   add task "text" to/in today     Add task to Today list
   add task "text" to/in week      Add task to Week list
   add task "text" to/in tasks     Add task to Tasks list
 
 COMBINE OPTIONS:
-  /task "text" :today :note "note"  Schedule for today with notes
+  /task "text" :today :note "note"     Schedule for today with notes
+  /task "text" :project :today         Add to project, scheduled today
   add task "text" to tasks :today :note "note"  Full syntax example
+
+PROJECT MANAGEMENT:
+  /project "Project Name"         Create a new project
+
+INBOX:
+  /inbox "title"                  Quick capture to Inbox
+  /inbox "title" :note "text"     Capture with multi-line notes
 
 NAVIGATION:
   goto today                      Navigate to Today
   goto week                       Navigate to Week
   goto tasks                      Navigate to Tasks
+  goto inbox                      Navigate to Inbox
   goto home                       Navigate to HOME
   goto "Note Title"               Navigate to any note by title
 
@@ -1828,18 +2229,32 @@ COMING SOON:
 TIPS:
 • Press ↑/↓ to navigate command history
 • Use :today to schedule tasks and set status to PLANNED
-• Use :note "text" to add context/details to tasks
-• You can combine :today and :note in any order
+• Use :project to add tasks to the current project
+• Use :note "text" to add context/details to tasks or inbox items
+• You can combine :today, :project, and :note in any order
 • Star tasks to add them to Today list
 • Drag tasks to reorder them
+• Use /inbox for quick capture of ideas and information
 
 Type /help anytime to see this message.`
         }
 
         case 'ADD_TASK': {
-          const { text, target, scheduleToday, note } = command.payload
+          const { text, target, scheduleToday, note, addToProject } = command.payload
           let targetNote = null
 
+          // Auto-detect project page: if on a project page and using /task without explicit target
+          // OR if :project flag is present
+          if ((selectedNote?.note_type === 'project' && target === 'tasks') ||
+              (addToProject && selectedNote?.note_type === 'project')) {
+            await addTask(text, null, { scheduleToday, note, projectId: selectedNote.id })
+            let statusMsg = ''
+            if (scheduleToday) statusMsg += ' (scheduled for today, status: PLANNED)'
+            if (note) statusMsg += ' (note added)'
+            return `✓ Task added to project "${selectedNote.title}"${statusMsg}`
+          }
+
+          // Handle regular task list targets
           if (target === 'today' && todayNote) {
             targetNote = todayNote
           } else if (target === 'week' && weekNote) {
@@ -1869,38 +2284,38 @@ Type /help anytime to see this message.`
 
         case 'GOTO': {
           const { target } = command.payload
-          let noteIdToGo = null
-          let noteTitle = null
+          let foundNote = null
 
-          if (target.toLowerCase() === 'today' && todayNote) {
-            noteIdToGo = todayNote.id
-            noteTitle = 'Today'
-          } else if (target.toLowerCase() === 'week' && weekNote) {
-            noteIdToGo = weekNote.id
-            noteTitle = 'Week'
-          } else if (target.toLowerCase() === 'tasks' && tasksNote) {
-            noteIdToGo = tasksNote.id
-            noteTitle = 'Tasks'
-          } else if (target.toLowerCase() === 'home' && homeNote) {
-            noteIdToGo = homeNote.id
-            noteTitle = 'HOME'
+          console.log('🔍 GOTO command called, target:', target, 'notes count:', notes.length)
+
+          // Search directly in notes array for special pages
+          if (target.toLowerCase() === 'today') {
+            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
+          } else if (target.toLowerCase() === 'week') {
+            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
+          } else if (target.toLowerCase() === 'tasks') {
+            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
+          } else if (target.toLowerCase() === 'inbox') {
+            foundNote = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
+          } else if (target.toLowerCase() === 'home') {
+            foundNote = notes.find(n => n.is_home === true)
           } else {
             // Search by title
-            const noteFound = notes.find(n => n.title.toLowerCase() === target.toLowerCase())
-            if (noteFound) {
-              noteIdToGo = noteFound.id
-              noteTitle = noteFound.title
-            }
+            foundNote = notes.find(n => n.title.toLowerCase() === target.toLowerCase())
           }
 
-          if (noteIdToGo) {
-            // Always fetch fresh data from notes array by ID to ensure we have latest content
-            const freshNote = notes.find(n => n.id === noteIdToGo)
-            if (freshNote) {
-              setSelectedNote(freshNote)
-              setSidebarOpen(false)
-              return `✓ Navigated to ${noteTitle}`
-            }
+          console.log('📝 GOTO found note:', {
+            found: !!foundNote,
+            id: foundNote?.id,
+            title: foundNote?.title,
+            note_type: foundNote?.note_type,
+            content_length: foundNote?.content?.length
+          })
+
+          if (foundNote) {
+            setSelectedNote(foundNote)
+            setSidebarOpen(false)
+            return `✓ Navigated to ${foundNote.title}`
           }
 
           return `✗ Note "${target}" not found`
@@ -1919,6 +2334,33 @@ Type /help anytime to see this message.`
           return `✓ Timer started for ${minutes} minute${minutes !== 1 ? 's' : ''}`
         }
 
+        case 'PROJECT': {
+          const { name } = command.payload
+          try {
+            const newProject = await createProjectNote(name)
+            setSelectedNote(newProject)
+            setSidebarOpen(false)
+            return `✓ Project "${name}" created and opened`
+          } catch (error) {
+            return `✗ Error creating project: ${error.message}`
+          }
+        }
+
+        case 'INBOX': {
+          const { title, note } = command.payload
+          try {
+            const newInboxItem = await createInboxItem(title, note)
+            let statusMsg = ''
+            if (note) {
+              const lineCount = note.split('\n').length
+              statusMsg = ` (${lineCount} line${lineCount !== 1 ? 's' : ''} of notes)`
+            }
+            return `✓ Item added to Inbox: "${title}"${statusMsg}`
+          } catch (error) {
+            return `✗ Error adding to inbox: ${error.message}`
+          }
+        }
+
         case 'UNKNOWN':
         default:
           return `✗ Unknown command. Type /help for available commands.`
@@ -1930,8 +2372,9 @@ Type /help anytime to see this message.`
   }
 
   const goToHome = () => {
-    if (homeNote) {
-      setSelectedNote(homeNote)
+    const home = notes.find(n => n.is_home === true)
+    if (home) {
+      setSelectedNote(home)
       if (window.innerWidth < 768) {
         setSidebarOpen(false)
       }
@@ -1939,8 +2382,39 @@ Type /help anytime to see this message.`
   }
 
   const goToTasks = () => {
-    if (tasksNote) {
-      setSelectedNote(tasksNote)
+    console.log('🔍 goToTasks called, searching notes:', notes.length)
+    const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
+    console.log('📝 Found Tasks note:', {
+      found: !!tasks,
+      id: tasks?.id,
+      title: tasks?.title,
+      note_type: tasks?.note_type,
+      content_length: tasks?.content?.length
+    })
+    if (tasks) {
+      setSelectedNote(tasks)
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    } else {
+      console.error('❌ Tasks note not found!')
+    }
+  }
+
+  const goToInbox = () => {
+    const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
+    if (inbox) {
+      setSelectedNote(inbox)
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    }
+  }
+
+  const goToProjects = () => {
+    const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
+    if (projects) {
+      setSelectedNote(projects)
       if (window.innerWidth < 768) {
         setSidebarOpen(false)
       }
@@ -1973,21 +2447,18 @@ Type /help anytime to see this message.`
 
       {/* Control Panel */}
       <div className="fixed top-6 left-6 z-50 flex gap-2">
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          title="Toggle sidebar"
-        >
-          <Menu size={18} className="text-gray-600 dark:text-gray-400" />
-        </button>
-
-        <button
-          onClick={goToTasks}
-          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          title="Go to Tasks"
-        >
-          <Inbox size={18} className="text-gray-500 dark:text-gray-400" />
-        </button>
+        {/* Hide hamburger menu on task lists and project pages */}
+        {selectedNote?.note_type !== 'task_list' &&
+         selectedNote?.note_type !== 'project' &&
+         selectedNote?.note_type !== 'project_list' && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            title="Toggle sidebar"
+          >
+            <Menu size={18} className="text-gray-600 dark:text-gray-400" />
+          </button>
+        )}
 
         <button
           onClick={toggleTheme}
@@ -2000,13 +2471,76 @@ Type /help anytime to see this message.`
             <Moon size={18} className="text-gray-600" />
           )}
         </button>
+      </div>
+
+      {/* Vertical Navigation Sidebar */}
+      <div className="fixed left-6 top-[20%] z-40 flex flex-col gap-2 group py-4 px-2 -ml-2">
+        <button
+          onClick={(e) => {
+            const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
+            if (e.shiftKey && inbox) {
+              setSecondaryNote(inbox)
+            } else {
+              goToInbox()
+            }
+          }}
+          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Inbox (Shift+click for side-by-side)"
+        >
+          <Inbox size={20} className="text-gray-600 dark:text-gray-400" />
+        </button>
 
         <button
-          onClick={goToHome}
-          className="p-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
-          title="Go to HOME"
+          onClick={(e) => {
+            const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
+            if (e.shiftKey && tasks) {
+              setSecondaryNote(tasks)
+            } else {
+              goToTasks()
+            }
+          }}
+          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Tasks (Shift+click for side-by-side)"
         >
-          <Home size={18} />
+          <ListTodo size={20} className="text-gray-600 dark:text-gray-400" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
+            if (e.shiftKey && projects) {
+              setSecondaryNote(projects)
+            } else {
+              goToProjects()
+            }
+          }}
+          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Projects (Shift+click for side-by-side)"
+        >
+          <FolderKanban size={20} className="text-gray-600 dark:text-gray-400" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            const home = notes.find(n => n.is_home === true)
+            if (e.shiftKey && home) {
+              setSecondaryNote(home)
+            } else {
+              goToHome()
+            }
+          }}
+          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
+          title="Home (Shift+click for side-by-side)"
+        >
+          <Home size={20} className="text-gray-600 dark:text-gray-400" />
+        </button>
+
+        <button
+          onClick={() => {}}
+          className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-all opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 cursor-not-allowed"
+          title="Logs (Coming Soon)"
+        >
+          <ScrollText size={20} className="text-gray-600 dark:text-gray-400" />
         </button>
       </div>
 
@@ -2054,6 +2588,7 @@ Type /help anytime to see this message.`
               note={selectedNote}
               allNotes={notes}
               currentTasks={currentTasks}
+              allTasks={allTasks}
               selectedTaskId={selectedTaskId}
               onTaskSelect={(taskId) => {
                 setSelectedTaskId(taskId)
@@ -2083,6 +2618,7 @@ Type /help anytime to see this message.`
                 console.log('📋 Opening task panel:', { taskId: task?.id, taskText: task?.text })
                 setSelectedTask(task)
               }}
+              onProjectClick={handleProjectClick}
               statusFilter={statusFilter}
               taskTypeFilter={taskTypeFilter}
               onStatusFilterChange={setStatusFilter}
@@ -2104,7 +2640,7 @@ Type /help anytime to see this message.`
               <NoteEditor
                 note={secondaryNote}
                 allNotes={notes}
-                currentTasks={[]} // No tasks in secondary view
+                currentTasks={secondaryTasks} // Show tasks in secondary view
                 onSave={async (updatedNote) => {
                   await saveNote(updatedNote)
                   // Update secondary note with latest data
@@ -2142,10 +2678,11 @@ Type /help anytime to see this message.`
                   }
                 }}
                 onCreateDraftLinked={createDraftLinkedNote}
-                onToggleTaskComplete={() => {}}
-                onToggleTaskStar={() => {}}
-                onChangeTaskStatus={() => {}}
-                onReorderTasks={() => {}}
+                onToggleTaskComplete={toggleTaskComplete}
+                onToggleTaskStar={toggleTaskStar}
+                onChangeTaskStatus={changeTaskStatus}
+                onScheduleTask={scheduleTask}
+                onReorderTasks={reorderTasks}
                 onRefIdNavigate={async (refId, type) => {
                   // Secondary editor navigation - always navigate within secondary pane
                   try {
