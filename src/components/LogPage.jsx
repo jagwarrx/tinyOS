@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2 } from 'lucide-react'
+import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2, Check, GlassWater } from 'lucide-react'
 import * as activityLogService from '../services/activityLogService'
 import RefIdBadge from './RefIdBadge'
 
@@ -8,14 +8,21 @@ import RefIdBadge from './RefIdBadge'
  * Displays activity log entries grouped by date
  * Shows all user actions: task creation, note updates, status changes, etc.
  */
-export default function LogPage({ onRefIdNavigate }) {
+export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [groupedLogs, setGroupedLogs] = useState({})
+  const [filters, setFilters] = useState({
+    textLogs: true,
+    taskActivity: true,
+    noteActivity: true,
+    other: true
+  })
+  const [timeFilter, setTimeFilter] = useState('all') // 'today', 'yesterday', 'week', 'all'
 
   useEffect(() => {
     fetchLogs()
-  }, [])
+  }, [logUpdateTrigger])
 
   const fetchLogs = async () => {
     try {
@@ -31,6 +38,72 @@ export default function LogPage({ onRefIdNavigate }) {
   }
 
   /**
+   * Categorize a log entry by type
+   */
+  const getCategoryForLog = (log) => {
+    const taskActions = ['task_created', 'task_completed', 'task_status_changed', 'task_scheduled', 'task_deleted', 'task_starred', 'task_unstarred']
+    const noteActions = ['note_created', 'note_updated', 'note_deleted']
+    const otherActions = ['water_logged', 'energy_logged', 'timer_started', 'timer_completed', 'timer_cancelled', 'project_created', 'project_status_changed', 'project_completed']
+
+    if (log.action_type === 'log_entry') return 'textLogs'
+    if (taskActions.includes(log.action_type)) return 'taskActivity'
+    if (noteActions.includes(log.action_type)) return 'noteActivity'
+    if (otherActions.includes(log.action_type)) return 'other'
+    return 'other'
+  }
+
+  /**
+   * Check if a log matches the time filter
+   */
+  const matchesTimeFilter = (log) => {
+    if (timeFilter === 'all') return true
+
+    const logDate = new Date(log.timestamp)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    // Start of this week (Sunday)
+    const startOfWeek = new Date(today)
+    startOfWeek.setDate(today.getDate() - today.getDay())
+
+    switch (timeFilter) {
+      case 'today':
+        return logDate >= today
+      case 'yesterday':
+        const endOfYesterday = new Date(today)
+        return logDate >= yesterday && logDate < endOfYesterday
+      case 'week':
+        return logDate >= startOfWeek
+      default:
+        return true
+    }
+  }
+
+  /**
+   * Filter logs based on active filters
+   */
+  const filterLogs = (logs) => {
+    return logs.filter(log => {
+      const category = getCategoryForLog(log)
+      const matchesCategory = filters[category]
+      const matchesTime = matchesTimeFilter(log)
+      return matchesCategory && matchesTime
+    })
+  }
+
+  /**
+   * Toggle a filter on/off
+   */
+  const toggleFilter = (filterName) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterName]: !prev[filterName]
+    }))
+  }
+
+  /**
    * Group logs by date for better organization
    * Returns: { 'Today': [...], 'Yesterday': [...], 'Jan 25': [...] }
    */
@@ -40,7 +113,10 @@ export default function LogPage({ onRefIdNavigate }) {
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
 
-    logs.forEach(log => {
+    // Filter logs before grouping
+    const filteredLogs = filterLogs(logs)
+
+    filteredLogs.forEach(log => {
       const logDate = new Date(log.timestamp)
       const dateKey = getDateKey(logDate, today, yesterday)
 
@@ -52,6 +128,13 @@ export default function LogPage({ onRefIdNavigate }) {
 
     setGroupedLogs(grouped)
   }
+
+  // Re-group logs when filters change
+  useEffect(() => {
+    if (logs.length > 0) {
+      groupLogsByDate(logs)
+    }
+  }, [filters, timeFilter])
 
   /**
    * Get a human-readable date key for grouping
@@ -96,8 +179,10 @@ export default function LogPage({ onRefIdNavigate }) {
     const iconClass = "w-4 h-4"
 
     switch (actionType) {
-      case 'task_created':
       case 'task_completed':
+        return <Check className={iconClass} />
+
+      case 'task_created':
       case 'task_status_changed':
       case 'task_scheduled':
       case 'task_deleted':
@@ -121,6 +206,13 @@ export default function LogPage({ onRefIdNavigate }) {
       case 'timer_completed':
       case 'timer_cancelled':
         return <TimerIcon className={iconClass} />
+
+      case 'water_logged':
+        return <GlassWater className={iconClass} />
+
+      case 'energy_logged':
+      case 'log_entry':
+        return null // No icon for energy logs and general log entries
 
       default:
         return <Clock className={iconClass} />
@@ -163,6 +255,15 @@ export default function LogPage({ onRefIdNavigate }) {
       case 'note_deleted':
       case 'timer_cancelled':
         return 'text-red-400'
+
+      case 'energy_logged':
+        return 'text-cyan-400'
+
+      case 'water_logged':
+        return 'text-blue-400'
+
+      case 'log_entry':
+        return 'text-gray-400'
 
       default:
         return 'text-text-secondary'
@@ -226,6 +327,17 @@ export default function LogPage({ onRefIdNavigate }) {
         const remaining = Math.floor(details.remaining_seconds / 60)
         return `Cancelled timer (${remaining} min remaining)`
 
+      case 'energy_logged':
+        const energyLevel = details.energy_level
+        const energyEmoji = ['😴', '😞', '😐', '🙂', '😊', '⚡'][energyLevel] || '📊'
+        return `${energyEmoji} Energy level: ${energyLevel}/5`
+
+      case 'water_logged':
+        return '💧 Drank water'
+
+      case 'log_entry':
+        return log.entity_title
+
       default:
         return log.action_type.replace(/_/g, ' ')
     }
@@ -257,6 +369,94 @@ export default function LogPage({ onRefIdNavigate }) {
           Activity Log
         </h1>
 
+        {/* Time Filter bar */}
+        <div className="mb-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => setTimeFilter('today')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              timeFilter === 'today'
+                ? 'bg-green-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setTimeFilter('yesterday')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              timeFilter === 'yesterday'
+                ? 'bg-green-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Yesterday
+          </button>
+          <button
+            onClick={() => setTimeFilter('week')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              timeFilter === 'week'
+                ? 'bg-green-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            This Week
+          </button>
+          <button
+            onClick={() => setTimeFilter('all')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              timeFilter === 'all'
+                ? 'bg-green-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            All
+          </button>
+        </div>
+
+        {/* Category Filter bar */}
+        <div className="mb-4 flex flex-wrap gap-2 pb-3 border-b border-border-secondary">
+          <button
+            onClick={() => toggleFilter('textLogs')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              filters.textLogs
+                ? 'bg-gray-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Text Logs
+          </button>
+          <button
+            onClick={() => toggleFilter('taskActivity')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              filters.taskActivity
+                ? 'bg-blue-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Task Activity
+          </button>
+          <button
+            onClick={() => toggleFilter('noteActivity')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              filters.noteActivity
+                ? 'bg-purple-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Note Activity
+          </button>
+          <button
+            onClick={() => toggleFilter('other')}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              filters.other
+                ? 'bg-cyan-500 text-white'
+                : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            Other
+          </button>
+        </div>
+
         {/* Log entries grouped by date */}
         {Object.keys(groupedLogs).map(dateKey => (
           <div key={dateKey} className="mb-4">
@@ -270,22 +470,24 @@ export default function LogPage({ onRefIdNavigate }) {
               {groupedLogs[dateKey].map(log => (
                 <div
                   key={log.id}
-                  className="flex items-start gap-2 px-2 py-1.5"
+                  className="flex items-start gap-4 px-2 py-1.5"
                 >
                   {/* Time */}
                   <div className="text-xs text-text-tertiary font-mono min-w-[60px] pt-0.5">
                     {formatTime(log.timestamp)}
                   </div>
 
-                  {/* Icon */}
-                  <div className={`pt-0.5 ${getActionColor(log.action_type)}`}>
-                    {getActionIcon(log.action_type)}
-                  </div>
+                  {/* Icon (only for non-log_entry and non-energy types) */}
+                  {log.action_type !== 'log_entry' && log.action_type !== 'energy_logged' && (
+                    <div className={`pt-0.5 ${getActionColor(log.action_type)}`}>
+                      {getActionIcon(log.action_type)}
+                    </div>
+                  )}
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-text-secondary text-sm">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span className={`text-sm ${log.action_type === 'log_entry' ? 'text-gray-500 font-bold' : 'text-gray-400'}`}>
                         {formatActionText(log)}
                       </span>
 
@@ -302,8 +504,8 @@ export default function LogPage({ onRefIdNavigate }) {
                         />
                       )}
 
-                      {/* Entity title for non-ref items (like timer) */}
-                      {!log.entity_ref_id && log.entity_title && (
+                      {/* Entity title for non-ref items (only for timer, not log_entry) */}
+                      {!log.entity_ref_id && log.entity_title && log.action_type !== 'log_entry' && log.action_type !== 'energy_logged' && log.action_type !== 'water_logged' && (
                         <span className="text-text-primary text-sm font-medium">
                           "{log.entity_title}"
                         </span>

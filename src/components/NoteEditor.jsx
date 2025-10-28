@@ -40,7 +40,8 @@ export default function NoteEditor({
   statusFilter,
   taskTypeFilter,
   onStatusFilterChange,
-  onTaskTypeFilterChange
+  onTaskTypeFilterChange,
+  logUpdateTrigger
 }) {
   const [title, setTitle] = useState('')
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -596,6 +597,7 @@ export default function NoteEditor({
             <div className="flex-1 overflow-y-auto">
               <LogPage
                 onRefIdNavigate={onRefIdNavigate}
+                logUpdateTrigger={logUpdateTrigger}
               />
             </div>
           ) : note.note_type === 'project' ? (

@@ -110,6 +110,38 @@ export function parseCommand(input) {
     }
   }
 
+  // /log energy <0-5> - Log energy level (check this first before general log)
+  const logEnergyPattern = /^\/log\s+energy\s+([0-5])$/i
+  const logEnergyMatch = trimmed.match(logEnergyPattern)
+  if (logEnergyMatch) {
+    return {
+      type: 'LOG_ENERGY',
+      payload: {
+        level: parseInt(logEnergyMatch[1], 10)
+      }
+    }
+  }
+
+  // /log water - Log water intake
+  if (lower === '/log water') {
+    return {
+      type: 'LOG_WATER',
+      payload: {}
+    }
+  }
+
+  // /log <text> - Log general entry
+  const logPattern = /^\/log\s+(.+)$/i
+  const logMatch = trimmed.match(logPattern)
+  if (logMatch) {
+    return {
+      type: 'LOG_ENTRY',
+      payload: {
+        text: logMatch[1].trim()
+      }
+    }
+  }
+
   // Quick task command: /task text [:today] [:note "text"] [:project] - adds to Tasks page (quotes optional)
   // Inbox command: /inbox "title" :note "text" - adds to Inbox page
   // First, extract any :note "text" suffix (including multi-line content)

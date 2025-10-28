@@ -108,6 +108,7 @@ function App() {
   // Settings state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [musicLinksUpdateTrigger, setMusicLinksUpdateTrigger] = useState(0)
+  const [logUpdateTrigger, setLogUpdateTrigger] = useState(0)
   const [uiPreferences, setUiPreferences] = useState({ show_priority_formula: true })
 
   // Trigger music links reload in FloatingAudioPlayer
@@ -2381,6 +2382,10 @@ NAVIGATION:
 TIMER:
   start timer 30                  Start a 30-minute timer with dots
 
+LOGGING:
+  /log <text>                     Log an event or note (e.g., "meeting with Prasad")
+  /log energy <0-5>               Log your energy level (0=exhausted, 5=energized)
+
 AI COMMANDS (requires Claude API key):
   /joke                           Get a programming joke
   /tip                            Get a productivity tip
@@ -2600,6 +2605,82 @@ Type /help anytime to see this message.`
             return `💭 ${ideas}`
           } catch (error) {
             return `✗ ${error.message}`
+          }
+        }
+
+        case 'LOG_ENERGY': {
+          const { level } = command.payload
+          try {
+            // Import activityLogService dynamically
+            const { create } = await import('./services/activityLogService')
+
+            await create({
+              action_type: 'energy_logged',
+              entity_type: 'energy',
+              entity_id: null,
+              entity_ref_id: null,
+              entity_title: `Energy: ${level}`,
+              details: {
+                energy_level: level
+              },
+              timestamp: new Date().toISOString()
+            })
+
+            // Trigger log page refresh
+            setLogUpdateTrigger(prev => prev + 1)
+
+            return `✓ Energy level ${level} logged`
+          } catch (error) {
+            return `✗ Error logging energy: ${error.message}`
+          }
+        }
+
+        case 'LOG_WATER': {
+          try {
+            // Import activityLogService dynamically
+            const { create } = await import('./services/activityLogService')
+
+            await create({
+              action_type: 'water_logged',
+              entity_type: 'water',
+              entity_id: null,
+              entity_ref_id: null,
+              entity_title: 'Water',
+              details: {},
+              timestamp: new Date().toISOString()
+            })
+
+            // Trigger log page refresh
+            setLogUpdateTrigger(prev => prev + 1)
+
+            return `✓ Water intake logged 💧`
+          } catch (error) {
+            return `✗ Error logging water: ${error.message}`
+          }
+        }
+
+        case 'LOG_ENTRY': {
+          const { text } = command.payload
+          try {
+            // Import activityLogService dynamically
+            const { create } = await import('./services/activityLogService')
+
+            await create({
+              action_type: 'log_entry',
+              entity_type: 'log',
+              entity_id: null,
+              entity_ref_id: null,
+              entity_title: text,
+              details: {},
+              timestamp: new Date().toISOString()
+            })
+
+            // Trigger log page refresh
+            setLogUpdateTrigger(prev => prev + 1)
+
+            return `✓ Logged: ${text}`
+          } catch (error) {
+            return `✗ Error logging: ${error.message}`
           }
         }
 
@@ -2885,6 +2966,7 @@ Type /help anytime to see this message.`
               taskTypeFilter={taskTypeFilter}
               onStatusFilterChange={setStatusFilter}
               onTaskTypeFilterChange={setTaskTypeFilter}
+              logUpdateTrigger={logUpdateTrigger}
             />
           </div>
 
@@ -2979,6 +3061,7 @@ Type /help anytime to see this message.`
                     alert(`Could not find ${type} with ref_id: ${refId}`)
                   }
                 }}
+                logUpdateTrigger={logUpdateTrigger}
               />
             </div>
           )}

@@ -7,13 +7,15 @@ import { sonokaiThemes } from './sonokai'
 import { monokaiThemes } from './monokai'
 import { terminalThemes } from './terminal'
 import { originalThemes } from './original'
+import { claudeThemes } from './claude'
 
 // Combine all themes
 export const allThemes = {
   ...originalThemes,
   ...sonokaiThemes,
   ...monokaiThemes,
-  ...terminalThemes
+  ...terminalThemes,
+  ...claudeThemes
 }
 
 // Theme collections for UI organization
@@ -63,6 +65,15 @@ export const themeCollections = [
       'monokai-octagon',
       'monokai-ristretto',
       'monokai-spectrum'
+    ]
+  },
+  {
+    id: 'claude',
+    name: 'Claude AI',
+    description: 'Warm, friendly themes inspired by Claude',
+    themes: [
+      'claude-light',
+      'claude-dark'
     ]
   }
 ]
