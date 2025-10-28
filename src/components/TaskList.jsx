@@ -22,7 +22,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle } from 'lucide-react'
+import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle, FileText } from 'lucide-react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
 
@@ -231,6 +231,15 @@ export default function TaskList({
             }`}>
               {task.text}
             </span>
+
+            {/* Notes indicator */}
+            {task.context && task.context.trim() && (
+              <FileText
+                size={12}
+                className="text-gray-400 dark:text-gray-600 flex-shrink-0"
+                title="Has notes"
+              />
+            )}
 
             {/* Project */}
             {task.project_id && (
