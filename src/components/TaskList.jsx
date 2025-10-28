@@ -29,6 +29,9 @@ import { formatDateNatural } from '../utils/dateUtils'
 export default function TaskList({
   tasks,
   allNotes,
+  viewType,
+  selectedTaskId,
+  onTaskSelect,
   onToggleComplete,
   onToggleStar,
   onReorder,
@@ -36,6 +39,7 @@ export default function TaskList({
   onTaskDoubleClick,
   onScheduleTask
 }) {
+  // State for dropdowns and date pickers
   const [openDropdown, setOpenDropdown] = useState(null)
   const [openDatePicker, setOpenDatePicker] = useState(null)
   const dropdownRef = useRef(null)
@@ -153,17 +157,48 @@ export default function TaskList({
 
   return (
     <div className="space-y-1 text-sm">
-      {tasks.map((task, index) => (
-        <div
-          key={task.id}
-          draggable
-          onDragStart={(e) => handleDragStart(e, index)}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, index)}
-          onDoubleClick={() => onTaskDoubleClick?.(task)}
-          className="group flex items-start gap-3 py-1.5 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded cursor-move transition-colors"
-          title="Double-click to view details"
-        >
+      {tasks.map((task, index) => {
+        const isSelected = selectedTaskId === task.id
+
+        // Debug logging for first 3 tasks
+        if (index < 3) {
+          console.log(`📋 Task ${index}:`, {
+            taskId: task.id,
+            selectedTaskId,
+            isSelected,
+            taskText: task.text.substring(0, 30)
+          })
+        }
+
+        const handleTaskClick = () => {
+          console.log('🖱️  Task clicked:', { taskId: task.id, isSelected })
+
+          if (isSelected) {
+            // Already selected - open panel
+            console.log('  → Already selected, opening panel')
+            onTaskDoubleClick?.(task)
+          } else {
+            // Not selected - highlight/select it
+            console.log('  → Not selected, highlighting task')
+            onTaskSelect?.(task.id)
+          }
+        }
+
+        return (
+          <div
+            key={task.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            onClick={handleTaskClick}
+            className={`group flex items-start gap-3 py-1.5 px-2 rounded cursor-pointer transition-all border hover:bg-blue-100 dark:hover:bg-blue-900/30 ${
+              isSelected
+                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                : 'border-transparent'
+            }`}
+            title={isSelected ? "Click to open details" : "Click to select"}
+          >
           {/* Number */}
           <span className="text-gray-400 dark:text-gray-600 select-none w-8 flex-shrink-0">
             {index + 1}.
@@ -171,7 +206,10 @@ export default function TaskList({
 
           {/* Checkbox */}
           <button
-            onClick={() => onToggleComplete(task.id)}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleComplete(task.id)
+            }}
             className="mt-0.5 flex-shrink-0"
           >
             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
@@ -194,6 +232,13 @@ export default function TaskList({
               {task.text}
             </span>
 
+            {/* Task Type */}
+            {task.task_type && (
+              <span className="text-gray-500 dark:text-gray-500 text-xs font-medium">
+                [{task.task_type.replace(/_/g, ' ')}]
+              </span>
+            )}
+
             {/* Project */}
             {task.project_id && (
               <span className="text-gray-400 dark:text-gray-600 text-xs">
@@ -204,10 +249,15 @@ export default function TaskList({
             {/* Spacer to push status to the right */}
             <span className="flex-1" />
 
-            {/* Status - clickable */}
-            <div className="relative flex-shrink-0" ref={openDropdown === task.id ? dropdownRef : null}>
+            {/* Status - clickable, hidden on Today unless hovering (always show if DOING) */}
+            <div className={`relative flex-shrink-0 transition-opacity ${
+              viewType === 'Today' && task.status !== 'DOING' ? 'opacity-0 group-hover:opacity-100' : ''
+            }`} ref={openDropdown === task.id ? dropdownRef : null}>
               <button
-                onClick={() => handleStatusClick(task.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleStatusClick(task.id)
+                }}
                 className={`flex items-center gap-1 hover:opacity-70 transition-opacity font-mono ${getStatusColor(task.status)}`}
               >
                 {task.status === 'OVERDUE' && <AlertCircle size={12} className="opacity-70" />}
@@ -232,9 +282,11 @@ export default function TaskList({
               )}
             </div>
 
-            {/* Scheduled date display */}
+            {/* Scheduled date display - hidden on Today unless hovering (always show if DOING) */}
             {task.scheduled_date && (
-              <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
+              <div className={`relative flex-shrink-0 transition-opacity ${
+                viewType === 'Today' && task.status !== 'DOING' ? 'opacity-0 group-hover:opacity-100' : ''
+              }`} ref={openDatePicker === task.id ? datePickerRef : null}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -261,7 +313,7 @@ export default function TaskList({
               </div>
             )}
 
-            {/* Calendar icon for scheduling (shown when no date) */}
+            {/* Calendar icon for scheduling (shown when no date) - always hidden on hover on all pages */}
             {!task.scheduled_date && (
               <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
                 <button
@@ -289,13 +341,19 @@ export default function TaskList({
               </div>
             )}
 
-            {/* Star button */}
+            {/* Star button - on Today page, only show on hover (always show if DOING) */}
             <button
               onClick={(e) => {
                 e.stopPropagation()
                 onToggleStar(task.id)
               }}
-              className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className={`flex-shrink-0 transition-opacity ${
+                viewType === 'Today' && task.status !== 'DOING'
+                  ? "opacity-0 group-hover:opacity-100"
+                  : (viewType === 'Today' && task.status === 'DOING'
+                      ? "opacity-100"
+                      : (task.starred ? "opacity-100" : "opacity-0 group-hover:opacity-100"))
+              }`}
               title={task.starred ? "Remove from Today" : "Add to Today"}
             >
               <Star
@@ -305,7 +363,8 @@ export default function TaskList({
             </button>
           </div>
         </div>
-      ))}
+      )
+    })}
     </div>
   )
 }

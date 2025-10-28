@@ -41,16 +41,54 @@ export function parseCommand(input) {
     }
   }
 
-  // Add task command: add task "text" to [today|week|tasks]
-  const addTaskPattern = /^add\s+task\s+"([^"]*)"\s+to\s+(today|week|tasks)$/i
-  const addTaskMatch = trimmed.match(addTaskPattern)
-  
+  // Quick task command: /task text [:today] [:note "text"] - adds to Tasks page (quotes optional)
+  // First, extract any :note "text" suffix
+  const notePattern = /:note\s+"([^"]*)"/i
+  const noteMatch = trimmed.match(notePattern)
+  const noteText = noteMatch ? noteMatch[1] : null
+
+  // Remove :note suffix from command for further parsing
+  const withoutNote = noteText ? trimmed.replace(notePattern, '').trim() : trimmed
+
+  const quickTaskPattern = /^\/task\s+(.+?)(?:\s+:today)?$/i
+  const quickTaskMatch = withoutNote.match(quickTaskPattern)
+
+  if (quickTaskMatch) {
+    let taskText = quickTaskMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (taskText.startsWith('"') && taskText.endsWith('"')) {
+      taskText = taskText.slice(1, -1)
+    }
+
+    // Check if :today suffix was present
+    const scheduleToday = withoutNote.toLowerCase().includes(':today')
+
+    return {
+      type: 'ADD_TASK',
+      payload: {
+        text: taskText,
+        target: 'tasks',
+        scheduleToday,
+        note: noteText
+      }
+    }
+  }
+
+  // Add task command: add task "text" to|in [today|week|tasks] [:today] [:note "text"]
+  // Note pattern already extracted above, use same withoutNote
+  const addTaskPattern = /^add\s+task\s+"([^"]*)"\s+(?:to|in)\s+(today|week|tasks)(?:\s+:today)?$/i
+  const addTaskMatch = withoutNote.match(addTaskPattern)
+
   if (addTaskMatch) {
+    const scheduleToday = withoutNote.toLowerCase().includes(':today')
+
     return {
       type: 'ADD_TASK',
       payload: {
         text: addTaskMatch[1],
-        target: addTaskMatch[2].toLowerCase()
+        target: addTaskMatch[2].toLowerCase(),
+        scheduleToday,
+        note: noteText
       }
     }
   }

@@ -21,10 +21,10 @@
  *                               Should return a string result or throw an error
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from 'lucide-react'
 
-export default function Terminal({ onCommand }) {
+const Terminal = forwardRef(({ onCommand }, ref) => {
   // Input state for current command being typed
   const [input, setInput] = useState('')
   
@@ -43,6 +43,17 @@ export default function Terminal({ onCommand }) {
   // Refs for input focus and output scrolling
   const inputRef = useRef(null)
   const outputRef = useRef(null)
+
+  // Expose focus and setInput methods to parent component
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus()
+    },
+    setInputValue: (value) => {
+      setInput(value)
+      inputRef.current?.focus()
+    }
+  }))
 
   /**
    * Handle form submission (Enter key pressed)
@@ -315,4 +326,8 @@ export default function Terminal({ onCommand }) {
       </div>
     </div>
   )
-}
+})
+
+Terminal.displayName = 'Terminal'
+
+export default Terminal

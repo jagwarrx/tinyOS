@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Editor from './Editor'
 import TaskList from './TaskList'
-import StatusFilter from './StatusFilter'
+import CollapsibleFilterBar from './CollapsibleFilterBar'
 import { Home, Star } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
 
@@ -9,6 +9,8 @@ export default function NoteEditor({
   note,
   allNotes,
   currentTasks,
+  selectedTaskId,
+  onTaskSelect,
   onSave,
   onDelete,
   onSetAsHome,
@@ -31,7 +33,9 @@ export default function NoteEditor({
   onRefIdNavigate,
   onTaskDoubleClick,
   statusFilter,
-  onStatusFilterChange
+  taskTypeFilter,
+  onStatusFilterChange,
+  onTaskTypeFilterChange
 }) {
   const [title, setTitle] = useState('')
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -39,10 +43,15 @@ export default function NoteEditor({
   const [slideDirection, setSlideDirection] = useState('')
   const [isAnimating, setIsAnimating] = useState(false)
   const [showDoneSection, setShowDoneSection] = useState(false)
+  const [doneSectionWidth, setDoneSectionWidth] = useState(50) // Percentage width of done section
+  const [isResizing, setIsResizing] = useState(false)
+  const [showSavedBadge, setShowSavedBadge] = useState(false)
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
   const previousNoteIdRef = useRef(null)
+  const resizeContainerRef = useRef(null)
+  const savedBadgeTimerRef = useRef(null)
 
   // Detect navigation direction and trigger animation
   useEffect(() => {
@@ -95,6 +104,44 @@ export default function NoteEditor({
     }
   }, [showContextMenu])
 
+  // Handle resizing of done section
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing || !resizeContainerRef.current) return
+
+      const container = resizeContainerRef.current
+      const rect = container.getBoundingClientRect()
+      const containerWidth = rect.width
+      const mouseX = e.clientX - rect.left
+
+      // Calculate percentage (clamp between 20% and 80%)
+      let percentage = (mouseX / containerWidth) * 100
+      percentage = Math.max(20, Math.min(80, percentage))
+
+      // Done section is on the right, so we calculate from the right
+      const doneSectionPercentage = 100 - percentage
+      setDoneSectionWidth(doneSectionPercentage)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
+
+  const handleResizeStart = () => {
+    setIsResizing(true)
+  }
+
   // Handle right-click on title
   const handleTitleContextMenu = (e) => {
     e.preventDefault()
@@ -127,9 +174,24 @@ export default function NoteEditor({
 
   const handleSave = async () => {
     if (!note || !editorRef.current) return
-    
+
     const content = editorRef.current.getContent()
     await onSave({ ...note, title, content })
+
+    // Show "saved" badge after a brief delay (seamless feel)
+    setTimeout(() => {
+      setShowSavedBadge(true)
+
+      // Clear any existing timer
+      if (savedBadgeTimerRef.current) {
+        clearTimeout(savedBadgeTimerRef.current)
+      }
+
+      // Hide badge after 25 seconds of inactivity
+      savedBadgeTimerRef.current = setTimeout(() => {
+        setShowSavedBadge(false)
+      }, 25000)
+    }, 2000) // Show badge 2 seconds after save
   }
 
   const handleDelete = async () => {
@@ -201,11 +263,19 @@ export default function NoteEditor({
           return
         }
         if (e.key === 'ArrowLeft' && canNavigate('left')) {
+          // Don't navigate if on a task list with a selected task (let App.jsx handle it)
+          if (note.note_type === 'task_list' && selectedTaskId) {
+            return
+          }
           e.preventDefault()
           onNavigate(note.left_id)
           return
         }
         if (e.key === 'ArrowRight' && canNavigate('right')) {
+          // Don't navigate if on a task list with a selected task (let App.jsx handle it)
+          if (note.note_type === 'task_list' && selectedTaskId) {
+            return
+          }
           e.preventDefault()
           onNavigate(note.right_id)
           return
@@ -213,50 +283,56 @@ export default function NoteEditor({
       }
 
       if (isCreateNew) {
-        e.preventDefault()
-        
-        switch(e.key) {
-          case 'ArrowUp':
-            if (!note.up_id) {
-              await onCreateDraftLinked(note, 'up')
-            }
-            break
-          case 'ArrowDown':
-            if (!note.down_id) {
-              await onCreateDraftLinked(note, 'down')
-            }
-            break
-          case 'ArrowLeft':
-            if (!note.left_id) {
-              await onCreateDraftLinked(note, 'left')
-            }
-            break
-          case 'ArrowRight':
-            if (!note.right_id) {
-              await onCreateDraftLinked(note, 'right')
-            }
-            break
+        // Only handle arrow keys for creating new linked notes
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault()
+
+          switch(e.key) {
+            case 'ArrowUp':
+              if (!note.up_id) {
+                await onCreateDraftLinked(note, 'up')
+              }
+              break
+            case 'ArrowDown':
+              if (!note.down_id) {
+                await onCreateDraftLinked(note, 'down')
+              }
+              break
+            case 'ArrowLeft':
+              if (!note.left_id) {
+                await onCreateDraftLinked(note, 'left')
+              }
+              break
+            case 'ArrowRight':
+              if (!note.right_id) {
+                await onCreateDraftLinked(note, 'right')
+              }
+              break
+          }
         }
       } else if (isForceNavigate) {
-        e.preventDefault()
-        
-        switch(e.key) {
-          case 'ArrowUp':
-            if (note.up_id) {
-              onNavigate(note.up_id)
-            }
-            break
-          case 'ArrowDown':
-            if (note.down_id) {
-              onNavigate(note.down_id)
-            }
-            break
-          case 'ArrowLeft':
-            if (note.left_id) onNavigate(note.left_id)
-            break
-          case 'ArrowRight':
-            if (note.right_id) onNavigate(note.right_id)
-            break
+        // Only handle arrow keys for force navigation
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault()
+
+          switch(e.key) {
+            case 'ArrowUp':
+              if (note.up_id) {
+                onNavigate(note.up_id)
+              }
+              break
+            case 'ArrowDown':
+              if (note.down_id) {
+                onNavigate(note.down_id)
+              }
+              break
+            case 'ArrowLeft':
+              if (note.left_id) onNavigate(note.left_id)
+              break
+            case 'ArrowRight':
+              if (note.right_id) onNavigate(note.right_id)
+              break
+          }
         }
       }
     }
@@ -267,8 +343,11 @@ export default function NoteEditor({
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current)
       }
+      if (savedBadgeTimerRef.current) {
+        clearTimeout(savedBadgeTimerRef.current)
+      }
     }
-  }, [note, onNavigate, onCreateDraftLinked, title])
+  }, [note, onNavigate, onCreateDraftLinked, title, selectedTaskId])
 
   if (!note) {
     return (
@@ -276,7 +355,7 @@ export default function NoteEditor({
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 max-w-lg">
           <div className="text-center">
             <p className="text-xl text-gray-400 dark:text-gray-600 mb-6">Select a note or create a new one</p>
-            <div className="text-xs text-gray-500 dark:text-gray-500 space-y-2 bg-gray-50 dark:bg-gray-850 p-6 rounded-lg">
+            <div className="text-xs text-gray-500 dark:text-gray-500 space-y-2 bg-gray-50 dark:bg-gray-850 p-6 rounded">
               <p className="font-medium mb-3 text-gray-600 dark:text-gray-400">Keyboard Shortcuts:</p>
               <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+S</kbd> Save note</p>
               <p><kbd className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs">Ctrl+Backspace</kbd> Delete note</p>
@@ -410,10 +489,17 @@ export default function NoteEditor({
               )}
             </div>
 
+            {/* Saved badge - subtle and unobtrusive */}
+            {showSavedBadge && (
+              <div className="mt-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[10px] font-medium text-gray-500 dark:text-gray-400 opacity-0 animate-saved-badge">
+                Saved
+              </div>
+            )}
+
             {/* Star button */}
             <button
               onClick={() => onToggleStar(note.id)}
-              className="mt-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+              className="mt-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0"
               title={note.is_starred ? 'Unstar (hide from sidebar)' : 'Star (show in sidebar)'}
             >
               <Star
@@ -428,11 +514,13 @@ export default function NoteEditor({
         <div className="flex-1 overflow-hidden flex flex-col relative">
           {note.note_type === 'task_list' ? (
             <>
-              {/* Status Filter - only show for Tasks, Today, and Week pages */}
+              {/* Collapsible Filter Bar - only show for Tasks, Today, and Week pages */}
               {note.title !== 'Someday/Maybe' && (
-                <StatusFilter
+                <CollapsibleFilterBar
+                  selectedTaskType={taskTypeFilter}
                   selectedStatuses={statusFilter}
-                  onChange={onStatusFilterChange}
+                  onTaskTypeChange={onTaskTypeFilterChange}
+                  onStatusChange={onStatusFilterChange}
                 />
               )}
 
@@ -454,9 +542,12 @@ export default function NoteEditor({
                       DONE ({(currentTasks || []).filter(t => t.status === 'DONE').length})
                     </button>
 
-                    <div className={`h-full ${showDoneSection ? 'grid grid-cols-2 gap-8' : ''}`}>
+                    <div className={`h-full ${showDoneSection ? 'flex' : ''}`} ref={resizeContainerRef}>
                       {/* Planned Section */}
-                      <div className="flex flex-col h-full">
+                      <div
+                        className="flex flex-col h-full"
+                        style={showDoneSection ? { width: `${100 - doneSectionWidth}%` } : {}}
+                      >
                         {showDoneSection && (
                           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
                             Planned
@@ -466,6 +557,9 @@ export default function NoteEditor({
                           <TaskList
                             tasks={(currentTasks || []).filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')}
                             allNotes={allNotes}
+                            viewType={note.title}
+                            selectedTaskId={selectedTaskId}
+                            onTaskSelect={onTaskSelect}
                             onToggleComplete={onToggleTaskComplete}
                             onToggleStar={onToggleTaskStar}
                             onStatusChange={onChangeTaskStatus}
@@ -476,9 +570,22 @@ export default function NoteEditor({
                         </div>
                       </div>
 
+                      {/* Resizable Divider */}
+                      {showDoneSection && (
+                        <div
+                          className="w-1 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-500 cursor-col-resize transition-colors mx-4 flex-shrink-0"
+                          onMouseDown={handleResizeStart}
+                          style={{ userSelect: 'none' }}
+                          title="Drag to resize"
+                        />
+                      )}
+
                       {/* Done Section - only shown when toggle is active */}
                       {showDoneSection && (
-                        <div className="flex flex-col border-l border-gray-200 dark:border-gray-700 pl-8 h-full">
+                        <div
+                          className="flex flex-col h-full"
+                          style={{ width: `${doneSectionWidth}%` }}
+                        >
                           <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">
                             Done
                           </h3>
@@ -486,6 +593,9 @@ export default function NoteEditor({
                             <TaskList
                               tasks={(currentTasks || []).filter(t => t.status === 'DONE')}
                               allNotes={allNotes}
+                              viewType={note.title}
+                              selectedTaskId={selectedTaskId}
+                              onTaskSelect={onTaskSelect}
                               onToggleComplete={onToggleTaskComplete}
                               onToggleStar={onToggleTaskStar}
                               onStatusChange={onChangeTaskStatus}
@@ -503,6 +613,9 @@ export default function NoteEditor({
                   <TaskList
                     tasks={currentTasks || []}
                     allNotes={allNotes}
+                    viewType={note.title}
+                    selectedTaskId={selectedTaskId}
+                    onTaskSelect={onTaskSelect}
                     onToggleComplete={onToggleTaskComplete}
                     onToggleStar={onToggleTaskStar}
                     onStatusChange={onChangeTaskStatus}
@@ -536,7 +649,7 @@ export default function NoteEditor({
             left: `${contextMenuPosition.x}px`,
             zIndex: 1000,
           }}
-          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-xl py-1 min-w-[180px]"
         >
           <button
             onClick={handleSetAsHome}

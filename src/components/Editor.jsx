@@ -29,7 +29,7 @@ function CustomCodeHighlightPlugin() {
   return null
 }
 
-// Plugin to handle paste inside code blocks
+// Plugin to handle paste in code blocks
 function CodeBlockPastePlugin() {
   const [editor] = useLexicalComposerContext()
 
@@ -49,11 +49,15 @@ function CodeBlockPastePlugin() {
           return $isCodeNode(parent) || $isCodeNode(node)
         })
 
+        // Only handle paste if we're in a code block
         if (isInCodeBlock) {
-          event.preventDefault()
+          const clipboardData = event.clipboardData
+          if (!clipboardData) {
+            return false
+          }
 
-          // Get the pasted text
-          const text = event.clipboardData?.getData('text/plain')
+          event.preventDefault()
+          const text = clipboardData.getData('text/plain')
           if (text) {
             editor.update(() => {
               const sel = $getSelection()
@@ -66,6 +70,7 @@ function CodeBlockPastePlugin() {
           }
         }
 
+        // Let Lexical handle all other paste events
         return false
       },
       COMMAND_PRIORITY_HIGH

@@ -156,12 +156,20 @@ export default function TaskDetail({ task, onClose, onSave }) {
   }
 
   const statusOptions = [
-    { value: 'BACKLOG', icon: Circle, color: 'text-gray-500' },
-    { value: 'PLANNED', icon: Circle, color: 'text-purple-500' },
-    { value: 'DOING', icon: Clock, color: 'text-blue-500' },
-    { value: 'BLOCKED', icon: AlertCircle, color: 'text-yellow-500' },
-    { value: 'DONE', icon: CheckCircle2, color: 'text-green-500' },
-    { value: 'CANCELLED', icon: XCircle, color: 'text-red-500' }
+    { value: 'BACKLOG', label: 'Backlog', icon: Circle, color: 'text-gray-500' },
+    { value: 'PLANNED', label: 'Planned', icon: Circle, color: 'text-purple-500' },
+    { value: 'DOING', label: 'Doing', icon: Clock, color: 'text-blue-500' },
+    { value: 'BLOCKED', label: 'Blocked', icon: AlertCircle, color: 'text-yellow-500' },
+    { value: 'DONE', label: 'Done', icon: CheckCircle2, color: 'text-green-500' },
+    { value: 'CANCELLED', label: 'Cancelled', icon: XCircle, color: 'text-red-500' }
+  ]
+
+  const taskTypeOptions = [
+    { value: 'DEEP_WORK', label: 'Deep Work', description: 'the real building' },
+    { value: 'QUICK_WINS', label: 'Quick Wins', description: 'momentum makers' },
+    { value: 'GRUNT_WORK', label: 'Grunt Work', description: 'has to get done' },
+    { value: 'PEOPLE_TIME', label: 'People Time', description: 'meetings, comms' },
+    { value: 'STRATEGIC', label: 'Strategic', description: 'planning, thinking' }
   ]
 
   const getRelativeTime = (dateString) => {
@@ -197,7 +205,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
   }
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg flex flex-col">
+    <div className="w-full h-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded shadow-lg flex flex-col">
       {/* Header - Task Title */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -217,7 +225,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-2 flex-shrink-0"
+          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ml-2 flex-shrink-0"
           title="Close"
         >
           <X size={16} className="text-gray-600 dark:text-gray-400" />
@@ -240,7 +248,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
               Status
             </label>
             <div className="flex items-center gap-3">
-              {statusOptions.map(({ value, icon: Icon, color }) => (
+              {statusOptions.map(({ value, label, icon: Icon, color }) => (
                 <button
                   key={value}
                   onClick={async () => {
@@ -255,10 +263,10 @@ export default function TaskDetail({ task, onClose, onSave }) {
                       ? `${color} opacity-100`
                       : 'text-gray-300 dark:text-gray-700 opacity-60 hover:opacity-100'
                   }`}
-                  title={value}
+                  title={label}
                 >
                   <Icon size={20} strokeWidth={editedTask.status === value ? 2.5 : 2} />
-                  <span className="text-[9px] font-medium">{value}</span>
+                  <span className="text-[9px] font-medium">{label}</span>
                 </button>
               ))}
             </div>
@@ -321,10 +329,54 @@ export default function TaskDetail({ task, onClose, onSave }) {
           </div>
         </div>
 
-        {/* Context */}
+        {/* Task Type Selector */}
+        <div className="flex-shrink-0">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+            Task Type
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {taskTypeOptions.map(({ value, label, description }) => (
+              <button
+                key={value}
+                onClick={async () => {
+                  const updatedTask = { ...editedTask, task_type: value }
+                  setEditedTask(updatedTask)
+                  if (onSave) {
+                    await onSave(updatedTask)
+                  }
+                }}
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                  editedTask.task_type === value
+                    ? 'bg-gray-900 dark:bg-gray-700 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+                title={description}
+              >
+                {label}
+              </button>
+            ))}
+            {editedTask.task_type && (
+              <button
+                onClick={async () => {
+                  const updatedTask = { ...editedTask, task_type: null }
+                  setEditedTask(updatedTask)
+                  if (onSave) {
+                    await onSave(updatedTask)
+                  }
+                }}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                title="Clear task type"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Notes */}
         <div className="flex-1 min-h-0 flex flex-col">
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 flex-shrink-0">
-            Context
+            Notes
           </label>
           <textarea
             value={editedTask.context || ''}
@@ -333,7 +385,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
             onKeyDown={(e) => handleTextareaKeyDown(e, 'context')}
             onBlur={handleSave}
             className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-950 resize-none font-mono leading-relaxed"
-            placeholder="Add context or details...
+            placeholder="What's this task about?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
           />
@@ -351,7 +403,7 @@ export default function TaskDetail({ task, onClose, onSave }) {
             onKeyDown={(e) => handleTextareaKeyDown(e, 'work_notes')}
             onBlur={handleSave}
             className="flex-1 min-h-0 w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600 focus:bg-white dark:focus:bg-gray-950 resize-none font-mono leading-relaxed"
-            placeholder="Progress updates, blockers, learnings...
+            placeholder="How's it going? Any blockers?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
           />

@@ -34,14 +34,14 @@
  * - is_home, is_starred, updated_at
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import NotesList from './components/NotesList'
 import NoteEditor from './components/NoteEditor'
 import Terminal from './components/Terminal'
 import Timer from './components/Timer'
 import TaskDetail from './components/TaskDetail'
 import { supabase } from './supabaseClient'
-import { Menu, Sun, Moon, Home } from 'lucide-react'
+import { Menu, Sun, Moon, Home, Inbox } from 'lucide-react'
 import {
   parseCommand,
   createTaskListContent
@@ -53,6 +53,9 @@ function App() {
   const [selectedNote, setSelectedNote] = useState(null)
   const [secondaryNote, setSecondaryNote] = useState(null) // For side-by-side view
 
+  // Ref for terminal component
+  const terminalRef = useRef(null)
+
   // Special notes references
   const [homeNote, setHomeNote] = useState(null)
   const [tasksNote, setTasksNote] = useState(null)
@@ -63,7 +66,10 @@ function App() {
   // Tasks state (from tasks table)
   const [currentTasks, setCurrentTasks] = useState([])
   const [selectedTask, setSelectedTask] = useState(null) // For task detail panel
+  const [selectedTaskId, setSelectedTaskId] = useState(null) // For task selection (single click)
+  const [deselectionPending, setDeselectionPending] = useState(false) // For two-step deselection on Today page
   const [statusFilter, setStatusFilter] = useState([]) // Array of status values to filter by
+  const [taskTypeFilter, setTaskTypeFilter] = useState(null) // Single task type value (radio behavior)
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -87,6 +93,213 @@ function App() {
     document.documentElement.classList.toggle('dark', theme === 'dark')
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  /**
+   * Get the navigable tasks array that matches what TaskList receives
+   * This ensures navigation indices match what's rendered
+   *
+   * On Today page: Filter out DONE and CANCELLED tasks
+   * On other pages: Use all tasks
+   */
+  const getNavigableTasksForView = () => {
+    if (!currentTasks || currentTasks.length === 0) return []
+
+    if (selectedNote?.title === 'Today') {
+      // Match NoteEditor.jsx line 558 filtering
+      return currentTasks.filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')
+    }
+
+    // For all other views, use unfiltered tasks
+    return currentTasks
+  }
+
+  /**
+   * Handle keyboard shortcuts
+   * - Tab: Focus terminal (when not editing)
+   * - Up/Down: Navigate through tasks (when on task list page and not editing)
+   * - Shift+Up/Down: Reorder tasks (when on task list page and not editing)
+   * - Right: Open task detail panel (when a task is selected)
+   * - Left: On Today page: first press deselects, second press navigates to Tasks
+   *         On other pages: closes task panel or deselects task
+   */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const activeElement = document.activeElement
+      const tagName = activeElement?.tagName.toLowerCase()
+      const isEditable = activeElement?.isContentEditable
+
+      // Check if we're not in an input, textarea, or contenteditable element
+      const isNotEditing = tagName !== 'input' && tagName !== 'textarea' && !isEditable
+
+      // Tab: Focus terminal
+      if (e.key === 'Tab' && isNotEditing) {
+        e.preventDefault()
+        terminalRef.current?.focus()
+        return
+      }
+
+      // Space: Prepopulate terminal with "/task " on Today or Tasks pages
+      if (e.key === ' ' && isNotEditing) {
+        if (selectedNote?.title === 'Today' || selectedNote?.title === 'Tasks') {
+          e.preventDefault()
+          terminalRef.current?.setInputValue('/task ')
+        }
+        return
+      }
+
+      // Left arrow: Close panel, reset navigation, or navigate left
+      if (e.key === 'ArrowLeft' && isNotEditing) {
+        console.log('⬅️  Left Arrow:', {
+          selectedTaskId,
+          panelOpen: !!selectedTask,
+          notePage: selectedNote?.title,
+          noteType: selectedNote?.note_type
+        })
+
+        // Priority 1: Close task detail panel if open
+        if (selectedTask) {
+          e.preventDefault()
+          e.stopPropagation()
+          console.log('  → Closing task panel')
+          setSelectedTask(null)
+          return
+        }
+
+        // Priority 2: On task list pages, reset navigation OR navigate left
+        if (selectedNote?.note_type === 'task_list') {
+          // If a task is highlighted, reset navigation (remove highlight)
+          if (selectedTaskId) {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('  → Resetting navigation (removing highlight)')
+            setSelectedTaskId(null)
+            return
+          }
+
+          // No highlight on Today page - navigate to Tasks page
+          if (selectedNote?.title === 'Today' && tasksNote) {
+            e.preventDefault()
+            console.log('  → Navigation reset on Today, navigating to Tasks')
+            setSelectedNote(tasksNote)
+            return
+          }
+
+          // For other task list pages with no highlight, allow NoteEditor to handle navigation
+          console.log('  → Navigation reset, allowing page navigation')
+        }
+
+        return
+      }
+
+      // Arrow key navigation for tasks (only on task list pages)
+      if (selectedNote?.note_type === 'task_list' && isNotEditing) {
+        // Get the filtered array that matches what TaskList displays
+        const navigableTasks = getNavigableTasksForView()
+
+        if (navigableTasks.length === 0) return
+
+        console.log('⌨️  Arrow key pressed:', {
+          totalTasks: currentTasks.length,
+          navigableTasks: navigableTasks.length,
+          viewType: selectedNote?.title
+        })
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          console.log('🔼 Up Arrow - Before:', { selectedTaskId, navigableTasksLength: navigableTasks.length })
+
+          // Reset deselection pending on any other action
+          setDeselectionPending(false)
+
+          if (e.shiftKey && selectedTaskId) {
+            // Shift+Up: Move task up (use original currentTasks for reordering)
+            const currentIndex = currentTasks.findIndex(t => t.id === selectedTaskId)
+            if (currentIndex > 0) {
+              reorderTasks(currentIndex, currentIndex - 1)
+            }
+          } else {
+            // Up: Select previous task (use navigableTasks for selection)
+            const currentIndex = navigableTasks.findIndex(t => t.id === selectedTaskId)
+            console.log('  Current index in navigable tasks:', currentIndex)
+
+            if (currentIndex === -1) {
+              // No selection, select first task
+              console.log('  → Selecting first task:', navigableTasks[0]?.id)
+              setSelectedTaskId(navigableTasks[0].id)
+            } else if (currentIndex > 0) {
+              // Select previous task
+              console.log('  → Selecting previous task:', navigableTasks[currentIndex - 1].id)
+              setSelectedTaskId(navigableTasks[currentIndex - 1].id)
+            } else {
+              // At top of list, stay at top
+              console.log('  → At top boundary, staying at current task')
+            }
+          }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          console.log('🔽 Down Arrow - Before:', { selectedTaskId, navigableTasksLength: navigableTasks.length })
+
+          // Reset deselection pending on any other action
+          setDeselectionPending(false)
+
+          if (e.shiftKey && selectedTaskId) {
+            // Shift+Down: Move task down (use original currentTasks for reordering)
+            const currentIndex = currentTasks.findIndex(t => t.id === selectedTaskId)
+            if (currentIndex < currentTasks.length - 1) {
+              reorderTasks(currentIndex, currentIndex + 1)
+            }
+          } else {
+            // Down: Select next task (use navigableTasks for selection)
+            const currentIndex = navigableTasks.findIndex(t => t.id === selectedTaskId)
+            console.log('  Current index in navigable tasks:', currentIndex)
+
+            if (currentIndex === -1) {
+              // No selection, select first task
+              const firstTaskId = navigableTasks[0]?.id
+              console.log('  → Selecting first task:', firstTaskId)
+              console.log('  → Navigable tasks:', navigableTasks.map(t => ({ id: t.id, text: t.text.substring(0, 30) })))
+              setSelectedTaskId(firstTaskId)
+              // Log after state update to verify
+              setTimeout(() => {
+                console.log('  → State after selection:', { selectedTaskId: firstTaskId })
+              }, 0)
+            } else if (currentIndex < navigableTasks.length - 1) {
+              // Select next task
+              console.log('  → Selecting next task:', navigableTasks[currentIndex + 1].id)
+              setSelectedTaskId(navigableTasks[currentIndex + 1].id)
+            } else {
+              // At bottom of list, stay at bottom
+              console.log('  → At bottom boundary, staying at current task')
+            }
+          }
+        } else if (e.key === 'ArrowRight') {
+          // Right arrow: OPEN task panel when task is highlighted
+          console.log('➡️  Right Arrow:', { selectedTaskId, panelOpen: !!selectedTask })
+
+          if (selectedTaskId) {
+            // Task is highlighted, open the panel
+            e.preventDefault()
+            e.stopPropagation()
+            // Find task in original currentTasks array (has all tasks)
+            const task = currentTasks.find(t => t.id === selectedTaskId)
+            if (task) {
+              console.log('  → Opening task panel for highlighted task')
+              setSelectedTask(task)
+            }
+            return
+          }
+          // If no task highlighted, allow NoteEditor to handle navigation
+          console.log('  → No task highlighted, allowing page navigation')
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote])
 
   /**
    * Toggle between light and dark themes
@@ -1061,6 +1274,9 @@ function App() {
       if (updatedTask.scheduled_date !== undefined) {
         updates.scheduled_date = updatedTask.scheduled_date
       }
+      if (updatedTask.task_type !== undefined) {
+        updates.task_type = updatedTask.task_type
+      }
 
       const { error } = await supabase
         .from('tasks')
@@ -1160,12 +1376,22 @@ function App() {
       // Apply view-specific filtering
       if (noteTitle === 'Today') {
         // Today: show starred tasks OR tasks scheduled for today (excluding CANCELLED and SOMEDAY)
+        // Also include tasks marked as DONE today
         const today = new Date().toISOString().split('T')[0]
-        updatedTasks = updatedTasks.filter(task =>
-          (task.starred || task.scheduled_date === today) &&
-          task.status !== 'CANCELLED' &&
-          task.scheduled_date !== 'SOMEDAY'
-        )
+        updatedTasks = updatedTasks.filter(task => {
+          // Include tasks marked done today
+          if (task.status === 'DONE' && task.updated_at) {
+            const taskUpdatedDate = task.updated_at.split('T')[0]
+            if (taskUpdatedDate === today) {
+              return true
+            }
+          }
+
+          // Include starred or scheduled tasks (excluding cancelled and someday)
+          return (task.starred || task.scheduled_date === today) &&
+            task.status !== 'CANCELLED' &&
+            task.scheduled_date !== 'SOMEDAY'
+        })
       } else if (noteTitle === 'Week') {
         // Week: show active tasks (not done, not cancelled, not someday)
         // Include: tasks scheduled this week OR tasks with no date OR tasks marked as THIS_WEEK
@@ -1210,6 +1436,11 @@ function App() {
         updatedTasks = updatedTasks.filter(task => statusFilter.includes(task.status))
       }
 
+      // Apply task type filter if selected (single value)
+      if (taskTypeFilter) {
+        updatedTasks = updatedTasks.filter(task => task.task_type === taskTypeFilter)
+      }
+
       setCurrentTasks(updatedTasks)
     } catch (error) {
       console.error('Error fetching tasks for view:', error)
@@ -1221,10 +1452,24 @@ function App() {
   useEffect(() => {
     if (selectedNote?.note_type === 'task_list') {
       fetchTasksForView(selectedNote.title)
+      // Clear task selection when changing pages
+      console.log('📄 Page changed, clearing task selection')
+      setSelectedTaskId(null)
     } else {
       setCurrentTasks([])
     }
   }, [selectedNote])
+
+  // Clear selectedTaskId if the selected task is not in the current filtered list
+  useEffect(() => {
+    if (selectedTaskId && currentTasks.length > 0) {
+      const taskExists = currentTasks.some(t => t.id === selectedTaskId)
+      if (!taskExists) {
+        console.log('🔄 Selected task not in filtered list, clearing selection')
+        setSelectedTaskId(null)
+      }
+    }
+  }, [currentTasks, selectedTaskId])
 
   // Re-fetch tasks when status filter changes
   useEffect(() => {
@@ -1233,11 +1478,19 @@ function App() {
     }
   }, [statusFilter])
 
+  // Re-fetch tasks when task type filter changes
+  useEffect(() => {
+    if (selectedNote?.note_type === 'task_list') {
+      fetchTasksForView(selectedNote.title)
+    }
+  }, [taskTypeFilter])
+
   /**
    * Add a new task directly to the tasks table
    *
    * @param {string} text - Task description
    * @param {object} targetNote - Target note object (determines starred status)
+   * @param {object} options - Optional parameters { scheduleToday: boolean, note: string }
    *
    * Process:
    * 1. Get highest priority to determine new task's priority
@@ -1245,7 +1498,7 @@ function App() {
    * 3. Insert into tasks table
    * 4. Refresh the current view
    */
-  const addTask = async (text, targetNote) => {
+  const addTask = async (text, targetNote, options = {}) => {
     try {
       if (!targetNote) {
         throw new Error('Target note not found')
@@ -1257,11 +1510,15 @@ function App() {
         ? Math.max(...allTasks.map(t => t.priority || 0))
         : 0
 
+      const today = new Date().toISOString().split('T')[0]
+
       const newTask = {
         text,
-        status: 'BACKLOG', // Default status for new tasks
+        status: options.scheduleToday ? 'PLANNED' : 'BACKLOG', // PLANNED if scheduled for today
         priority: maxPriority + 1,
-        starred: targetNote.title === 'Today', // Auto-star if adding to Today
+        starred: targetNote.title === 'Today' || options.scheduleToday, // Auto-star if adding to Today OR if scheduled for today
+        scheduled_date: options.scheduleToday ? today : null, // Set today's date if requested
+        context: options.note || null, // Add context/note if provided
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
@@ -1365,6 +1622,8 @@ function App() {
 
   /**
    * Toggle task star status in tasks table
+   * When starring: BACKLOG → PLANNED, scheduled_date → today
+   * When unstarring: PLANNED → BACKLOG
    *
    * @param {string} taskId - Unique task ID
    */
@@ -1375,17 +1634,36 @@ function App() {
       if (!task) return
 
       const newStarredState = !task.starred
+      const updates = { starred: newStarredState }
+      const today = new Date().toISOString().split('T')[0]
+
+      // Auto-adjust status and schedule when starring/unstarring
+      if (newStarredState) {
+        // Starring a task
+        if (task.status === 'BACKLOG') {
+          updates.status = 'PLANNED'
+        }
+        // Set scheduled_date to today if not already scheduled
+        if (!task.scheduled_date) {
+          updates.scheduled_date = today
+        }
+      } else {
+        // Unstarring a task
+        if (task.status === 'PLANNED') {
+          updates.status = 'BACKLOG'
+        }
+      }
 
       // Optimistic update
       setCurrentTasks(currentTasks.map(t =>
-        t.id === taskId ? { ...t, starred: newStarredState, updated_at: new Date().toISOString() } : t
+        t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
       ))
 
       // Update in database
       const { error } = await supabase
         .from('tasks')
         .update({
-          starred: newStarredState,
+          ...updates,
           updated_at: new Date().toISOString()
         })
         .eq('id', taskId)
@@ -1522,9 +1800,16 @@ function App() {
           return `📖 Available Commands:
 
 TASK MANAGEMENT:
-  add task "text" to today        Add task to Today list
-  add task "text" to week         Add task to Week list
-  add task "text" to tasks        Add task to Tasks list
+  /task "text"                    Quick add task to Tasks list
+  /task "text" :today             Add task scheduled for today (status: PLANNED)
+  /task "text" :note "details"    Add task with context notes
+  add task "text" to/in today     Add task to Today list
+  add task "text" to/in week      Add task to Week list
+  add task "text" to/in tasks     Add task to Tasks list
+
+COMBINE OPTIONS:
+  /task "text" :today :note "note"  Schedule for today with notes
+  add task "text" to tasks :today :note "note"  Full syntax example
 
 NAVIGATION:
   goto today                      Navigate to Today
@@ -1542,16 +1827,17 @@ COMING SOON:
 
 TIPS:
 • Press ↑/↓ to navigate command history
-• Colors appear after you finish typing each word
+• Use :today to schedule tasks and set status to PLANNED
+• Use :note "text" to add context/details to tasks
+• You can combine :today and :note in any order
 • Star tasks to add them to Today list
 • Drag tasks to reorder them
-• Click timer to pause/unpause
 
 Type /help anytime to see this message.`
         }
 
         case 'ADD_TASK': {
-          const { text, target } = command.payload
+          const { text, target, scheduleToday, note } = command.payload
           let targetNote = null
 
           if (target === 'today' && todayNote) {
@@ -1563,8 +1849,11 @@ Type /help anytime to see this message.`
           }
 
           if (targetNote) {
-            await addTask(text, targetNote)
-            return `✓ Task added to ${target}`
+            await addTask(text, targetNote, { scheduleToday, note })
+            let statusMsg = ''
+            if (scheduleToday) statusMsg += ' (scheduled for today, status: PLANNED)'
+            if (note) statusMsg += ' (note added)'
+            return `✓ Task added to ${target}${statusMsg}`
           } else {
             return `✗ Target note "${target}" not found`
           }
@@ -1649,6 +1938,15 @@ Type /help anytime to see this message.`
     }
   }
 
+  const goToTasks = () => {
+    if (tasksNote) {
+      setSelectedNote(tasksNote)
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    }
+  }
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-white dark:bg-gray-900">
@@ -1677,15 +1975,23 @@ Type /help anytime to see this message.`
       <div className="fixed top-6 left-6 z-50 flex gap-2">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Toggle sidebar"
         >
           <Menu size={18} className="text-gray-600 dark:text-gray-400" />
         </button>
 
         <button
+          onClick={goToTasks}
+          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title="Go to Tasks"
+        >
+          <Inbox size={18} className="text-gray-500 dark:text-gray-400" />
+        </button>
+
+        <button
           onClick={toggleTheme}
-          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Toggle theme"
         >
           {theme === 'dark' ? (
@@ -1697,7 +2003,7 @@ Type /help anytime to see this message.`
 
         <button
           onClick={goToHome}
-          className="p-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
+          className="p-2.5 bg-gray-900 dark:bg-gray-700 text-white rounded hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors"
           title="Go to HOME"
         >
           <Home size={18} />
@@ -1743,11 +2049,16 @@ Type /help anytime to see this message.`
         {/* Main content */}
         <div className="flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16 gap-4">
           {/* Primary note editor */}
-          <div className={`w-full h-full ${secondaryNote || selectedTask ? 'max-w-2xl' : 'max-w-4xl'} max-h-[800px] transition-all`}>
+          <div className={`w-full h-full ${secondaryNote || selectedTask ? 'max-w-2xl' : 'max-w-6xl'} max-h-[800px] transition-all`}>
             <NoteEditor
               note={selectedNote}
               allNotes={notes}
               currentTasks={currentTasks}
+              selectedTaskId={selectedTaskId}
+              onTaskSelect={(taskId) => {
+                setSelectedTaskId(taskId)
+                setDeselectionPending(false) // Reset flag when selecting a task by clicking
+              }}
               onSave={saveNote}
               onDelete={deleteNote}
               onSetAsHome={setAsHome}
@@ -1768,9 +2079,14 @@ Type /help anytime to see this message.`
               onScheduleTask={scheduleTask}
               onReorderTasks={reorderTasks}
               onRefIdNavigate={navigateToRefId}
-              onTaskDoubleClick={setSelectedTask}
+              onTaskDoubleClick={(task) => {
+                console.log('📋 Opening task panel:', { taskId: task?.id, taskText: task?.text })
+                setSelectedTask(task)
+              }}
               statusFilter={statusFilter}
+              taskTypeFilter={taskTypeFilter}
               onStatusFilterChange={setStatusFilter}
+              onTaskTypeFilterChange={setTaskTypeFilter}
             />
           </div>
 
@@ -1882,7 +2198,7 @@ Type /help anytime to see this message.`
       </div>
 
       {/* Terminal - fixed at bottom */}
-      <Terminal onCommand={handleCommand} />
+      <Terminal ref={terminalRef} onCommand={handleCommand} />
 
       {/* Timer - overlay when active (always mounted, just hidden when minimized) */}
       {timerConfig && (
