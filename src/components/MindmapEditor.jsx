@@ -173,7 +173,7 @@ export default function MindmapEditor({ note, onSave, onClose }) {
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          background: #10b981;
+          background: var(--color-semantic-success);
           color: white;
           border: none;
           cursor: pointer;
@@ -192,7 +192,7 @@ export default function MindmapEditor({ note, onSave, onClose }) {
           width: 24px;
           height: 24px;
           border-radius: 50%;
-          background: #ef4444;
+          background: var(--color-semantic-error);
           color: white;
           border: none;
           cursor: pointer;
@@ -364,9 +364,9 @@ export default function MindmapEditor({ note, onSave, onClose }) {
             input.style.cssText = `
               font-family: inherit;
               font-size: inherit;
-              color: inherit;
-              background: white;
-              border: 2px solid #3b82f6;
+              color: var(--color-fg-primary);
+              background: var(--color-bg-elevated);
+              border: 2px solid var(--color-border-focus);
               border-radius: 4px;
               padding: 2px 6px;
               outline: none;
@@ -587,8 +587,8 @@ export default function MindmapEditor({ note, onSave, onClose }) {
         {/* Tips */}
         <div className="p-3 bg-bg-secondary border-t border-syntax-blue text-xs text-text-secondary">
           <strong>Tips:</strong> <span className="text-text-primary">Click</span> any node to show
-          <span className="text-green-500 font-bold"> +</span> (add child) and
-          <span className="text-red-500 font-bold"> −</span> (delete) controls.
+          <span className="text-syntax-green font-bold"> +</span> (add child) and
+          <span className="text-syntax-red font-bold"> −</span> (delete) controls.
           <span className="text-text-primary">Double-click</span> to edit inline.
           Use "Edit Markdown" for advanced editing.
         </div>

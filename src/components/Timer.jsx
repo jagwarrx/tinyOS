@@ -98,22 +98,22 @@ export default function Timer({ totalSeconds, intervalSeconds = 30, onComplete, 
   }
 
   return (
-    <div className="fixed right-8 top-24 bg-[#2a2a2a] border border-gray-800 rounded-lg p-3 shadow-2xl z-50 flex flex-col items-center gap-2 min-w-[70px]">
+    <div className="fixed right-8 top-24 bg-bg-elevated border border-border-primary rounded-lg p-3 shadow-2xl z-50 flex flex-col items-center gap-2 min-w-[70px]">
       {/* Minimize button */}
       <div className="absolute top-1.5 right-1.5">
         <button
           onClick={onMinimize}
-          className="p-0.5 hover:bg-gray-700 rounded transition-colors"
+          className="p-0.5 hover:bg-bg-tertiary rounded transition-colors"
           title="Minimize timer"
         >
-          <Minimize2 size={12} className="text-gray-600" />
+          <Minimize2 size={12} className="text-fg-tertiary" />
         </button>
       </div>
 
       {/* Time display - click to pause/unpause, double-click to cancel */}
       <button
         onClick={handleTimerClick}
-        className="text-xl font-light text-gray-500 hover:text-gray-300 transition-colors cursor-pointer select-none pt-0.5"
+        className="text-xl font-light text-fg-secondary hover:text-fg-primary transition-colors cursor-pointer select-none pt-0.5"
         title={isPaused ? "Click to resume, double-click to cancel" : "Click to pause, double-click to cancel"}
       >
         {Math.floor(remainingSeconds / 60)}<br/>
@@ -122,7 +122,7 @@ export default function Timer({ totalSeconds, intervalSeconds = 30, onComplete, 
 
       {/* Pause indicator */}
       {isPaused && (
-        <div className="text-[9px] text-yellow-500 font-medium -mt-1">
+        <div className="text-[9px] text-semantic-warning font-medium -mt-1">
           PAUSED
         </div>
       )}
@@ -145,10 +145,10 @@ export default function Timer({ totalSeconds, intervalSeconds = 30, onComplete, 
                 isMilestoneDot ? 'w-2.5 h-2.5' : 'w-1.5 h-1.5'
               } ${
                 isElapsed
-                  ? 'bg-purple-500'
+                  ? 'bg-semantic-success'
                   : isCurrent
-                  ? 'bg-purple-500'
-                  : 'bg-gray-600'
+                  ? 'bg-accent-primary'
+                  : 'bg-border-primary'
               }`}
               title={`${intervalSeconds}s interval${isMilestoneDot ? ' (milestone)' : ''}`}
             />
@@ -157,7 +157,7 @@ export default function Timer({ totalSeconds, intervalSeconds = 30, onComplete, 
       </div>
 
       {/* Start time display */}
-      <div className="text-[10px] text-gray-600 font-mono pt-0.5">
+      <div className="text-[10px] text-fg-tertiary font-mono pt-0.5">
         {formatStartTime(startTime)}
       </div>
     </div>

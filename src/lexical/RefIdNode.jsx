@@ -140,7 +140,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
     return (
       <span
         onClick={handleClick}
-        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-hidden bg-white"
+        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-accent-primary/30 rounded-lg overflow-hidden bg-bg-elevated"
         title={`Click to open diagram: ${title}\nShift+Click to open side-by-side`}
         contentEditable={false}
         suppressContentEditableWarning={true}
@@ -153,7 +153,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
             style={{ maxHeight: '300px', maxWidth: '100%', overflow: 'auto' }}
           />
           {/* Caption */}
-          <div className="mt-3 text-xs text-center font-mono text-purple-700">
+          <div className="mt-3 text-xs text-center font-mono text-accent-primary">
             <span className="font-bold">DIAGRAM</span> | {title} | {refId}
           </div>
         </div>
@@ -166,7 +166,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
     return (
       <span
         onClick={handleClick}
-        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white"
+        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-accent-secondary/30 rounded-lg overflow-hidden bg-bg-elevated"
         title={`Click to open mindmap: ${title}\nShift+Click to open side-by-side`}
         contentEditable={false}
         suppressContentEditableWarning={true}
@@ -179,7 +179,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
             style={{ maxHeight: '300px', maxWidth: '100%', overflow: 'auto' }}
           />
           {/* Caption */}
-          <div className="mt-3 text-xs text-center font-mono text-blue-700">
+          <div className="mt-3 text-xs text-center font-mono text-accent-secondary">
             <span className="font-bold">MINDMAP</span> | {title} | {refId}
           </div>
         </div>
@@ -189,16 +189,16 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
 
   // Default rendering for notes and tasks
   const bgColor = type === 'task'
-    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-    : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+    ? 'bg-accent-secondary/10 border-accent-secondary/30'
+    : 'bg-accent-primary/10 border-accent-primary/30'
 
   const textColor = type === 'task'
-    ? 'text-blue-700 dark:text-blue-300'
-    : 'text-purple-700 dark:text-purple-300'
+    ? 'text-accent-secondary'
+    : 'text-accent-primary'
 
   const labelColor = type === 'task'
-    ? 'text-blue-500 dark:text-blue-400'
-    : 'text-purple-500 dark:text-purple-400'
+    ? 'text-accent-secondary'
+    : 'text-accent-primary'
 
   return (
     <span
@@ -214,7 +214,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
       </span>
 
       {/* Separator */}
-      <span className="text-gray-400 dark:text-gray-600">|</span>
+      <span className="text-fg-tertiary">|</span>
 
       {/* Title */}
       <span className={`${textColor} truncate max-w-[200px]`}>
@@ -222,7 +222,7 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
       </span>
 
       {/* Ref ID */}
-      <span className="text-gray-400 dark:text-gray-600 text-[10px]">
+      <span className="text-fg-tertiary text-[10px]">
         {refId}
       </span>
     </span>

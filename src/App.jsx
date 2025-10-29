@@ -2538,18 +2538,18 @@ Type /help anytime to see this message.`
         <div className="fixed bottom-48 left-0 right-0 flex justify-center z-40 pointer-events-none">
           <div
             onClick={() => setIsTimerMinimized(false)}
-            className="bg-[#2a2a2a] border border-gray-700 rounded-full px-4 py-2 shadow-lg flex items-center gap-3 cursor-pointer pointer-events-auto hover:bg-[#333333] transition-colors"
+            className="bg-bg-elevated border border-border-primary rounded-full px-4 py-2 shadow-lg flex items-center gap-3 cursor-pointer pointer-events-auto hover:bg-bg-tertiary transition-colors"
           >
             {sessionContext && (
-              <span className="text-xs text-gray-400 max-w-[200px] truncate">
+              <span className="text-xs text-fg-secondary max-w-[200px] truncate">
                 {sessionContext}
               </span>
             )}
-            <span className="text-sm font-mono text-purple-400">
+            <span className="text-sm font-mono text-accent-primary">
               {Math.floor(timerRemainingSeconds / 60)}:{(timerRemainingSeconds % 60).toString().padStart(2, '0')}
             </span>
             {isTimerPaused && (
-              <span className="text-[9px] text-yellow-500">PAUSED</span>
+              <span className="text-[9px] text-semantic-warning">PAUSED</span>
             )}
           </div>
         </div>

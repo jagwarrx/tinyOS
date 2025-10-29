@@ -93,6 +93,7 @@ See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structu
 - **Ref ID Generation**: PostgreSQL function `generate_reference_id()`
 - **URL Routing**: `/<ref_id>` format with history.pushState
 - **Special Notes**: Identified by `note_type` or `list_metadata`
+- **Theme System**: Algorithmic palette generation (chroma.js) from primary colors; all components use CSS variables (`--color-*`); semantic colors for actions (success/error/warning/info)
 
 ## Quick Tips for LLMs
 
@@ -102,6 +103,7 @@ See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structu
 4. **OVERDUE status** is automatic - not user-selectable
 5. **Task order**: Sort by `priority` ASC
 6. **Terminal commands**: Case-insensitive, parsed by `commandParser.js` → `App.jsx` handlers
+7. **Colors**: Never use hex codes or hardcoded Tailwind colors; use CSS variables (`var(--color-semantic-success)`) or theme classes (`bg-semantic-success`); semantic colors for actions (complete=success, delete=error, start=accent-primary)
 
 ## Token Optimization Guidelines
 

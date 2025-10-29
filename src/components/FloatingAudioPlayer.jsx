@@ -56,8 +56,8 @@ export default function FloatingAudioPlayer() {
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed bottom-6 right-6 w-14 h-14 ${
           activePlayer
-            ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 animate-pulse'
-            : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+            ? 'bg-gradient-to-r from-semantic-success to-semantic-success hover:opacity-90 animate-pulse'
+            : 'bg-gradient-to-r from-accent-primary to-accent-secondary hover:opacity-90'
         } text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50 primary-action border-0`}
         title={activePlayer ? "Audio playing - Click to show controls" : "Background Audio"}
       >
@@ -72,7 +72,7 @@ export default function FloatingAudioPlayer() {
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary bg-gradient-to-r from-purple-500 to-pink-500">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary bg-gradient-to-r from-accent-primary to-accent-secondary">
             <h3 className="text-sm font-semibold text-white">Background Audio</h3>
             <button
               onClick={handleMinimize}

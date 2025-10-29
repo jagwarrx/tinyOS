@@ -1,5 +1,5 @@
 import { getSetting, setSetting } from './settingsService'
-import { getTheme, getDefaultTheme, applyTheme } from '../config/themes'
+import { getTheme, getDefaultTheme, applyTheme, createCustomTheme } from '../config/themes'
 
 /**
  * Theme Service
@@ -7,7 +7,12 @@ import { getTheme, getDefaultTheme, applyTheme } from '../config/themes'
  */
 
 const THEME_KEY = 'theme'
+const CUSTOM_THEMES_KEY = 'custom_themes' // Key for storing custom theme configs
 const THEME_STORAGE_KEY = 'theme' // localStorage key for caching
+const CUSTOM_THEMES_STORAGE_KEY = 'custom_themes' // localStorage key for custom themes
+
+// In-memory cache of custom themes
+let customThemesCache = null
 
 /**
  * Load the active theme from database and apply it
@@ -121,5 +126,126 @@ export async function getCurrentThemeId() {
   } catch (error) {
     console.error('Failed to get current theme:', error)
     return null
+  }
+}
+
+/**
+ * Load custom theme configs from database
+ * @returns {Promise<Array>} Array of custom theme configs
+ */
+export async function loadCustomThemes() {
+  try {
+    // Check cache first
+    if (customThemesCache) {
+      return customThemesCache
+    }
+
+    // Try database
+    let customThemesJson = await getSetting(CUSTOM_THEMES_KEY)
+
+    // Fallback to localStorage
+    if (!customThemesJson) {
+      customThemesJson = localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY)
+    }
+
+    // Parse and cache
+    const customThemes = customThemesJson ? JSON.parse(customThemesJson) : []
+    customThemesCache = customThemes
+
+    return customThemes
+  } catch (error) {
+    console.error('Failed to load custom themes:', error)
+    return []
+  }
+}
+
+/**
+ * Save custom theme configs to database
+ * @param {Array} customThemes - Array of custom theme configs
+ * @returns {Promise<void>}
+ */
+export async function saveCustomThemes(customThemes) {
+  try {
+    const customThemesJson = JSON.stringify(customThemes)
+
+    // Save to database
+    await setSetting(CUSTOM_THEMES_KEY, customThemesJson, 'Custom theme configurations')
+
+    // Update localStorage cache
+    localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, customThemesJson)
+
+    // Update in-memory cache
+    customThemesCache = customThemes
+  } catch (error) {
+    console.error('Failed to save custom themes:', error)
+    throw error
+  }
+}
+
+/**
+ * Add a new custom theme
+ * @param {Object} config - Theme configuration
+ * @returns {Promise<Object>} Generated theme object
+ */
+export async function addCustomTheme(config) {
+  try {
+    // Load existing custom themes
+    const customThemes = await loadCustomThemes()
+
+    // Check for duplicate ID
+    if (customThemes.some(t => t.id === config.id)) {
+      throw new Error(`Theme with ID '${config.id}' already exists`)
+    }
+
+    // Add new theme
+    customThemes.push(config)
+
+    // Save to database
+    await saveCustomThemes(customThemes)
+
+    // Generate and return the full theme object
+    return createCustomTheme(config)
+  } catch (error) {
+    console.error('Failed to add custom theme:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete a custom theme
+ * @param {string} themeId - Theme identifier to delete
+ * @returns {Promise<void>}
+ */
+export async function deleteCustomTheme(themeId) {
+  try {
+    // Load existing custom themes
+    const customThemes = await loadCustomThemes()
+
+    // Filter out the theme
+    const filtered = customThemes.filter(t => t.id !== themeId)
+
+    if (filtered.length === customThemes.length) {
+      throw new Error(`Theme '${themeId}' not found`)
+    }
+
+    // Save back to database
+    await saveCustomThemes(filtered)
+  } catch (error) {
+    console.error('Failed to delete custom theme:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all custom themes (generated)
+ * @returns {Promise<Array>} Array of generated theme objects
+ */
+export async function getAllCustomThemes() {
+  try {
+    const configs = await loadCustomThemes()
+    return configs.map(config => createCustomTheme(config))
+  } catch (error) {
+    console.error('Failed to get custom themes:', error)
+    return []
   }
 }

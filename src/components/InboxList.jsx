@@ -90,7 +90,7 @@ export default function InboxList({
   // Empty state
   if (!sortedItems || sortedItems.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-400 dark:text-gray-600">
+      <div className="p-8 text-center text-fg-tertiary">
         <FileText size={40} className="mx-auto mb-3 opacity-40" />
         <p className="text-sm">No inbox items yet</p>
         <p className="text-xs mt-2">Use /inbox "title" to capture quick notes</p>
@@ -109,15 +109,15 @@ export default function InboxList({
             <div
               key={item.id}
               onClick={() => onItemClick(item)}
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all cursor-pointer group"
+              className="bg-bg-elevated border border-border-primary rounded-lg p-4 hover:shadow-md hover:border-border-focus transition-all cursor-pointer group"
             >
               {/* Item title with note count */}
               <div className="flex items-baseline gap-2 mb-2">
-                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors flex-1">
+                <h3 className="text-base font-medium text-fg-primary group-hover:text-accent-primary transition-colors flex-1">
                   {item.title || 'Untitled'}
                 </h3>
                 {noteCount > 1 && (
-                  <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-500 bg-gray-100 dark:bg-gray-750 px-2 py-0.5 rounded">
+                  <span className="flex items-center gap-1 text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/30 px-2 py-0.5 rounded">
                     <Network size={11} />
                     {noteCount} notes
                   </span>
@@ -125,7 +125,7 @@ export default function InboxList({
               </div>
 
               {/* Creation date */}
-              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-fg-secondary">
                 <Calendar size={12} />
                 <span>{formatDate(item.created_at)}</span>
               </div>

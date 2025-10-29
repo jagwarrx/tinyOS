@@ -1,26 +1,30 @@
 /**
  * Theme Registry
  * Central registry for all available themes
+ * Themes are now generated algorithmically from presets
  */
 
-import { sonokaiThemes } from './sonokai'
-import { monokaiThemes } from './monokai'
-import { terminalThemes } from './terminal'
-import { originalThemes } from './original'
-import { claudeThemes } from './claude'
-import { thingsThemes } from './things'
-import { trelloThemes } from './trello'
+import { generateTheme } from './generator'
+import { themePresets } from './presets'
 
-// Combine all themes
-export const allThemes = {
-  ...originalThemes,
-  ...sonokaiThemes,
-  ...monokaiThemes,
-  ...terminalThemes,
-  ...claudeThemes,
-  ...thingsThemes,
-  ...trelloThemes
+/**
+ * Generate all themes from presets
+ */
+function generateAllThemes() {
+  const themes = {}
+
+  Object.values(themePresets).forEach(preset => {
+    themes[preset.id] = generateTheme(preset)
+  })
+
+  return themes
 }
+
+// Generate all preset themes on module load
+export const allThemes = generateAllThemes()
+
+// Custom themes cache (loaded dynamically)
+let customThemesCache = {}
 
 // Theme collections for UI organization
 export const themeCollections = [
@@ -100,12 +104,43 @@ export const themeCollections = [
 ]
 
 /**
- * Get a theme by ID
+ * Get a theme by ID (checks both presets and custom themes)
  * @param {string} themeId - Theme identifier
  * @returns {Object|null} Theme object or null if not found
  */
 export function getTheme(themeId) {
-  return allThemes[themeId] || null
+  // Check presets first
+  if (allThemes[themeId]) {
+    return allThemes[themeId]
+  }
+
+  // Check custom themes cache
+  if (customThemesCache[themeId]) {
+    return customThemesCache[themeId]
+  }
+
+  return null
+}
+
+/**
+ * Register custom themes (called after loading from DB)
+ * @param {Array} customThemeConfigs - Array of custom theme configs
+ */
+export function registerCustomThemes(customThemeConfigs) {
+  customThemesCache = {}
+
+  customThemeConfigs.forEach(config => {
+    const theme = generateTheme(config)
+    customThemesCache[theme.id] = theme
+  })
+}
+
+/**
+ * Get all custom themes
+ * @returns {Object} Object mapping theme IDs to theme objects
+ */
+export function getCustomThemes() {
+  return { ...customThemesCache }
 }
 
 /**
@@ -125,7 +160,25 @@ export function getThemesByCollection(collectionId) {
  * @returns {Object} Default theme object
  */
 export function getDefaultTheme() {
-  return allThemes['original-sublime']
+  return allThemes['sonokai-default']
+}
+
+/**
+ * Generate a custom theme from user input
+ * @param {Object} config - Theme configuration
+ * @returns {Object} Generated theme object
+ */
+export function createCustomTheme(config) {
+  return generateTheme(config)
+}
+
+/**
+ * Get preset configuration for a theme
+ * @param {string} themeId - Theme identifier
+ * @returns {Object|null} Preset config or null
+ */
+export function getThemePreset(themeId) {
+  return themePresets[themeId] || null
 }
 
 /**

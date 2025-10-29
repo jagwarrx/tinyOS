@@ -195,31 +195,31 @@ export default function KanbanBoard({
     if (scheduledDate < today) {
       // Overdue - dark red
       return {
-        bg: 'var(--color-semantic-error, #dc2626)',
+        bg: 'var(--color-semantic-error)',
         text: 'white'
       }
     } else if (scheduledDate === today) {
-      // Today - red/orange
+      // Today - orange/warning
       return {
-        bg: 'var(--color-label-red, #eb5a46)',
+        bg: 'var(--color-semantic-warning)',
         text: 'white'
       }
     } else if (scheduledDate === tomorrow) {
       // Tomorrow - yellow
       return {
-        bg: 'var(--color-label-yellow, #f2d600)',
+        bg: 'var(--color-syntax-yellow)',
         text: 'black'
       }
     } else if (scheduledDate <= nextWeek) {
       // This week - blue
       return {
-        bg: 'var(--color-label-blue, #0079bf)',
+        bg: 'var(--color-semantic-info)',
         text: 'white'
       }
     } else {
       // Future - green
       return {
-        bg: 'var(--color-label-green, #61bd4f)',
+        bg: 'var(--color-semantic-success)',
         text: 'white'
       }
     }
@@ -242,8 +242,8 @@ export default function KanbanBoard({
         onClick={() => onTaskSelect(task.id)}
         onDoubleClick={() => onTaskDoubleClick?.(task)}
         style={{
-          backgroundColor: 'var(--color-card-bg, white)',
-          color: 'var(--color-card-text, #172b4d)'
+          backgroundColor: 'var(--color-bg-elevated)',
+          color: 'var(--color-fg-primary)'
         }}
         className={`
           group px-2.5 py-4 mb-2 rounded cursor-pointer transition-all
@@ -255,7 +255,7 @@ export default function KanbanBoard({
         `}
       >
         {/* Task text */}
-        <div className="text-sm font-medium mb-2 break-words leading-snug" style={{ color: 'var(--color-card-text, #172b4d)' }}>
+        <div className="text-sm font-medium mb-2 break-words leading-snug" style={{ color: 'var(--color-fg-primary)' }}>
           {task.text}
         </div>
 
@@ -283,7 +283,7 @@ export default function KanbanBoard({
           return (
             <div className="flex items-center">
               <span className="px-2 py-0.5 rounded text-xs font-medium" style={{
-                backgroundColor: 'var(--color-label-green, #61bd4f)',
+                backgroundColor: 'var(--color-semantic-success)',
                 color: 'white'
               }}>
                 ✓ {formatDateNatural(dateString)}
@@ -303,7 +303,7 @@ export default function KanbanBoard({
   })
 
   return (
-    <div className="h-full flex gap-6 p-6 overflow-x-auto" style={{ background: 'var(--color-bg-primary)' }}>
+    <div className="h-full flex gap-6 p-6 overflow-x-auto bg-bg-primary">
       {visibleColumns.map((column) => {
         const columnTasks = getTasksForColumn(column)
         const isDragOver = dragOverColumn === column.id
@@ -311,17 +311,16 @@ export default function KanbanBoard({
         return (
           <div
             key={column.id}
-            style={{ backgroundColor: 'var(--color-list-bg, var(--color-bg-secondary))' }}
-            className="flex-shrink-0 w-96 flex flex-col rounded-xl p-5 backdrop-blur-sm"
+            className="flex-shrink-0 w-96 flex flex-col rounded-xl p-5 backdrop-blur-sm bg-bg-secondary"
           >
             {/* Column header */}
             <div className="mb-4 px-2 flex items-center justify-between">
-              <h3 className="text-base font-bold" style={{ color: 'var(--color-card-text, var(--color-fg-primary))' }}>
+              <h3 className="text-base font-bold text-fg-primary">
                 {column.title}
               </h3>
               <span className="text-sm font-bold px-2.5 py-1 rounded-full min-w-[28px] text-center" style={{
-                backgroundColor: '#172b4d',
-                color: '#ffffff'
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-fg-primary)'
               }}>
                 {columnTasks.length}
               </span>
@@ -341,7 +340,7 @@ export default function KanbanBoard({
               {columnTasks.length > 0 ? (
                 columnTasks.map(task => renderTaskCard(task))
               ) : (
-                <div className="flex items-center justify-center h-full text-sm py-8" style={{ color: 'var(--color-card-text-secondary, #5e6c84)' }}>
+                <div className="flex items-center justify-center h-full text-sm py-8 text-fg-secondary">
                   {isDragOver ? (
                     <span className="text-accent-primary font-medium">Drop task here</span>
                   ) : (

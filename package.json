@@ -11,6 +11,7 @@
     "@lexical/rich-text": "^0.12.5",
     "@lexical/utils": "^0.12.5",
     "@supabase/supabase-js": "^2.38.4",
+    "chroma-js": "^3.1.2",
     "lexical": "^0.12.5",
     "lucide-react": "^0.293.0",
     "markmap-lib": "^0.18.12",

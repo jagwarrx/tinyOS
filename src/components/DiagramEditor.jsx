@@ -173,7 +173,7 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
         {/* Error State */}
         {error && (
           <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-red-500">
+            <div className="text-center text-semantic-error">
               <p className="font-semibold">Failed to load editor</p>
               <p className="text-sm mt-2">{error}</p>
             </div>

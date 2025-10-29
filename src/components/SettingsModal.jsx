@@ -8,9 +8,11 @@ import {
   setAsDefault
 } from '../services/musicLinksService'
 import { getUIPreferences, updateUIPreferences } from '../services/settingsService'
-import { themeCollections, getTheme, getThemePreviewColors } from '../config/themes'
+import { themeCollections, getTheme, getThemePreviewColors, registerCustomThemes, getCustomThemes } from '../config/themes'
+import { addCustomTheme, deleteCustomTheme as deleteCustomThemeService, loadCustomThemes } from '../services/themeService'
 import { availableFonts, applyFont, loadFontPreference } from '../config/fonts'
 import { availableUIModes, applyUIMode, loadUIModePreference } from '../config/uiModes'
+import CustomThemeBuilder from './CustomThemeBuilder'
 
 export default function SettingsModal({ isOpen, onClose, currentThemeId, onThemeChange, onMusicLinksChanged, onUIPreferencesChanged }) {
   const [activeTab, setActiveTab] = useState('general')
@@ -22,17 +24,29 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
   const [selectedThemeId, setSelectedThemeId] = useState(currentThemeId || 'sonokai-default')
   const [selectedFontId, setSelectedFontId] = useState(loadFontPreference())
   const [selectedUIModeId, setSelectedUIModeId] = useState(loadUIModePreference())
+  const [customThemes, setCustomThemes] = useState({})
 
   // Fetch data when modal opens
   useEffect(() => {
     if (isOpen) {
       loadMusicLinks()
       loadUIPreferences()
+      loadAndRegisterCustomThemes()
       setSelectedThemeId(currentThemeId || 'sonokai-default')
       setSelectedFontId(loadFontPreference())
       setSelectedUIModeId(loadUIModePreference())
     }
   }, [isOpen, currentThemeId])
+
+  const loadAndRegisterCustomThemes = async () => {
+    try {
+      const configs = await loadCustomThemes()
+      registerCustomThemes(configs)
+      setCustomThemes(getCustomThemes())
+    } catch (error) {
+      console.error('Failed to load custom themes:', error)
+    }
+  }
 
   const loadMusicLinks = async () => {
     try {
@@ -123,6 +137,41 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
   const handleUIModeSelect = (modeId) => {
     setSelectedUIModeId(modeId)
     applyUIMode(modeId)
+  }
+
+  const handleCustomThemeCreate = async (config) => {
+    try {
+      // Add custom theme to database
+      const theme = await addCustomTheme(config)
+
+      // Reload custom themes
+      await loadAndRegisterCustomThemes()
+
+      // Apply it immediately
+      handleThemeSelect(theme.id)
+    } catch (error) {
+      console.error('Failed to create custom theme:', error)
+      alert(`Failed to create theme: ${error.message}`)
+    }
+  }
+
+  const handleDeleteCustomTheme = async (themeId) => {
+    if (!confirm('Delete this custom theme?')) return
+
+    try {
+      await deleteCustomThemeService(themeId)
+
+      // Reload custom themes
+      await loadAndRegisterCustomThemes()
+
+      // If the deleted theme was active, switch to default
+      if (selectedThemeId === themeId) {
+        handleThemeSelect('sonokai-default')
+      }
+    } catch (error) {
+      console.error('Failed to delete custom theme:', error)
+      alert(`Failed to delete theme: ${error.message}`)
+    }
   }
 
   if (!isOpen) return null
@@ -293,13 +342,118 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
                 </div>
               </div>
 
+              {/* Custom Theme Builder */}
+              <CustomThemeBuilder onThemeCreate={handleCustomThemeCreate} />
+
+              {/* Custom Themes Section */}
+              {Object.keys(customThemes).length > 0 && (
+                <div className="mb-8">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-bold text-fg-primary uppercase tracking-wide">
+                      Your Custom Themes
+                    </h3>
+                    <p className="text-xs text-fg-secondary mt-1">
+                      Themes you've created
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {Object.values(customThemes).map((theme) => {
+                      const isActive = selectedThemeId === theme.id
+
+                      return (
+                        <div key={theme.id} className="relative">
+                          <button
+                            onClick={() => handleThemeSelect(theme.id)}
+                            className={`w-full p-4 border-2 rounded-lg transition-all text-left ${
+                              isActive
+                                ? 'border-accent-primary ring-2 ring-accent-primary/20'
+                                : 'border-border-primary hover:border-border-focus'
+                            }`}
+                          >
+                            {/* Theme Preview - Same as preset themes */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="text-sm font-semibold text-fg-primary">
+                                  {theme.name}
+                                </div>
+                                {isActive && (
+                                  <div className="flex items-center gap-1 px-2 py-0.5 rounded" style={{ backgroundColor: theme.colors.accent.primary }}>
+                                    <Check size={10} style={{ color: theme.colors.fg.inverse }} />
+                                    <span className="text-[10px] font-medium" style={{ color: theme.colors.fg.inverse }}>Active</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div
+                                className="rounded-lg border overflow-hidden"
+                                style={{
+                                  backgroundColor: theme.colors.bg.primary,
+                                  borderColor: theme.colors.border.primary
+                                }}
+                              >
+                                <div
+                                  className="p-3 border-b"
+                                  style={{
+                                    backgroundColor: theme.colors.bg.secondary,
+                                    borderColor: theme.colors.border.primary
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.colors.accent.primary }} />
+                                    <div className="text-[10px] font-medium" style={{ color: theme.colors.fg.primary }}>
+                                      Notes
+                                    </div>
+                                  </div>
+                                  <div className="text-[9px]" style={{ color: theme.colors.fg.secondary }}>
+                                    Custom theme
+                                  </div>
+                                </div>
+
+                                <div className="p-3 space-y-2">
+                                  <div className="space-y-1">
+                                    <div className="text-[10px] font-medium" style={{ color: theme.colors.fg.primary }}>
+                                      Primary text
+                                    </div>
+                                    <div className="text-[9px]" style={{ color: theme.colors.fg.secondary }}>
+                                      Secondary text
+                                    </div>
+                                  </div>
+
+                                  <div className="flex gap-1 pt-1">
+                                    <div className="flex-1 h-1 rounded" style={{ backgroundColor: theme.colors.syntax.purple }} />
+                                    <div className="flex-1 h-1 rounded" style={{ backgroundColor: theme.colors.syntax.blue }} />
+                                    <div className="flex-1 h-1 rounded" style={{ backgroundColor: theme.colors.syntax.green }} />
+                                    <div className="flex-1 h-1 rounded" style={{ backgroundColor: theme.colors.syntax.yellow }} />
+                                    <div className="flex-1 h-1 rounded" style={{ backgroundColor: theme.colors.syntax.red }} />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleDeleteCustomTheme(theme.id)}
+                            className="absolute top-2 right-2 p-1.5 bg-semantic-error/10 hover:bg-semantic-error/20 rounded transition-colors"
+                            title="Delete custom theme"
+                          >
+                            <Trash2 size={14} className="text-semantic-error" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Color Schemes Section */}
               <div>
                 <h3 className="text-sm font-bold text-fg-primary mb-2 uppercase tracking-wide">
-                  Color Schemes
+                  Preset Themes
                 </h3>
                 <p className="text-xs text-fg-secondary mb-4">
-                  Choose your color palette
+                  Or choose from our curated collection
                 </p>
               </div>
 

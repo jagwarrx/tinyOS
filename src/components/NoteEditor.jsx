@@ -770,8 +770,8 @@ export default function NoteEditor({
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {projectAssets.map((asset) => {
                           const getAssetIcon = () => {
-                            if (asset.note_type === 'mindmap') return <Map size={20} className="text-blue-500" />
-                            if (asset.note_type === 'diagram') return <Network size={20} className="text-purple-500" />
+                            if (asset.note_type === 'mindmap') return <Map size={20} className="text-accent-secondary" />
+                            if (asset.note_type === 'diagram') return <Network size={20} className="text-accent-primary" />
                             return <FileText size={20} className="text-fg-secondary" />
                           }
 
@@ -1124,7 +1124,7 @@ export default function NoteEditor({
               <div className="p-6">
                 {/* Diagram Preview */}
                 {note.diagram_svg ? (
-                  <div className="mb-6 border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-auto bg-white p-8 flex items-center justify-center min-h-[400px] relative group">
+                  <div className="mb-6 border-2 border-accent-primary/30 rounded-lg overflow-auto bg-bg-elevated p-8 flex items-center justify-center min-h-[400px] relative group">
                     {/* Edit Icon - Top Right Corner */}
                     <button
                       onClick={() => {
@@ -1132,7 +1132,7 @@ export default function NoteEditor({
                           onEditDiagram(note)
                         }
                       }}
-                      className="absolute top-3 right-3 p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                      className="absolute top-3 right-3 p-2 bg-accent-primary text-fg-inverse rounded-lg hover:bg-accent-hover transition-all opacity-0 group-hover:opacity-100 shadow-lg"
                       title="Edit Diagram"
                     >
                       <Pencil size={18} />
@@ -1160,7 +1160,7 @@ export default function NoteEditor({
                           onEditDiagram(note)
                         }
                       }}
-                      className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                      className="mt-4 px-4 py-2 bg-accent-primary text-fg-inverse rounded-lg hover:bg-accent-hover transition-colors"
                     >
                       Create Diagram
                     </button>
@@ -1187,7 +1187,7 @@ export default function NoteEditor({
               <div className="p-6">
                 {/* Mindmap Preview */}
                 {note.mindmap_svg ? (
-                  <div className="mb-6 border-2 border-blue-300 dark:border-blue-700 rounded-lg overflow-auto bg-white p-8 flex items-center justify-center min-h-[400px] relative group">
+                  <div className="mb-6 border-2 border-accent-secondary/30 rounded-lg overflow-auto bg-bg-elevated p-8 flex items-center justify-center min-h-[400px] relative group">
                     {/* Edit Icon - Top Right Corner */}
                     <button
                       onClick={() => {
@@ -1195,7 +1195,7 @@ export default function NoteEditor({
                           onEditMindmap(note)
                         }
                       }}
-                      className="absolute top-3 right-3 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                      className="absolute top-3 right-3 p-2 bg-accent-secondary text-fg-inverse rounded-lg hover:bg-accent-hover transition-all shadow-lg z-10"
                       title="Edit Mindmap"
                     >
                       <Pencil size={18} />
@@ -1206,9 +1206,10 @@ export default function NoteEditor({
                       dangerouslySetInnerHTML={{ __html: note.mindmap_svg }}
                       style={{
                         maxWidth: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
+                        width: '100%',
+                        height: '100%',
+                        minHeight: '400px',
+                        display: 'block'
                       }}
                     />
                   </div>
@@ -1223,7 +1224,7 @@ export default function NoteEditor({
                           onEditMindmap(note)
                         }
                       }}
-                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      className="mt-4 px-4 py-2 bg-accent-secondary text-fg-inverse rounded-lg hover:bg-accent-hover transition-colors"
                     >
                       Create Mindmap
                     </button>

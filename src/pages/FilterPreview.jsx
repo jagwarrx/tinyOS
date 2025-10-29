@@ -32,19 +32,19 @@ export default function FilterPreview() {
   const getStatusBadgeColor = (status) => {
     switch (status) {
       case 'DOING':
-        return 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+        return 'bg-syntax-blue/20 text-syntax-blue border-syntax-blue/50'
       case 'DONE':
-        return 'bg-green-500/20 text-green-400 border-green-500/50'
+        return 'bg-syntax-green/20 text-syntax-green border-syntax-green/50'
       case 'BLOCKED':
-        return 'bg-amber-500/20 text-amber-400 border-amber-500/50'
+        return 'bg-syntax-yellow/20 text-syntax-yellow border-syntax-yellow/50'
       case 'PLANNED':
-        return 'bg-purple-500/20 text-purple-400 border-purple-500/50'
+        return 'bg-syntax-purple/20 text-syntax-purple border-syntax-purple/50'
       case 'BACKLOG':
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/50'
+        return 'bg-fg-tertiary/20 text-fg-tertiary border-fg-tertiary/50'
       case 'CANCELLED':
-        return 'bg-red-500/20 text-red-400 border-red-500/50'
+        return 'bg-syntax-red/20 text-syntax-red border-syntax-red/50'
       default:
-        return 'bg-slate-600/20 text-slate-400 border-slate-600/50'
+        return 'bg-fg-tertiary/20 text-fg-tertiary border-fg-tertiary/50'
     }
   }
 
@@ -72,7 +72,7 @@ export default function FilterPreview() {
         <div className="mb-4 flex items-center gap-2 text-sm">
           <span className="text-slate-400">Active filters:</span>
           {selectedTaskType && (
-            <span className="px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/50 rounded text-xs">
+            <span className="px-3 py-1 bg-accent-primary/20 text-accent-primary border border-accent-primary/50 rounded text-xs">
               {selectedTaskType.replace(/_/g, ' ')}
             </span>
           )}
@@ -131,10 +131,10 @@ export default function FilterPreview() {
         {/* Debug Info */}
         <div className="mt-8 p-4 bg-slate-900/50 rounded-lg border border-slate-800">
           <h3 className="text-sm font-semibold text-slate-300 mb-2">Debug Info</h3>
-          <div className="space-y-1 text-xs font-mono text-slate-400">
-            <div>Selected Task Type: <span className="text-blue-400">{selectedTaskType || 'null'}</span></div>
-            <div>Selected Statuses: <span className="text-green-400">[{selectedStatuses.join(', ')}]</span></div>
-            <div>Visible Tasks: <span className="text-amber-400">{filteredTasks.length}</span></div>
+          <div className="space-y-1 text-xs font-mono text-fg-secondary">
+            <div>Selected Task Type: <span className="text-accent-primary">{selectedTaskType || 'null'}</span></div>
+            <div>Selected Statuses: <span className="text-syntax-green">[{selectedStatuses.join(', ')}]</span></div>
+            <div>Visible Tasks: <span className="text-syntax-yellow">{filteredTasks.length}</span></div>
           </div>
         </div>
       </div>

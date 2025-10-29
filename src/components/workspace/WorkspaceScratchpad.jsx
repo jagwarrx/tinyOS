@@ -358,7 +358,7 @@ This is your scratch space - won't affect the task until you save."
         {task.status !== 'DONE' && (
           <button
             onClick={() => onTaskUpdate({ status: 'DONE' })}
-            className="flex-1 px-3 py-2 text-xs font-medium bg-syntax-green hover:bg-syntax-green/80 text-white rounded transition-colors"
+            className="flex-1 px-3 py-2 text-xs font-medium bg-semantic-success hover:bg-semantic-success/80 text-white rounded transition-colors"
           >
             Mark Complete
           </button>
@@ -374,7 +374,7 @@ This is your scratch space - won't affect the task until you save."
         {task.status !== 'DOING' && task.status !== 'DONE' && (
           <button
             onClick={() => onTaskUpdate({ status: 'DOING' })}
-            className="flex-1 px-3 py-2 text-xs font-medium bg-syntax-blue hover:bg-syntax-blue/80 text-white rounded transition-colors"
+            className="flex-1 px-3 py-2 text-xs font-medium bg-accent-primary hover:bg-accent-primary/80 text-white rounded transition-colors"
           >
             Start Working
           </button>

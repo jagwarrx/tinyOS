@@ -863,3 +863,45 @@ textarea::placeholder {
 .ui-expanded * {
   box-shadow: none !important;
 }
+
+/* ============================================
+   MINDMAP PREVIEW STYLING
+   Ensure mindmap text is visible in preview
+   ============================================ */
+
+/* Style mindmap text in preview to match editor text color */
+.mindmap-preview svg text,
+.mindmap-preview svg tspan {
+  fill: var(--color-editor-text) !important;
+  color: var(--color-editor-text) !important;
+  font-family: inherit !important;
+}
+
+/* Ensure SVG container displays properly */
+.mindmap-preview svg {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 400px !important;
+}
+
+/* Style mindmap nodes and paths */
+.mindmap-preview .markmap-node {
+  cursor: pointer;
+}
+
+.mindmap-preview path {
+  stroke: var(--color-border-primary) !important;
+  fill: none !important;
+}
+
+/* Foreign object content in mindmap (HTML elements) */
+.mindmap-preview foreignObject {
+  overflow: visible !important;
+}
+
+.mindmap-preview foreignObject div,
+.mindmap-preview foreignObject span {
+  color: var(--color-editor-text) !important;
+  font-family: inherit !important;
+}
