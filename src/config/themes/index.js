@@ -125,7 +125,7 @@ export function getThemesByCollection(collectionId) {
  * @returns {Object} Default theme object
  */
 export function getDefaultTheme() {
-  return allThemes['sonokai-default']
+  return allThemes['original-sublime']
 }
 
 /**

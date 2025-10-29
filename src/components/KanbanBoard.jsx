@@ -5,7 +5,8 @@
  * Supports drag-and-drop to move tasks between columns.
  *
  * Features:
- * - 5 columns: Backlog, Planned, Waiting, Doing, Done
+ * - Dynamic columns: Backlog, Planned, Waiting (conditional), Doing, Done, Cancelled (conditional)
+ * - Waiting and Cancelled columns only appear when they contain tasks
  * - Drag-and-drop task cards between columns
  * - Updates task status when moved
  * - Color-coded columns
@@ -23,7 +24,6 @@
  */
 
 import { useState } from 'react'
-import { Circle, Star, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatDateNatural } from '../utils/dateUtils'
 
 export default function KanbanBoard({
@@ -40,8 +40,8 @@ export default function KanbanBoard({
   const [draggedTask, setDraggedTask] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
 
-  // Define columns with their properties
-  const columns = [
+  // Define all possible columns with their properties
+  const allColumns = [
     {
       id: 'BACKLOG',
       title: 'Backlog',
@@ -49,7 +49,8 @@ export default function KanbanBoard({
       color: 'bg-bg-secondary',
       borderColor: 'border-border-primary',
       headerColor: 'text-fg-secondary',
-      taskTypeFilter: null
+      taskTypeFilter: null,
+      alwaysShow: true
     },
     {
       id: 'PLANNED',
@@ -58,7 +59,8 @@ export default function KanbanBoard({
       color: 'bg-syntax-blue/5',
       borderColor: 'border-syntax-blue/20',
       headerColor: 'text-syntax-blue',
-      taskTypeFilter: null
+      taskTypeFilter: null,
+      alwaysShow: true
     },
     {
       id: 'WAITING',
@@ -67,7 +69,8 @@ export default function KanbanBoard({
       color: 'bg-syntax-yellow/5',
       borderColor: 'border-syntax-yellow/20',
       headerColor: 'text-syntax-yellow',
-      taskTypeFilter: 'waiting'
+      taskTypeFilter: 'waiting',
+      alwaysShow: false // Only show if has tasks
     },
     {
       id: 'DOING',
@@ -76,7 +79,8 @@ export default function KanbanBoard({
       color: 'bg-syntax-purple/5',
       borderColor: 'border-syntax-purple/20',
       headerColor: 'text-syntax-purple',
-      taskTypeFilter: null
+      taskTypeFilter: null,
+      alwaysShow: true
     },
     {
       id: 'DONE',
@@ -85,7 +89,18 @@ export default function KanbanBoard({
       color: 'bg-syntax-green/5',
       borderColor: 'border-syntax-green/20',
       headerColor: 'text-syntax-green',
-      taskTypeFilter: null
+      taskTypeFilter: null,
+      alwaysShow: true
+    },
+    {
+      id: 'CANCELLED',
+      title: 'Cancelled',
+      status: 'CANCELLED',
+      color: 'bg-syntax-red/5',
+      borderColor: 'border-syntax-red/20',
+      headerColor: 'text-syntax-red',
+      taskTypeFilter: null,
+      alwaysShow: false // Only show if has tasks
     }
   ]
 
@@ -149,7 +164,7 @@ export default function KanbanBoard({
       if (draggedTask.status !== 'BLOCKED') {
         onStatusChange(draggedTask.id, 'BLOCKED')
       }
-    } else {
+    } else if (column.status) {
       // Moving to status column - update status
       if (draggedTask.status !== column.status) {
         onStatusChange(draggedTask.id, column.status)
@@ -168,13 +183,46 @@ export default function KanbanBoard({
   }
 
   /**
-   * Get priority badge color
+   * Get badge color based on scheduled date
    */
-  const getPriorityBadge = (priority) => {
-    if (priority === 0) return { label: 'P1', color: 'bg-semantic-error text-white' }
-    if (priority === 1) return { label: 'P2', color: 'bg-syntax-yellow text-black' }
-    if (priority === 2) return { label: 'P3', color: 'bg-syntax-green text-white' }
-    return null
+  const getScheduledDateColor = (scheduledDate) => {
+    if (!scheduledDate) return null
+
+    const today = new Date().toISOString().split('T')[0]
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+
+    if (scheduledDate < today) {
+      // Overdue - dark red
+      return {
+        bg: 'var(--color-semantic-error, #dc2626)',
+        text: 'white'
+      }
+    } else if (scheduledDate === today) {
+      // Today - red/orange
+      return {
+        bg: 'var(--color-label-red, #eb5a46)',
+        text: 'white'
+      }
+    } else if (scheduledDate === tomorrow) {
+      // Tomorrow - yellow
+      return {
+        bg: 'var(--color-label-yellow, #f2d600)',
+        text: 'black'
+      }
+    } else if (scheduledDate <= nextWeek) {
+      // This week - blue
+      return {
+        bg: 'var(--color-label-blue, #0079bf)',
+        text: 'white'
+      }
+    } else {
+      // Future - green
+      return {
+        bg: 'var(--color-label-green, #61bd4f)',
+        text: 'white'
+      }
+    }
   }
 
   /**
@@ -183,7 +231,7 @@ export default function KanbanBoard({
   const renderTaskCard = (task) => {
     const isSelected = selectedTaskId === task.id
     const isDragging = draggedTask?.id === task.id
-    const priorityBadge = getPriorityBadge(task.priority)
+    const dateColor = getScheduledDateColor(task.scheduled_date)
 
     return (
       <div
@@ -198,85 +246,65 @@ export default function KanbanBoard({
           color: 'var(--color-card-text, #172b4d)'
         }}
         className={`
-          group p-4 mb-3 rounded-lg cursor-pointer transition-all
+          group px-2.5 py-4 mb-2 rounded cursor-pointer transition-all
           ${isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md'}
           ${isSelected
             ? 'shadow-lg ring-2 ring-accent-primary'
-            : 'shadow hover:shadow-md'
+            : 'shadow-sm hover:shadow-md'
           }
         `}
       >
-        {/* Top row: badges */}
-        {(priorityBadge || task.task_type || task.context) && (
-          <div className="flex flex-wrap gap-2 mb-3">
-            {/* Priority badge */}
-            {priorityBadge && (
-              <span className={`px-2.5 py-1 rounded text-xs font-bold ${priorityBadge.color}`}>
-                {priorityBadge.label}
-              </span>
-            )}
-
-            {/* Task type badge */}
-            {task.task_type && (
-              <span className="px-2.5 py-1 rounded text-xs font-medium" style={{
-                backgroundColor: 'var(--color-label-blue, #0079bf)',
-                color: 'white'
-              }}>
-                {task.task_type}
-              </span>
-            )}
-
-            {/* Context indicator */}
-            {task.context && (
-              <span className="px-2.5 py-1 rounded text-xs font-medium" style={{
-                backgroundColor: 'var(--color-label-purple, #c377e0)',
-                color: 'white'
-              }}>
-                context
-              </span>
-            )}
-          </div>
-        )}
-
         {/* Task text */}
-        <div className="text-base font-medium mb-4 break-words leading-relaxed" style={{ color: 'var(--color-card-text, #172b4d)' }}>
+        <div className="text-sm font-medium mb-2 break-words leading-snug" style={{ color: 'var(--color-card-text, #172b4d)' }}>
           {task.text}
         </div>
 
-        {/* Bottom row: metadata */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Scheduled date badge */}
-          {task.scheduled_date && (
-            <span className="px-2 py-1 rounded text-xs font-medium" style={{
-              backgroundColor: 'var(--color-label-red, #eb5a46)',
-              color: 'white'
+        {/* Scheduled date badge - hide for DONE tasks */}
+        {task.scheduled_date && dateColor && task.status !== 'DONE' && (
+          <div className="flex items-center">
+            <span className="px-2 py-0.5 rounded text-xs font-medium" style={{
+              backgroundColor: dateColor.bg,
+              color: dateColor.text
             }}>
               {formatDateNatural(task.scheduled_date)}
             </span>
-          )}
+          </div>
+        )}
 
-          {/* Star icon */}
-          {task.is_starred && (
-            <Star size={14} className="flex-shrink-0" style={{ fill: 'var(--color-label-yellow, #f2d600)', color: 'var(--color-label-yellow, #f2d600)' }} />
-          )}
+        {/* Completed date badge - only for DONE tasks */}
+        {task.status === 'DONE' && task.updated_at && (() => {
+          // Get local date from UTC timestamp
+          const completedDate = new Date(task.updated_at)
+          const year = completedDate.getFullYear()
+          const month = String(completedDate.getMonth() + 1).padStart(2, '0')
+          const day = String(completedDate.getDate()).padStart(2, '0')
+          const dateString = `${year}-${month}-${day}`
 
-          {/* Project name badge */}
-          {task.project_id && allNotes && (
-            <span className="px-2 py-0.5 rounded text-xs" style={{
-              backgroundColor: 'var(--color-list-bg, #ebecf0)',
-              color: 'var(--color-card-text-secondary, #5e6c84)'
-            }}>
-              {allNotes.find(n => n.id === task.project_id)?.title || 'Project'}
-            </span>
-          )}
-        </div>
+          return (
+            <div className="flex items-center">
+              <span className="px-2 py-0.5 rounded text-xs font-medium" style={{
+                backgroundColor: 'var(--color-label-green, #61bd4f)',
+                color: 'white'
+              }}>
+                ✓ {formatDateNatural(dateString)}
+              </span>
+            </div>
+          )
+        })()}
       </div>
     )
   }
 
+  // Filter columns to show only those with tasks (or alwaysShow = true)
+  const visibleColumns = allColumns.filter(column => {
+    if (column.alwaysShow) return true
+    const columnTasks = getTasksForColumn(column)
+    return columnTasks.length > 0
+  })
+
   return (
     <div className="h-full flex gap-6 p-6 overflow-x-auto" style={{ background: 'var(--color-bg-primary)' }}>
-      {columns.map((column) => {
+      {visibleColumns.map((column) => {
         const columnTasks = getTasksForColumn(column)
         const isDragOver = dragOverColumn === column.id
 

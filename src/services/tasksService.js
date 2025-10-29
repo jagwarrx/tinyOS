@@ -88,4 +88,22 @@ export class TasksService {
 
     return await this.update(id, updates)
   }
+
+  static async reorderTasks(tasks) {
+    // Update priorities for all tasks in the new order
+    const updates = tasks.map((task, index) =>
+      supabase
+        .from('tasks')
+        .update({ priority: index })
+        .eq('id', task.id)
+    )
+
+    const results = await Promise.all(updates)
+
+    // Check for errors
+    const errors = results.filter(r => r.error)
+    if (errors.length > 0) {
+      throw new Error(`Failed to reorder tasks: ${errors[0].error.message}`)
+    }
+  }
 }

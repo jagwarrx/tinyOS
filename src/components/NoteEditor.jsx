@@ -270,6 +270,13 @@ export default function NoteEditor({
         return
       }
 
+      // Check for 'k' (toggle Kanban view on project pages)
+      if (e.key === 'k' && !isEditing && note.note_type === 'project') {
+        e.preventDefault()
+        setProjectViewMode(prev => prev === 'kanban' ? 'list' : 'kanban')
+        return
+      }
+
       // Plain arrow key navigation (only when not editing)
       if (!isEditing && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         const canNavigate = (direction) => {
@@ -390,7 +397,7 @@ export default function NoteEditor({
         clearTimeout(savedBadgeTimerRef.current)
       }
     }
-  }, [note, onNavigate, onCreateDraftLinked, title, selectedTaskId])
+  }, [note, onNavigate, onCreateDraftLinked, title, selectedTaskId, projectViewMode])
 
   if (!note) {
     return (
@@ -730,19 +737,15 @@ export default function NoteEditor({
                 <div className="px-6 py-3 flex items-center justify-between border-b border-border-primary" style={
                   projectViewMode === 'kanban' ? { background: 'var(--color-bg-primary)' } : {}
                 }>
-                  <h3 className="text-sm font-semibold uppercase tracking-wider" style={
+                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${
+                    projectViewMode === 'kanban' ? '' : 'text-fg-primary'
+                  }`} style={
                     projectViewMode === 'kanban' ? { color: 'white' } : {}
                   }>
                     Project Tasks ({projectTasks.length})
                   </h3>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-xs" style={
-                      projectViewMode === 'kanban' ? { color: 'rgba(255, 255, 255, 0.8)' } : {}
-                    }>
-                      Use /task "text" :project to add tasks
-                    </span>
-
                     {/* View mode toggle */}
                     <div className="flex items-center gap-1 bg-bg-tertiary rounded-lg p-1">
                       <button

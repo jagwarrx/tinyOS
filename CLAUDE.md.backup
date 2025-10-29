@@ -23,13 +23,12 @@ This is a knowledge and task management application that combines rich-text note
 The app has several special note types that act as views:
 - **HOME**: Main entry point (is_home: true)
 - **Inbox**: Quick capture for ideas/items to process later
-- **Tasks**: Master list of all tasks (supports List and Kanban views)
+- **Tasks**: Master list of all tasks
 - **Today**: Shows starred tasks + tasks scheduled for today
 - **Week**: Filtered task view (uncompleted tasks)
 - **Someday**: Tasks you might do someday
 - **Projects**: List of all projects (note_type: 'project_list')
 - **Individual Projects**: Each project is a note (note_type: 'project')
-- **Log**: Activity log showing all actions (navigate with 'L' key or via sidebar)
 
 ## Database Schema
 
@@ -66,31 +65,6 @@ work_notes: TEXT (how to do it, blockers, etc.)
 ref_id: TEXT UNIQUE (e.g., 'b5m2n8')
 created_at, updated_at: TIMESTAMP
 ```
-
-### Activity Log Table
-```
-id: UUID (primary key)
-action_type: TEXT (e.g., 'task_created', 'note_updated', 'timer_started', 'log_entry')
-entity_type: TEXT (e.g., 'task', 'note', 'project', 'timer')
-entity_id: UUID (references the entity)
-entity_ref_id: TEXT (ref_id of the entity)
-entity_title: TEXT (title/text of the entity)
-details: JSONB (action-specific metadata)
-timestamp: TIMESTAMPTZ (default: now())
-```
-
-### Settings Table
-```
-key: TEXT (primary key)
-value: JSONB (can store any JSON data)
-description: TEXT (optional description)
-updated_at: TIMESTAMPTZ (default: now())
-```
-
-**Common Settings Keys:**
-- `theme`: Current theme ID
-- `music_links`: Object with spotify/youtube arrays
-- `show_priority_formula`: Boolean for UI preference
 
 ## Key Features
 
@@ -334,17 +308,11 @@ Key state variables:
 - `currentTasks`: Tasks for current view
 - `allTasks`: All tasks (for statistics)
 - `selectedTask`: Task detail panel
-- `homeNote`, `tasksNote`, `todayNote`, `weekNote`, `projectsNote`, `inboxNote`, `somedayNote`, `logNote`: Special note references
-- `currentTheme`: Current theme object (20+ available themes)
+- `homeNote`, `tasksNote`, `todayNote`, `weekNote`, `projectsNote`, `inboxNote`, `somedayNote`: Special note references
+- `theme`: 'light' or 'dark'
 - `timerConfig`: Timer state
 - `statusFilter`: Array of status values to filter by
 - `taskTypeFilter`: Single task type value
-- `view`: Current view mode ('list', 'kanban')
-- `showSearch`: Search modal visibility
-- `showKeyboardHelp`: Keyboard shortcuts modal visibility
-- `showSettings`: Settings modal visibility
-- `logUpdateTrigger`: Trigger for refreshing activity log
-- `uiPreferences`: UI-specific settings (e.g., show_priority_formula)
 
 ## Important Behaviors
 
@@ -411,40 +379,6 @@ Handled by PostgreSQL function `generate_reference_id()`:
 - Temperature must be between 0 and 1 (API constraint)
 - Model: `claude-sonnet-4-5` (latest Sonnet 4.5)
 - Anthropic API version: `2023-06-01`
-
-### ActivityLogService (src/services/activityLogService.js)
-- `fetchAll(limit)`: Get recent activity log entries (default 200)
-- `create(logEntry)`: Create new log entry
-- `update(id, changes)`: Update log entry (for text logs)
-- `deleteById(id)`: Delete log entry
-- Log entry structure: `action_type`, `entity_type`, `entity_id`, `entity_ref_id`, `entity_title`, `details` (JSONB), `timestamp`
-- Action types: task/note/project operations, timer events, reminders, custom text logs
-
-### SettingsService (src/services/settingsService.js)
-- `getSetting(key)`: Get setting value by key
-- `setSetting(key, value, description)`: Upsert setting
-- `getUIPreferences()`: Get UI-specific settings
-- `updateUIPreferences(prefs)`: Update UI settings
-- Settings stored as key-value pairs in `settings` table
-
-### MusicLinksService (src/services/musicLinksService.js)
-- `fetchAllMusicLinks()`: Get all music links (Spotify + YouTube)
-- `fetchMusicLinksByType(type)`: Get links by type ('spotify' or 'youtube')
-- `createMusicLink(musicLink)`: Add new music link
-- `updateMusicLink(id, type, updates)`: Update music link
-- `deleteMusicLink(id, type)`: Remove music link
-- `setAsDefault(id, type)`: Set as default for type
-- `extractSpotifyId(url)`: Extract playlist ID from Spotify URL
-- `extractYoutubeId(url)`: Extract video ID from YouTube URL
-- Music links stored in `settings` table under `music_links` key
-
-### ThemeService (src/services/themeService.js)
-- `loadAndApplyTheme()`: Load theme from DB/localStorage and apply
-- `saveTheme(themeId)`: Save theme preference to DB
-- `changeTheme(themeId)`: Change and apply new theme
-- `getCurrentThemeId()`: Get active theme ID
-- Falls back: Database → localStorage → default theme
-- Migrates old 'light'/'dark' values to 'sonokai-default'
 
 ## File Locations for Common Tasks
 
@@ -559,22 +493,17 @@ To set up the database:
 
 ## Future Enhancement Ideas
 
-- **Recurring tasks**: Automatic task regeneration on schedules
-- **Calendar view**: Visual calendar with task scheduling
-- **Backlinks panel**: Show all notes referencing current note
-- **Ref_id autocomplete**: Autocomplete suggestions when typing ref_ids
-- **Task dependencies**: Link tasks that depend on each other
-- **Subtasks**: Hierarchical task breakdown
-- **Tags/labels**: Flexible categorization system
-- **Note templates**: Predefined note structures
-- **Export to Markdown**: Export notes and tasks to markdown files
-- **Real-time collaboration**: Multi-user support with conflict resolution
-- **Cmd+K Search**: Quick command palette (currently shows search modal)
-- **Attachments**: File uploads linked to notes/tasks
-- **Time tracking**: Integrated time tracking per task
-- **Analytics**: Productivity metrics and insights
-- **Mobile app**: Native mobile version
-- **Offline mode**: Full offline functionality with sync
+- Recurring tasks
+- Calendar view
+- Backlinks panel (show all notes referencing current note)
+- Ref_id autocomplete
+- Task dependencies
+- Subtasks
+- Tags/labels
+- Search functionality
+- Note templates
+- Export to Markdown
+- Real-time collaboration
 
 ## Debugging Tips
 
@@ -590,27 +519,6 @@ To set up the database:
   - Check browser Network tab for Edge Function errors (500 = missing key, 400 = invalid params)
   - Temperature must be 0-1, not higher
   - Model name must be exact: `claude-sonnet-4-5`
-- Theme not applying? Check:
-  - Browser console for CSS variable errors
-  - Theme ID exists in `src/config/themes/index.js`
-  - Settings table has theme entry
-  - localStorage has cached theme
-- Search not working? Verify:
-  - Notes have content (not empty)
-  - Search modal is open (check showSearch state)
-  - Search results being filtered correctly
-- Activity log not updating? Check:
-  - Activity log entries being created (check database)
-  - logUpdateTrigger being incremented on actions
-  - Filters not hiding all entries
-- Music player not loading? Verify:
-  - Valid Spotify playlist ID or YouTube video ID
-  - Music links stored in settings table
-  - Embeds not blocked by browser security
-- Kanban drag-and-drop not working? Ensure:
-  - HTML5 drag-and-drop supported
-  - Task status updates propagating
-  - onStatusChange callback defined
 
 ## Environment Setup
 
@@ -633,9 +541,11 @@ To set up the database:
 ## Documentation Files
 
 - `README.md`: General project overview and setup
-- `themes.md`: Complete theme system documentation with all 20+ themes, CSS variables, and customization guide
-- `CLAUDE.md` (this file): Comprehensive LLM context for AI assistants -- keep this updated
-- `schema.sql`: Complete database schema with all tables, indexes, and functions
+- `REFERENCE_ID_IMPLEMENTATION.md`: Deep dive on ref_id system
+- `REFID_BADGE_FEATURE.md`: Badge feature implementation details
+- `TASK_SCHEDULING_FEATURE.md`: Scheduling feature documentation
+- `CLAUDE_AI_COMMANDS.md`: Claude AI integration setup and usage
+- `CLAUDE.md` (this file): Comprehensive LLM context -- keep this updated
 
 ---
 

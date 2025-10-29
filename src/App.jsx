@@ -43,6 +43,10 @@ import TaskDetail from './components/TaskDetail'
 import FloatingAudioPlayer from './components/FloatingAudioPlayer'
 import SettingsModal from './components/SettingsModal'
 import LogPage from './components/LogPage'
+import SearchModal from './components/SearchModal'
+import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
+import { useNotes } from './contexts/NotesContext'
+import { useTasks } from './contexts/TasksContext'
 import { supabase } from './supabaseClient'
 import { Menu, Sun, Moon, Home, Inbox, ListTodo, FolderKanban, ScrollText, Settings } from 'lucide-react'
 import {
@@ -65,40 +69,76 @@ import * as activityLogger from './utils/activityLogger'
 import * as activityLogService from './services/activityLogService'
 
 function App() {
-  // Core state: all notes and current selection
-  const [notes, setNotes] = useState([])
-  const [selectedNote, setSelectedNote] = useState(null)
-  const [secondaryNote, setSecondaryNote] = useState(null) // For side-by-side view
+  // Use contexts for state management
+  const {
+    notes,
+    selectedNote,
+    secondaryNote,
+    homeNote,
+    projectsNote,
+    inboxNote,
+    tasksNote,
+    todayNote,
+    weekNote,
+    somedayNote,
+    logNote,
+    selectNote,
+    setSecondaryNote,
+    goToHome,
+    goToTasks,
+    goToToday,
+    goToWeek,
+    goToProjects,
+    goToInbox,
+    goToSomeday,
+    goToLog,
+    updateNote: saveNoteToContext,
+    deleteNote: deleteNoteFromContext,
+    toggleStar: toggleNoteStarFromContext,
+    setAsHome: setAsHomeFromContext,
+    setLink,
+    removeLink,
+    createNote: createNoteFromContext,
+    createDraftLinkedNote: createDraftLinkedNoteFromContext,
+    navigateToNote,
+    loading: notesLoading
+  } = useNotes()
+
+  const {
+    allTasks,
+    currentTasks,
+    selectedTask,
+    selectedTaskId,
+    statusFilter,
+    taskTypeFilter,
+    selectTask,
+    setSelectedTaskId: setTaskIdFromContext,
+    setStatusFilter,
+    setTaskTypeFilter,
+    setCurrentTasks,
+    toggleComplete,
+    toggleStar: toggleTaskStar,
+    scheduleTask,
+    changeStatus,
+    updateTask,
+    deleteTask,
+    createTask,
+    reorderTasks: reorderTasksFromContext,
+    fetchAllTasks
+  } = useTasks()
 
   // Ref for terminal component
   const terminalRef = useRef(null)
 
-  // Special notes references
-  const [homeNote, setHomeNote] = useState(null)
-  const [projectsNote, setProjectsNote] = useState(null)
-  const [inboxNote, setInboxNote] = useState(null)
-  const [tasksNote, setTasksNote] = useState(null)
-  const [todayNote, setTodayNote] = useState(null)
-  const [weekNote, setWeekNote] = useState(null)
-  const [somedayNote, setSomedayNote] = useState(null)
-  const [logNote, setLogNote] = useState(null)
-
-  // Tasks state (from tasks table)
-  const [currentTasks, setCurrentTasks] = useState([])
-  const [secondaryTasks, setSecondaryTasks] = useState([]) // Tasks for secondary pane
-  const [allTasks, setAllTasks] = useState([]) // All tasks for project statistics
-  const [selectedTask, setSelectedTask] = useState(null) // For task detail panel
+  // Local UI state only (not managed by contexts)
   const [selectedTaskNumber, setSelectedTaskNumber] = useState(null) // Task number in current view
-  const [selectedTaskId, setSelectedTaskId] = useState(null) // For task selection (single click)
   const [deselectionPending, setDeselectionPending] = useState(false) // For two-step deselection on Today page
-  const [statusFilter, setStatusFilter] = useState([]) // Array of status values to filter by
-  const [taskTypeFilter, setTaskTypeFilter] = useState(null) // Single task type value (radio behavior)
+  const [secondaryTasks, setSecondaryTasks] = useState([]) // Tasks for secondary pane
 
   // Reminders state (from activity_log table)
   const [todaysReminders, setTodaysReminders] = useState([]) // Reminders for today
 
-  // UI state
-  const [loading, setLoading] = useState(true)
+  // UI state (loading is now managed by contexts)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentThemeId, setCurrentThemeId] = useState('sonokai-default')
 
@@ -114,6 +154,10 @@ function App() {
   const [musicLinksUpdateTrigger, setMusicLinksUpdateTrigger] = useState(0)
   const [logUpdateTrigger, setLogUpdateTrigger] = useState(0)
   const [uiPreferences, setUiPreferences] = useState({ show_priority_formula: true })
+
+  // New modals state
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false)
 
   // Trigger music links reload in FloatingAudioPlayer
   const handleMusicLinksChanged = () => {
@@ -172,6 +216,32 @@ function App() {
       // Check if we're not in an input, textarea, or contenteditable element
       const isNotEditing = tagName !== 'input' && tagName !== 'textarea' && !isEditable
 
+      // ?: Show keyboard shortcuts help
+      if (e.key === '?' && isNotEditing) {
+        e.preventDefault()
+        setIsKeyboardHelpOpen(true)
+        return
+      }
+
+      // Cmd/Ctrl+K: Open search
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k' && isNotEditing) {
+        e.preventDefault()
+        setIsSearchOpen(true)
+        return
+      }
+
+      // Escape: Close modals
+      if (e.key === 'Escape') {
+        if (isSearchOpen) {
+          setIsSearchOpen(false)
+          return
+        }
+        if (isKeyboardHelpOpen) {
+          setIsKeyboardHelpOpen(false)
+          return
+        }
+      }
+
       // Tab: Focus terminal
       if (e.key === 'Tab' && isNotEditing) {
         e.preventDefault()
@@ -191,7 +261,7 @@ function App() {
       // L key: Navigate to Log page
       if (e.key === 'l' && isNotEditing) {
         e.preventDefault()
-        goToLog()
+        goToLogWrapper()
         return
       }
 
@@ -209,7 +279,7 @@ function App() {
           e.preventDefault()
           e.stopPropagation()
           console.log('  → Closing task panel')
-          setSelectedTask(null)
+          selectTask(null)
           setSelectedTaskNumber(null)
           return
         }
@@ -221,7 +291,7 @@ function App() {
             e.preventDefault()
             e.stopPropagation()
             console.log('  → Resetting navigation (removing highlight)')
-            setSelectedTaskId(null)
+            setTaskIdFromContext(null)
             return
           }
 
@@ -229,7 +299,7 @@ function App() {
           if (selectedNote?.title === 'Today' && tasksNote) {
             e.preventDefault()
             console.log('  → Navigation reset on Today, navigating to Tasks')
-            setSelectedNote(tasksNote)
+            selectNote(tasksNote)
             return
           }
 
@@ -264,7 +334,7 @@ function App() {
             // Shift+Up: Move task up (use original currentTasks for reordering)
             const currentIndex = currentTasks.findIndex(t => t.id === selectedTaskId)
             if (currentIndex > 0) {
-              reorderTasks(currentIndex, currentIndex - 1)
+              reorderTasksFromContext(currentIndex, currentIndex - 1)
             }
           } else {
             // Up: Select previous task (use navigableTasks for selection)
@@ -274,11 +344,11 @@ function App() {
             if (currentIndex === -1) {
               // No selection, select first task
               console.log('  → Selecting first task:', navigableTasks[0]?.id)
-              setSelectedTaskId(navigableTasks[0].id)
+              setTaskIdFromContext(navigableTasks[0].id)
             } else if (currentIndex > 0) {
               // Select previous task
               console.log('  → Selecting previous task:', navigableTasks[currentIndex - 1].id)
-              setSelectedTaskId(navigableTasks[currentIndex - 1].id)
+              setTaskIdFromContext(navigableTasks[currentIndex - 1].id)
             } else {
               // At top of list, stay at top
               console.log('  → At top boundary, staying at current task')
@@ -295,7 +365,7 @@ function App() {
             // Shift+Down: Move task down (use original currentTasks for reordering)
             const currentIndex = currentTasks.findIndex(t => t.id === selectedTaskId)
             if (currentIndex < currentTasks.length - 1) {
-              reorderTasks(currentIndex, currentIndex + 1)
+              reorderTasksFromContext(currentIndex, currentIndex + 1)
             }
           } else {
             // Down: Select next task (use navigableTasks for selection)
@@ -307,7 +377,7 @@ function App() {
               const firstTaskId = navigableTasks[0]?.id
               console.log('  → Selecting first task:', firstTaskId)
               console.log('  → Navigable tasks:', navigableTasks.map(t => ({ id: t.id, text: t.text.substring(0, 30) })))
-              setSelectedTaskId(firstTaskId)
+              setTaskIdFromContext(firstTaskId)
               // Log after state update to verify
               setTimeout(() => {
                 console.log('  → State after selection:', { selectedTaskId: firstTaskId })
@@ -315,7 +385,7 @@ function App() {
             } else if (currentIndex < navigableTasks.length - 1) {
               // Select next task
               console.log('  → Selecting next task:', navigableTasks[currentIndex + 1].id)
-              setSelectedTaskId(navigableTasks[currentIndex + 1].id)
+              setTaskIdFromContext(navigableTasks[currentIndex + 1].id)
             } else {
               // At bottom of list, stay at bottom
               console.log('  → At bottom boundary, staying at current task')
@@ -333,7 +403,7 @@ function App() {
             const task = currentTasks.find(t => t.id === selectedTaskId)
             if (task) {
               console.log('  → Opening task panel for highlighted task')
-              setSelectedTask(task)
+              selectTask(task)
             }
             return
           }
@@ -348,7 +418,7 @@ function App() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote])
+  }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote, isSearchOpen, isKeyboardHelpOpen])
 
   /**
    * Handle theme change from settings modal
@@ -362,13 +432,11 @@ function App() {
     }
   }
 
-  // Initial data fetch on mount
+  // Initial setup on mount (contexts handle data fetching)
   useEffect(() => {
     loadTheme()
     loadFont()
     loadUIMode()
-    fetchNotes()
-    fetchAllTasks()
     handleUIPreferencesChanged()
   }, [])
 
@@ -394,308 +462,9 @@ function App() {
     }
   }
 
-  // Fetch all tasks for project statistics
-  const fetchAllTasks = async () => {
-    const tasks = await getAllTasks()
-    setAllTasks(tasks)
-  }
+  // Special notes initialization now handled by NotesContext
 
-  /**
-   * Initialize special notes (HOME, Tasks, Today, Week, Someday/Maybe, Projects)
-   * Runs whenever notes array changes
-   */
-  useEffect(() => {
-    const setupTaskNoteLinks = async (tasks, today, week, someday) => {
-      if (!tasks || !today || !week || !someday) return
-
-      try {
-        // Check if links already exist (check the full chain)
-        if (today.left_id === tasks.id &&
-            today.right_id === week.id &&
-            week.right_id === someday.id) {
-          return // Already linked
-        }
-
-        // Link: Tasks <-> Today <-> Week <-> Someday/Maybe
-
-        // Set Tasks' right to Today
-        await supabase
-          .from('notes')
-          .update({ right_id: today.id })
-          .eq('id', tasks.id)
-
-        // Set Today's left to Tasks and right to Week
-        await supabase
-          .from('notes')
-          .update({ left_id: tasks.id, right_id: week.id })
-          .eq('id', today.id)
-
-        // Set Week's left to Today and right to Someday
-        await supabase
-          .from('notes')
-          .update({ left_id: today.id, right_id: someday.id })
-          .eq('id', week.id)
-
-        // Set Someday's left to Week
-        await supabase
-          .from('notes')
-          .update({ left_id: week.id })
-          .eq('id', someday.id)
-
-        await fetchNotes()
-      } catch (error) {
-        console.error('Error linking task notes:', error.message)
-      }
-    }
-
-    const setupProjectsLink = async (projects, tasks) => {
-      if (!projects || !tasks) return
-
-      try {
-        // Check if link already exists
-        if (projects.right_id === tasks.id && tasks.left_id === projects.id) {
-          return // Already linked
-        }
-
-        // Link: Projects <-> Tasks (left/right bidirectional)
-
-        // Set Projects' right to Tasks
-        await supabase
-          .from('notes')
-          .update({ right_id: tasks.id })
-          .eq('id', projects.id)
-
-        // Set Tasks' left to Projects
-        await supabase
-          .from('notes')
-          .update({ left_id: projects.id })
-          .eq('id', tasks.id)
-
-        await fetchNotes()
-      } catch (error) {
-        console.error('Error linking Projects to Tasks:', error.message)
-      }
-    }
-
-    if (notes.length > 0) {
-      const home = notes.find(n => n.is_home === true)
-      const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
-      const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
-      const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
-      const today = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
-      const week = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
-      const someday = notes.find(n => n.note_type === 'task_list' && n.title === 'Someday/Maybe')
-      const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
-
-      if (home) {
-        setHomeNote(home)
-        if (!selectedNote) {
-          setSelectedNote(home)
-        }
-      } else {
-        createHomeNote()
-      }
-
-      // Set special notes
-      setProjectsNote(projects)
-      setInboxNote(inbox)
-      setTasksNote(tasks)
-      setTodayNote(today)
-      setWeekNote(week)
-      setSomedayNote(someday)
-      setLogNote(log)
-
-      // Create Projects note if it doesn't exist
-      if (!projects) {
-        createProjectsNote()
-      }
-
-      // Create Inbox note if it doesn't exist
-      if (!inbox) {
-        createInboxNote()
-      }
-
-      // Create task notes if they don't exist
-      if (!tasks || !today || !week || !someday) {
-        createTaskNotes()
-      } else {
-        // Link task notes if all exist
-        setupTaskNoteLinks(tasks, today, week, someday)
-      }
-
-      // Link Projects to Tasks if both exist
-      if (projects && tasks) {
-        setupProjectsLink(projects, tasks)
-      }
-    }
-  }, [notes, selectedNote])
-
-  /**
-   * Fetch all notes from Supabase
-   * Ordered by updated_at (most recent first)
-   */
-  const fetchNotes = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .order('updated_at', { ascending: false })
-
-      if (error) throw error
-      setNotes(data || [])
-    } catch (error) {
-      console.error('Error fetching notes:', error.message)
-      alert('Error loading notes. Check console for details.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  /**
-   * Create the initial HOME note if it doesn't exist
-   * HOME note serves as the main entry point
-   */
-  const createHomeNote = async () => {
-    try {
-      const homeNoteData = {
-        title: 'HOME',
-        content: JSON.stringify({
-          root: {
-            children: [
-              {
-                children: [
-                  {
-                    text: 'Welcome to your knowledge base!',
-                    type: 'text',
-                  }
-                ],
-                direction: null,
-                format: '',
-                indent: 0,
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            direction: null,
-            format: '',
-            indent: 0,
-            type: 'root',
-            version: 1,
-          },
-        }),
-        up_id: null,
-        down_id: null,
-        left_id: null,
-        right_id: null,
-        is_home: true,
-        is_starred: true,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .insert([homeNoteData])
-        .select()
-
-      if (error) throw error
-      if (data && data[0]) {
-        await fetchNotes()
-        setHomeNote(data[0])
-        setSelectedNote(data[0])
-      }
-    } catch (error) {
-      console.error('Error creating home note:', error.message)
-    }
-  }
-
-  const createProjectsNote = async () => {
-    try {
-      const projectsNoteData = {
-        title: 'Projects',
-        content: JSON.stringify({
-          root: {
-            children: [
-              {
-                children: [],
-                direction: null,
-                format: '',
-                indent: 0,
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            direction: null,
-            format: '',
-            indent: 0,
-            type: 'root',
-            version: 1,
-          },
-        }),
-        note_type: 'project_list',
-        is_starred: true,
-        is_home: false,
-        up_id: null,
-        down_id: null,
-        left_id: null,
-        right_id: null,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { error } = await supabase
-        .from('notes')
-        .insert([projectsNoteData])
-
-      if (error) throw error
-      await fetchNotes()
-    } catch (error) {
-      console.error('Error creating Projects note:', error.message)
-    }
-  }
-
-  const createInboxNote = async () => {
-    try {
-      const inboxNoteData = {
-        title: 'Inbox',
-        content: JSON.stringify({
-          root: {
-            children: [
-              {
-                children: [],
-                direction: null,
-                format: '',
-                indent: 0,
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            direction: null,
-            format: '',
-            indent: 0,
-            type: 'root',
-            version: 1,
-          },
-        }),
-        note_type: 'inbox_list',
-        is_starred: true,
-        is_home: false,
-        up_id: null,
-        down_id: null,
-        left_id: null,
-        right_id: null,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { error } = await supabase
-        .from('notes')
-        .insert([inboxNoteData])
-
-      if (error) throw error
-      await fetchNotes()
-    } catch (error) {
-      console.error('Error creating Inbox note:', error.message)
-    }
-  }
+  // Old note creation functions removed - now handled by NotesContext
 
   /**
    * Create a new project note
@@ -860,733 +629,37 @@ function App() {
     }
   }
 
-  const createTaskNotes = async () => {
-    try {
-      const taskNotes = []
+  // Old note CRUD functions removed - using context versions:
+  // - createTaskNotes -> handled by NotesContext initialization
+  // - createNote -> use createNoteFromContext
+  // - createDraftLinkedNote -> use createDraftLinkedNoteFromContext
 
-      if (!tasksNote) {
-        taskNotes.push({
-          title: 'Tasks',
-          content: createTaskListContent([]),
-          note_type: 'task_list',
-          is_starred: true,
-          is_home: false,
-          up_id: null,
-          down_id: null,
-          left_id: null,
-          right_id: null,
-          updated_at: new Date().toISOString(),
-        })
-      }
+  // Old note CRUD and link functions removed - using context versions:
+  // - saveNote -> use saveNoteToContext (updateNote)
+  // - deleteNote -> use deleteNoteFromContext
+  // - setAsHome -> use setAsHomeFromContext
+  // - toggleStar -> use toggleNoteStarFromContext
+  // - setUpLink, setDownLink, setLeftLink, setRightLink -> use setLink(sourceId, targetId, direction)
+  // - removeUpLink, removeDownLink, removeLeftLink, removeRightLink -> use removeLink(sourceId, direction)
+  // - navigateToLinkedNote -> use navigateToNote from context
 
-      if (!todayNote) {
-        taskNotes.push({
-          title: 'Today',
-          content: createTaskListContent([]),
-          note_type: 'task_list',
-          is_starred: true,
-          is_home: false,
-          up_id: null,
-          down_id: null,
-          left_id: null,
-          right_id: null,
-          updated_at: new Date().toISOString(),
-        })
-      }
-
-      if (!weekNote) {
-        taskNotes.push({
-          title: 'Week',
-          content: createTaskListContent([]),
-          note_type: 'task_list',
-          is_starred: true,
-          is_home: false,
-          up_id: null,
-          down_id: null,
-          left_id: null,
-          right_id: null,
-          updated_at: new Date().toISOString(),
-        })
-      }
-
-      if (!somedayNote) {
-        taskNotes.push({
-          title: 'Someday/Maybe',
-          content: createTaskListContent([]),
-          note_type: 'task_list',
-          is_starred: true,
-          is_home: false,
-          up_id: null,
-          down_id: null,
-          left_id: null,
-          right_id: null,
-          updated_at: new Date().toISOString(),
-        })
-      }
-
-      if (taskNotes.length > 0) {
-        const { error } = await supabase
-          .from('notes')
-          .insert(taskNotes)
-
-        if (error) throw error
-        await fetchNotes()
-      }
-    } catch (error) {
-      console.error('Error creating task notes:', error.message)
-    }
-  }
-
-  const createNote = async () => {
-    try {
-      const newNote = {
-        title: 'Untitled',
-        content: JSON.stringify({
-          root: {
-            children: [
-              {
-                children: [],
-                direction: null,
-                format: '',
-                indent: 0,
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            direction: null,
-            format: '',
-            indent: 0,
-            type: 'root',
-            version: 1,
-          },
-        }),
-        up_id: null,
-        down_id: null,
-        left_id: null,
-        right_id: null,
-        is_home: false,
-        is_starred: true, // Star new notes by default
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .insert([newNote])
-        .select()
-
-      if (error) throw error
-      if (data && data[0]) {
-        setNotes([data[0], ...notes])
-        setSelectedNote(data[0])
-
-        // Log note creation
-        await activityLogger.logNoteCreated(data[0])
-      }
-    } catch (error) {
-      console.error('Error creating note:', error.message)
-      alert('Error creating note. Check console for details.')
-    }
-  }
-
-  const createDraftLinkedNote = async (sourceNote, linkType) => {
-    try {
-      const draftNote = {
-        title: '',
-        content: JSON.stringify({
-          root: {
-            children: [
-              {
-                children: [],
-                direction: null,
-                format: '',
-                indent: 0,
-                type: 'paragraph',
-                version: 1,
-              },
-            ],
-            direction: null,
-            format: '',
-            indent: 0,
-            type: 'root',
-            version: 1,
-          },
-        }),
-        up_id: null,
-        down_id: null,
-        left_id: null,
-        right_id: null,
-        is_home: false,
-        is_starred: true,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .insert([draftNote])
-        .select()
-
-      if (error) throw error
-      
-      if (data && data[0]) {
-        const newNote = data[0]
-        
-        // Create the link
-        if (linkType === 'up') {
-          await setUpLink(sourceNote.id, newNote.id)
-        } else if (linkType === 'down') {
-          await setDownLink(sourceNote.id, newNote.id)
-        } else if (linkType === 'left') {
-          await setLeftLink(sourceNote.id, newNote.id)
-        } else if (linkType === 'right') {
-          await setRightLink(sourceNote.id, newNote.id)
-        }
-        
-        // Refresh all notes to get updated links
-        await fetchNotes()
-        
-        // Fetch the newly created note with its updated links
-        const { data: updatedNewNote } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', newNote.id)
-          .single()
-        
-        if (updatedNewNote) {
-          setSelectedNote(updatedNewNote)
-        } else {
-          setSelectedNote(newNote)
-        }
-        
-        return updatedNewNote || newNote
-      }
-    } catch (error) {
-      console.error('Error creating draft note:', error.message)
-      alert('Error creating draft note. Check console.')
-    }
-  }
-
-  const saveNote = async (updatedNote) => {
-    try {
-      const isEmpty = !updatedNote.title.trim() && isContentEmpty(updatedNote.content)
-      
-      if (isEmpty && !updatedNote.is_home) {
-        await deleteNote(updatedNote.id)
-        return
-      }
-
-      const { error } = await supabase
-        .from('notes')
-        .update({
-          title: updatedNote.title,
-          content: updatedNote.content,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', updatedNote.id)
-
-      if (error) throw error
-
-      setNotes(notes.map(note =>
-        note.id === updatedNote.id
-          ? { ...note, ...updatedNote, updated_at: new Date().toISOString() }
-          : note
-      ))
-      setSelectedNote({ ...updatedNote, updated_at: new Date().toISOString() })
-
-      // Log note update (with intelligent collapsing)
-      await activityLogger.logNoteUpdated(updatedNote)
-    } catch (error) {
-      console.error('Error saving note:', error.message)
-      alert('Error saving note. Check console for details.')
-    }
-  }
-
+  // Helper function for checking empty content
   const isContentEmpty = (content) => {
     try {
       const parsed = JSON.parse(content)
       const firstChild = parsed?.root?.children?.[0]
-      
+
       if (!firstChild || !firstChild.children || firstChild.children.length === 0) {
         return true
       }
-      
-      const hasText = firstChild.children.some(child => 
+
+      const hasText = firstChild.children.some(child =>
         child.text && child.text.trim().length > 0
       )
-      
+
       return !hasText
     } catch {
       return true
-    }
-  }
-
-  const deleteNote = async (noteId) => {
-    try {
-      const noteToDelete = notes.find(n => n.id === noteId)
-      if (!noteToDelete) return
-      
-      if (noteToDelete.is_home) {
-        alert('Cannot delete HOME note')
-        return
-      }
-
-      // Clean up bidirectional links before deleting
-      // If this note has an up_id, remove the down_id from the up note
-      if (noteToDelete.up_id) {
-        await supabase
-          .from('notes')
-          .update({ down_id: null })
-          .eq('id', noteToDelete.up_id)
-      }
-
-      // If this note has a down_id, remove the up_id from the down note
-      if (noteToDelete.down_id) {
-        await supabase
-          .from('notes')
-          .update({ up_id: null })
-          .eq('id', noteToDelete.down_id)
-      }
-
-      // Clean up any remaining references where other notes point to this note
-      // (bidirectional links should already be cleaned, but this ensures consistency)
-      await supabase
-        .from('notes')
-        .update({ up_id: null })
-        .eq('up_id', noteId)
-      
-      await supabase
-        .from('notes')
-        .update({ down_id: null })
-        .eq('down_id', noteId)
-      
-      await supabase
-        .from('notes')
-        .update({ left_id: null })
-        .eq('left_id', noteId)
-      
-      await supabase
-        .from('notes')
-        .update({ right_id: null })
-        .eq('right_id', noteId)
-
-      // Log note deletion before deleting
-      await activityLogger.logNoteDeleted(noteToDelete)
-
-      // Now delete the note
-      const { error } = await supabase
-        .from('notes')
-        .delete()
-        .eq('id', noteId)
-
-      if (error) throw error
-
-      // Refresh notes to get updated state
-      await fetchNotes()
-      setSelectedNote(null)
-    } catch (error) {
-      console.error('Error deleting note:', error.message)
-      alert('Error deleting note. Check console for details.')
-    }
-  }
-
-  const setAsHome = async (noteId) => {
-    try {
-      // First, unset any existing home note
-      const currentHome = notes.find(n => n.is_home === true)
-      if (currentHome) {
-        const { error: unsetError } = await supabase
-          .from('notes')
-          .update({ is_home: false })
-          .eq('id', currentHome.id)
-
-        if (unsetError) throw unsetError
-      }
-
-      // Set the new home note
-      const { error } = await supabase
-        .from('notes')
-        .update({ is_home: true })
-        .eq('id', noteId)
-
-      if (error) throw error
-
-      // Refresh notes
-      await fetchNotes()
-      
-      // Update selected note if it's the one we just set as home
-      if (selectedNote?.id === noteId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', noteId)
-          .single()
-        
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error setting home note:', error.message)
-      alert('Error setting home note. Check console.')
-    }
-  }
-
-  const toggleStar = async (noteId) => {
-    try {
-      const note = notes.find(n => n.id === noteId)
-      if (!note) return
-
-      const { error } = await supabase
-        .from('notes')
-        .update({ is_starred: !note.is_starred })
-        .eq('id', noteId)
-
-      if (error) throw error
-
-      // Update local state
-      setNotes(notes.map(n => 
-        n.id === noteId 
-          ? { ...n, is_starred: !n.is_starred }
-          : n
-      ))
-
-      // Update selected note if it's the one we just starred
-      if (selectedNote?.id === noteId) {
-        setSelectedNote({ ...selectedNote, is_starred: !selectedNote.is_starred })
-      }
-    } catch (error) {
-      console.error('Error toggling star:', error.message)
-      alert('Error toggling star. Check console.')
-    }
-  }
-
-  const setUpLink = async (sourceId, targetId) => {
-    try {
-      // Set source's up_id to target
-      const { error: sourceError } = await supabase
-        .from('notes')
-        .update({ up_id: targetId })
-        .eq('id', sourceId)
-
-      if (sourceError) throw sourceError
-
-      // Set target's down_id to source (bidirectional link)
-      const { error: targetError } = await supabase
-        .from('notes')
-        .update({ down_id: sourceId })
-        .eq('id', targetId)
-
-      if (targetError) throw targetError
-
-      await fetchNotes()
-      
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-        
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error setting up link:', error.message)
-      alert('Error setting up link. Check console.')
-    }
-  }
-
-  const removeUpLink = async (sourceId) => {
-    try {
-      // Get the current up_id before removing
-      const { data: sourceNote } = await supabase
-        .from('notes')
-        .select('up_id')
-        .eq('id', sourceId)
-        .single()
-
-      if (sourceNote?.up_id) {
-        // Remove the bidirectional link
-        const { error: targetError } = await supabase
-          .from('notes')
-          .update({ down_id: null })
-          .eq('id', sourceNote.up_id)
-
-        if (targetError) throw targetError
-      }
-
-      // Remove source's up_id
-      const { error } = await supabase
-        .from('notes')
-        .update({ up_id: null })
-        .eq('id', sourceId)
-
-      if (error) throw error
-
-      await fetchNotes()
-      
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-        
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error removing up link:', error.message)
-      alert('Error removing up link. Check console.')
-    }
-  }
-
-  const setDownLink = async (sourceId, targetId) => {
-    try {
-      // Set source's down_id to target
-      const { error: sourceError } = await supabase
-        .from('notes')
-        .update({ down_id: targetId })
-        .eq('id', sourceId)
-
-      if (sourceError) throw sourceError
-
-      // Set target's up_id to source (bidirectional link)
-      const { error: targetError } = await supabase
-        .from('notes')
-        .update({ up_id: sourceId })
-        .eq('id', targetId)
-
-      if (targetError) throw targetError
-
-      await fetchNotes()
-      
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-        
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error setting down link:', error.message)
-      alert('Error setting down link. Check console.')
-    }
-  }
-
-  const removeDownLink = async (sourceId) => {
-    try {
-      // Get the current down_id before removing
-      const { data: sourceNote } = await supabase
-        .from('notes')
-        .select('down_id')
-        .eq('id', sourceId)
-        .single()
-
-      if (sourceNote?.down_id) {
-        // Remove the bidirectional link
-        const { error: targetError } = await supabase
-          .from('notes')
-          .update({ up_id: null })
-          .eq('id', sourceNote.down_id)
-
-        if (targetError) throw targetError
-      }
-
-      // Remove source's down_id
-      const { error } = await supabase
-        .from('notes')
-        .update({ down_id: null })
-        .eq('id', sourceId)
-
-      if (error) throw error
-
-      await fetchNotes()
-      
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-        
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error removing down link:', error.message)
-      alert('Error removing down link. Check console.')
-    }
-  }
-
-  const setLeftLink = async (sourceId, targetId) => {
-    try {
-      // Set source's left_id to target
-      const { error: sourceError } = await supabase
-        .from('notes')
-        .update({ left_id: targetId })
-        .eq('id', sourceId)
-
-      if (sourceError) throw sourceError
-
-      // Set target's right_id to source (bidirectional link)
-      const { error: targetError } = await supabase
-        .from('notes')
-        .update({ right_id: sourceId })
-        .eq('id', targetId)
-
-      if (targetError) throw targetError
-
-      await fetchNotes()
-
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error setting left link:', error.message)
-      alert('Error setting left link. Check console.')
-    }
-  }
-
-  const setRightLink = async (sourceId, targetId) => {
-    try {
-      // Set source's right_id to target
-      const { error: sourceError } = await supabase
-        .from('notes')
-        .update({ right_id: targetId })
-        .eq('id', sourceId)
-
-      if (sourceError) throw sourceError
-
-      // Set target's left_id to source (bidirectional link)
-      const { error: targetError } = await supabase
-        .from('notes')
-        .update({ left_id: sourceId })
-        .eq('id', targetId)
-
-      if (targetError) throw targetError
-
-      await fetchNotes()
-
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error setting right link:', error.message)
-      alert('Error setting right link. Check console.')
-    }
-  }
-
-  const removeLeftLink = async (sourceId) => {
-    try {
-      // Get the current left_id before removing
-      const { data: sourceNote } = await supabase
-        .from('notes')
-        .select('left_id')
-        .eq('id', sourceId)
-        .single()
-
-      if (sourceNote?.left_id) {
-        // Remove the bidirectional link
-        const { error: targetError } = await supabase
-          .from('notes')
-          .update({ right_id: null })
-          .eq('id', sourceNote.left_id)
-
-        if (targetError) throw targetError
-      }
-
-      // Remove source's left_id
-      const { error } = await supabase
-        .from('notes')
-        .update({ left_id: null })
-        .eq('id', sourceId)
-
-      if (error) throw error
-
-      await fetchNotes()
-
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error removing left link:', error.message)
-      alert('Error removing left link. Check console.')
-    }
-  }
-
-  const removeRightLink = async (sourceId) => {
-    try {
-      // Get the current right_id before removing
-      const { data: sourceNote } = await supabase
-        .from('notes')
-        .select('right_id')
-        .eq('id', sourceId)
-        .single()
-
-      if (sourceNote?.right_id) {
-        // Remove the bidirectional link
-        const { error: targetError } = await supabase
-          .from('notes')
-          .update({ left_id: null })
-          .eq('id', sourceNote.right_id)
-
-        if (targetError) throw targetError
-      }
-
-      // Remove source's right_id
-      const { error } = await supabase
-        .from('notes')
-        .update({ right_id: null })
-        .eq('id', sourceId)
-
-      if (error) throw error
-
-      await fetchNotes()
-
-      if (selectedNote?.id === sourceId) {
-        const { data } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('id', sourceId)
-          .single()
-
-        if (data) setSelectedNote(data)
-      }
-    } catch (error) {
-      console.error('Error removing right link:', error.message)
-      alert('Error removing right link. Check console.')
-    }
-  }
-
-  const navigateToLinkedNote = async (linkId) => {
-    if (!linkId) return
-
-    const note = notes.find(n => n.id === linkId)
-    if (note) {
-      setSelectedNote(note)
-    } else {
-      const { data } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('id', linkId)
-        .single()
-
-      if (data) setSelectedNote(data)
     }
   }
 
@@ -1595,7 +668,7 @@ function App() {
    * Called when clicking on a project card in ProjectsList
    */
   const handleProjectClick = (project) => {
-    setSelectedNote(project)
+    selectNote(project)
     setSidebarOpen(false)
   }
 
@@ -1624,7 +697,7 @@ function App() {
             setSecondaryNote(data)
           } else {
             // Normal click: replace current note
-            setSelectedNote(data)
+            selectNote(data)
             setSidebarOpen(false)
           }
         }
@@ -1641,7 +714,7 @@ function App() {
         if (taskData) {
           if (shiftKey) {
             // Shift+click: open task detail in side panel
-            setSelectedTask(taskData)
+            selectTask(taskData)
           } else {
             // Normal click: show alert (or could also open detail panel)
             alert(`Task: ${taskData.text}\nStatus: ${taskData.status}\nPriority: ${taskData.priority}`)
@@ -1698,7 +771,7 @@ function App() {
       setCurrentTasks(currentTasks.map(t =>
         t.id === updatedTask.id ? { ...updatedTask, updated_at: new Date().toISOString() } : t
       ))
-      setSelectedTask({ ...updatedTask, updated_at: new Date().toISOString() })
+      selectTask({ ...updatedTask, updated_at: new Date().toISOString() })
 
       // Refresh the view if we're on a task list
       if (selectedNote?.note_type === 'task_list') {
@@ -1869,7 +942,7 @@ function App() {
       fetchTasksForView(selectedNote.title)
       // Clear task selection when changing pages
       console.log('📄 Page changed, clearing task selection')
-      setSelectedTaskId(null)
+      setTaskIdFromContext(null)
     } else {
       setCurrentTasks([])
     }
@@ -1881,7 +954,7 @@ function App() {
       const taskExists = currentTasks.some(t => t.id === selectedTaskId)
       if (!taskExists) {
         console.log('🔄 Selected task not in filtered list, clearing selection')
-        setSelectedTaskId(null)
+        setTaskIdFromContext(null)
       }
     }
   }, [currentTasks, selectedTaskId])
@@ -2007,7 +1080,7 @@ function App() {
 
       if (foundNote) {
         event.preventDefault() // Prevent default behavior
-        setSelectedNote(foundNote)
+        selectNote(foundNote)
         setSidebarOpen(false)
       }
     }
@@ -2081,366 +1154,13 @@ function App() {
     }
   }
 
-  /**
-   * Toggle task completion status by updating status field
-   * Completed tasks get status DONE, uncompleted get BACKLOG
-   *
-   * @param {string} taskId - Unique task ID
-   */
-  const toggleTaskComplete = async (taskId) => {
-    if (!selectedNote) return
+  // Old task CRUD functions removed - using context versions:
+  // - toggleTaskComplete -> use toggleComplete from TasksContext
+  // - changeTaskStatus -> use changeStatus from TasksContext
+  // - toggleTaskStar -> use toggleStar from TasksContext
+  // - scheduleTask -> use scheduleTask from TasksContext
 
-    try {
-      // Find the task in either currentTasks or allTasks
-      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
-      if (!task) return
-
-      const newStatus = task.status === 'DONE' ? 'BACKLOG' : 'DONE'
-
-      // Optimistic update for currentTasks
-      if (currentTasks.some(t => t.id === taskId)) {
-        setCurrentTasks(currentTasks.map(t =>
-          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-        ))
-      }
-
-      // Optimistic update for allTasks (used by project pages)
-      setAllTasks(allTasks.map(t =>
-        t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-      ))
-
-      // Update in database
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', taskId)
-
-      if (error) throw error
-
-      // Log task completion (only when marking as DONE)
-      if (newStatus === 'DONE') {
-        await activityLogger.logTaskCompleted(task)
-      }
-
-      // Refresh the view - check both primary and secondary notes
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        await fetchAllTasks()
-      }
-    } catch (error) {
-      console.error('Error toggling task completion:', error)
-      // Rollback on error
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        await fetchAllTasks()
-      }
-    }
-  }
-
-  /**
-   * Change task status to a specific value
-   *
-   * @param {string} taskId - Unique task ID
-   * @param {string} newStatus - New status value
-   */
-  const changeTaskStatus = async (taskId, newStatus) => {
-    if (!selectedNote) return
-
-    try {
-      // Find the task in either currentTasks or allTasks
-      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
-      if (!task) return
-
-      const oldStatus = task.status
-
-      // Optimistic update for currentTasks
-      if (currentTasks.some(t => t.id === taskId)) {
-        setCurrentTasks(currentTasks.map(t =>
-          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-        ))
-      }
-
-      // Optimistic update for allTasks (used by project pages)
-      setAllTasks(allTasks.map(t =>
-        t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-      ))
-
-      // Update in database
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', taskId)
-
-      if (error) throw error
-
-      // Log status change
-      await activityLogger.logTaskStatusChanged(task, oldStatus, newStatus)
-
-      // Refresh the view - check both primary and secondary notes
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        // Refresh allTasks to update project task lists
-        await fetchAllTasks()
-      }
-    } catch (error) {
-      console.error('Error changing task status:', error)
-      // Rollback on error
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        await fetchAllTasks()
-      }
-    }
-  }
-
-  /**
-   * Toggle task star status in tasks table
-   * When starring: BACKLOG → PLANNED, scheduled_date → today
-   * When unstarring: PLANNED → BACKLOG
-   *
-   * @param {string} taskId - Unique task ID
-   */
-  const toggleTaskStar = async (taskId) => {
-    try {
-      // Find the task in either currentTasks or allTasks
-      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
-      if (!task) return
-
-      const newStarredState = !task.starred
-      const updates = { starred: newStarredState }
-
-      // Get today's date in local timezone
-      const today = new Date()
-      const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-      // Auto-adjust status and schedule when starring/unstarring
-      if (newStarredState) {
-        // Starring a task
-        if (task.status === 'BACKLOG') {
-          updates.status = 'PLANNED'
-        }
-        // Set scheduled_date to today if not already scheduled
-        if (!task.scheduled_date) {
-          updates.scheduled_date = todayISO
-        }
-      } else {
-        // Unstarring a task
-        if (task.status === 'PLANNED') {
-          updates.status = 'BACKLOG'
-        }
-        // If the task was scheduled for today, clear the date
-        if (task.scheduled_date === todayISO) {
-          updates.scheduled_date = null
-        }
-      }
-
-      // Optimistic update for currentTasks
-      if (currentTasks.some(t => t.id === taskId)) {
-        setCurrentTasks(currentTasks.map(t =>
-          t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-        ))
-      }
-
-      // Optimistic update for allTasks (used by project pages)
-      setAllTasks(allTasks.map(t =>
-        t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-      ))
-
-      // Update in database
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', taskId)
-
-      if (error) throw error
-
-      // Log star toggle
-      await activityLogger.logTaskStarred(task, newStarredState)
-
-      // Refresh the view - check both primary and secondary notes
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        await fetchAllTasks()
-      }
-    } catch (error) {
-      console.error('Error toggling task star:', error)
-      // Rollback on error
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        await fetchAllTasks()
-      }
-    }
-  }
-
-  /**
-   * Schedule a task for a specific date
-   * When a date is set and status is BACKLOG, automatically change status to PLANNED
-   * Special values: 'SOMEDAY', 'THIS_WEEK'
-   *
-   * @param {string} taskId - Unique task ID
-   * @param {string} scheduledDate - Date string (YYYY-MM-DD), 'SOMEDAY', 'THIS_WEEK', or null to clear
-   */
-  const scheduleTask = async (taskId, scheduledDate) => {
-    console.log('📅 scheduleTask called:', { taskId, scheduledDate, selectedNoteType: selectedNote?.note_type, secondaryNoteType: secondaryNote?.note_type })
-
-    try {
-      // Find the task in either currentTasks or allTasks
-      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
-      if (!task) {
-        console.log('❌ Task not found:', taskId)
-        return
-      }
-
-      console.log('✅ Task found:', { taskId: task.id, currentSchedule: task.scheduled_date, newSchedule: scheduledDate, currentStarred: task.starred })
-
-      // Get today's date in local timezone
-      const today = new Date()
-      const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-
-      const updates = { scheduled_date: scheduledDate }
-
-      // If scheduling a date and status is BACKLOG, auto-set to PLANNED
-      // Don't auto-change status for SOMEDAY
-      if (scheduledDate && scheduledDate !== 'SOMEDAY' && task.status === 'BACKLOG') {
-        updates.status = 'PLANNED'
-      }
-
-      // Bidirectional star/today relationship
-      if (scheduledDate === todayISO) {
-        // Scheduling to today? Auto-star the task
-        updates.starred = true
-        console.log('⭐ Auto-starring task because scheduled to today')
-      } else if (task.scheduled_date === todayISO && scheduledDate !== todayISO) {
-        // Changing from today to another date? Auto-unstar if currently starred
-        if (task.starred) {
-          updates.starred = false
-          console.log('☆ Auto-unstarring task because moved from today')
-        }
-      }
-
-      // Optimistic update for currentTasks
-      if (currentTasks.some(t => t.id === taskId)) {
-        setCurrentTasks(currentTasks.map(t =>
-          t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-        ))
-      }
-
-      // Optimistic update for allTasks (used by project pages)
-      setAllTasks(allTasks.map(t =>
-        t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-      ))
-
-      console.log('🔄 Optimistic updates applied')
-
-      // Update in database
-      const { error } = await supabase
-        .from('tasks')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', taskId)
-
-      if (error) throw error
-
-      console.log('💾 Database updated successfully')
-
-      // Log task scheduling (only if a date is set)
-      if (scheduledDate) {
-        await activityLogger.logTaskScheduled(task, scheduledDate)
-      }
-
-      // Refresh the view - check both primary and secondary notes
-      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
-
-      if (selectedNote?.note_type === 'task_list') {
-        console.log('🔄 Refreshing task list view:', selectedNote.title)
-        await fetchTasksForView(selectedNote.title)
-      } else if (isProjectView) {
-        console.log('🔄 Refreshing allTasks for project view')
-        await fetchAllTasks()
-      }
-
-      console.log('✅ scheduleTask completed')
-    } catch (error) {
-      console.error('❌ Error scheduling task:', error)
-      // Rollback on error
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      } else if (selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project') {
-        await fetchAllTasks()
-      }
-    }
-  }
-
-  /**
-   * Reorder tasks by swapping priorities
-   * When a task is moved, we swap its priority with the task at the target position
-   */
-  const reorderTasks = async (fromIndex, toIndex) => {
-    if (!selectedNote || selectedNote.note_type !== 'task_list') return
-
-    try {
-      const reorderedTasks = [...currentTasks]
-      const [movedTask] = reorderedTasks.splice(fromIndex, 1)
-      reorderedTasks.splice(toIndex, 0, movedTask)
-
-      // Assign new priorities based on position
-      const updates = reorderedTasks.map((task, index) => ({
-        id: task.id,
-        priority: index + 1
-      }))
-
-      // Optimistic update
-      setCurrentTasks(reorderedTasks.map((task, index) => ({
-        ...task,
-        priority: index + 1
-      })))
-
-      // Update all priorities in database
-      for (const update of updates) {
-        await supabase
-          .from('tasks')
-          .update({ priority: update.priority, updated_at: new Date().toISOString() })
-          .eq('id', update.id)
-      }
-
-      // Refresh the view
-      await fetchTasksForView(selectedNote.title)
-    } catch (error) {
-      console.error('Error reordering tasks:', error)
-      // Rollback on error
-      if (selectedNote?.note_type === 'task_list') {
-        await fetchTasksForView(selectedNote.title)
-      }
-    }
-  }
+  // Old reorderTasks function removed - use reorderTasksFromContext
 
   /**
    * Handle terminal commands
@@ -2604,7 +1324,7 @@ Type /help anytime to see this message.`
           })
 
           if (foundNote) {
-            setSelectedNote(foundNote)
+            selectNote(foundNote)
             setSidebarOpen(false)
             return `✓ Navigated to ${foundNote.title}`
           }
@@ -2633,7 +1353,7 @@ Type /help anytime to see this message.`
           const { name } = command.payload
           try {
             const newProject = await createProjectNote(name)
-            setSelectedNote(newProject)
+            selectNote(newProject)
             setSidebarOpen(false)
             return `✓ Project "${name}" created and opened`
           } catch (error) {
@@ -2850,67 +1570,112 @@ Type /help anytime to see this message.`
     }
   }
 
-  const goToHome = () => {
-    const home = notes.find(n => n.is_home === true)
-    if (home) {
-      setSelectedNote(home)
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false)
-      }
+  // Wrap context navigation functions with sidebar close logic
+  const goToHomeWrapper = () => {
+    goToHome()
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
     }
   }
 
-  const goToTasks = () => {
-    console.log('🔍 goToTasks called, searching notes:', notes.length)
-    const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
-    console.log('📝 Found Tasks note:', {
-      found: !!tasks,
-      id: tasks?.id,
-      title: tasks?.title,
-      note_type: tasks?.note_type,
-      content_length: tasks?.content?.length
-    })
-    if (tasks) {
-      setSelectedNote(tasks)
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false)
-      }
-    } else {
-      console.error('❌ Tasks note not found!')
+  const goToTasksWrapper = () => {
+    goToTasks()
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
     }
   }
 
-  const goToInbox = () => {
-    const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
-    if (inbox) {
-      setSelectedNote(inbox)
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false)
-      }
+  const goToInboxWrapper = () => {
+    goToInbox()
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
     }
   }
 
-  const goToProjects = () => {
-    const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
-    if (projects) {
-      setSelectedNote(projects)
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false)
-      }
+  const goToProjectsWrapper = () => {
+    goToProjects()
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
     }
   }
 
-  const goToLog = () => {
-    const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
-    if (log) {
-      setSelectedNote(log)
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false)
-      }
+  const goToLogWrapper = () => {
+    goToLog()
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
     }
   }
 
-  if (loading) {
+  // Wrapper functions for NoteEditor props (to maintain old interface)
+  const saveNote = async (updatedNote) => {
+    return await saveNoteToContext(updatedNote.id, updatedNote)
+  }
+
+  const deleteNote = async (noteId) => {
+    return await deleteNoteFromContext(noteId)
+  }
+
+  const setAsHome = async (noteId) => {
+    return await setAsHomeFromContext(noteId)
+  }
+
+  const toggleStar = async (noteId) => {
+    return await toggleNoteStarFromContext(noteId)
+  }
+
+  const setUpLink = async (sourceId, targetId) => {
+    return await setLink(sourceId, targetId, 'up')
+  }
+
+  const removeUpLink = async (sourceId) => {
+    return await removeLink(sourceId, 'up')
+  }
+
+  const setDownLink = async (sourceId, targetId) => {
+    return await setLink(sourceId, targetId, 'down')
+  }
+
+  const removeDownLink = async (sourceId) => {
+    return await removeLink(sourceId, 'down')
+  }
+
+  const setLeftLink = async (sourceId, targetId) => {
+    return await setLink(sourceId, targetId, 'left')
+  }
+
+  const setRightLink = async (sourceId, targetId) => {
+    return await setLink(sourceId, targetId, 'right')
+  }
+
+  const removeLeftLink = async (sourceId) => {
+    return await removeLink(sourceId, 'left')
+  }
+
+  const removeRightLink = async (sourceId) => {
+    return await removeLink(sourceId, 'right')
+  }
+
+  const navigateToLinkedNote = async (noteId) => {
+    return await navigateToNote(noteId)
+  }
+
+  const createDraftLinkedNote = async (sourceNote, linkType) => {
+    return await createDraftLinkedNoteFromContext(sourceNote, linkType)
+  }
+
+  const toggleTaskComplete = async (taskId) => {
+    return await toggleComplete(taskId)
+  }
+
+  const changeTaskStatus = async (taskId, newStatus) => {
+    return await changeStatus(taskId, newStatus)
+  }
+
+  const reorderTasks = async (fromIndex, toIndex) => {
+    return await reorderTasksFromContext(fromIndex, toIndex)
+  }
+
+  if (notesLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-bg-primary">
         <div className="text-fg-secondary">Loading notes...</div>
@@ -2961,7 +1726,7 @@ Type /help anytime to see this message.`
             if (e.shiftKey && inbox) {
               setSecondaryNote(inbox)
             } else {
-              goToInbox()
+              goToInboxWrapper()
             }
           }}
           className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
@@ -2976,7 +1741,7 @@ Type /help anytime to see this message.`
             if (e.shiftKey && tasks) {
               setSecondaryNote(tasks)
             } else {
-              goToTasks()
+              goToTasksWrapper()
             }
           }}
           className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
@@ -2991,7 +1756,7 @@ Type /help anytime to see this message.`
             if (e.shiftKey && projects) {
               setSecondaryNote(projects)
             } else {
-              goToProjects()
+              goToProjectsWrapper()
             }
           }}
           className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
@@ -3006,7 +1771,7 @@ Type /help anytime to see this message.`
             if (e.shiftKey && home) {
               setSecondaryNote(home)
             } else {
-              goToHome()
+              goToHomeWrapper()
             }
           }}
           className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
@@ -3021,7 +1786,7 @@ Type /help anytime to see this message.`
             if (e.shiftKey && log) {
               setSecondaryNote(log)
             } else {
-              goToLog()
+              goToLogWrapper()
             }
           }}
           className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
@@ -3056,15 +1821,15 @@ Type /help anytime to see this message.`
             if (shiftKey) {
               setSecondaryNote(note)
             } else {
-              setSelectedNote(note)
+              selectNote(note)
               if (window.innerWidth < 768) {
                 setSidebarOpen(false)
               }
             }
           }}
-          onCreateNote={createNote}
+          onCreateNote={createNoteFromContext}
           onGoHome={goToHome}
-          onToggleStar={toggleStar}
+          onToggleStar={toggleNoteStarFromContext}
         />
       </div>
 
@@ -3089,7 +1854,7 @@ Type /help anytime to see this message.`
               allTasks={allTasks}
               selectedTaskId={selectedTaskId}
               onTaskSelect={(taskId) => {
-                setSelectedTaskId(taskId)
+                setTaskIdFromContext(taskId)
                 setDeselectionPending(false) // Reset flag when selecting a task by clicking
               }}
               onSave={saveNote}
@@ -3116,7 +1881,7 @@ Type /help anytime to see this message.`
                 console.log('📋 Opening task panel:', { taskId: task?.id, taskText: task?.text })
                 const taskIndex = currentTasks.findIndex(t => t.id === task.id)
                 setSelectedTaskNumber(taskIndex >= 0 ? taskIndex + 1 : null)
-                setSelectedTask(task)
+                selectTask(task)
               }}
               onProjectClick={handleProjectClick}
               statusFilter={statusFilter}
@@ -3234,12 +1999,12 @@ Type /help anytime to see this message.`
                   console.log('📋 Opening task panel from secondary view:', { taskId: task?.id, taskText: task?.text })
                   const taskIndex = allTasks.findIndex(t => t.id === task.id)
                   setSelectedTaskNumber(taskIndex >= 0 ? taskIndex + 1 : null)
-                  setSelectedTask(task)
+                  selectTask(task)
                 }}
                 onProjectClick={handleProjectClick}
                 selectedTaskId={selectedTaskId}
                 onTaskSelect={(taskId) => {
-                  setSelectedTaskId(taskId)
+                  setTaskIdFromContext(taskId)
                   setDeselectionPending(false)
                 }}
                 statusFilter={statusFilter}
@@ -3251,18 +2016,34 @@ Type /help anytime to see this message.`
             </div>
           )}
 
+          {/* Task Detail Modal Backdrop */}
+          {selectedTask && !secondaryNote && (
+            <div
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[55]"
+              onClick={() => {
+                selectTask(null)
+                setSelectedTaskNumber(null)
+              }}
+            />
+          )}
+
           {/* Task Detail Panel */}
           {selectedTask && !secondaryNote && (
-            <div className="w-full h-full max-w-xl max-h-[800px]">
+            <div
+              className="w-full h-full max-w-xl max-h-[800px] relative z-[60]"
+              onClick={(e) => e.stopPropagation()}
+            >
               <TaskDetail
                 task={selectedTask}
                 taskNumber={selectedTaskNumber}
                 onClose={() => {
-                  setSelectedTask(null)
+                  selectTask(null)
                   setSelectedTaskNumber(null)
                 }}
                 onSave={saveTask}
                 showPriorityFormula={uiPreferences.show_priority_formula}
+                allNotes={notes}
+                onProjectClick={handleProjectClick}
               />
             </div>
           )}
@@ -3336,6 +2117,31 @@ Type /help anytime to see this message.`
         onThemeChange={handleThemeChange}
         onMusicLinksChanged={handleMusicLinksChanged}
         onUIPreferencesChanged={handleUIPreferencesChanged}
+      />
+
+      {/* Search Modal */}
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+        notes={notes}
+        tasks={allTasks}
+        onSelectNote={(note) => {
+          selectNote(note)
+          setIsSearchOpen(false)
+        }}
+        onSelectTask={(task) => {
+          // Find task number in all tasks
+          const taskIndex = allTasks.findIndex(t => t.id === task.id)
+          setSelectedTaskNumber(taskIndex >= 0 ? taskIndex + 1 : null)
+          selectTask(task)
+          setIsSearchOpen(false)
+        }}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp
+        isOpen={isKeyboardHelpOpen}
+        onClose={() => setIsKeyboardHelpOpen(false)}
       />
     </div>
   )

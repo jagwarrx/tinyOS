@@ -7,43 +7,62 @@ const notesReducer = (state, action) => {
   switch (action.type) {
     case 'SET_LOADING':
       return { ...state, loading: action.payload }
-    
+
     case 'SET_NOTES':
       return { ...state, notes: action.payload, loading: false }
-    
+
     case 'SET_SELECTED':
       return { ...state, selectedNote: action.payload }
-    
+
+    case 'SET_SECONDARY':
+      return { ...state, secondaryNote: action.payload }
+
     case 'SET_HOME':
       return { ...state, homeNote: action.payload }
-    
+
+    case 'SET_SPECIAL_NOTES':
+      return {
+        ...state,
+        tasksNote: action.payload.tasksNote,
+        todayNote: action.payload.todayNote,
+        weekNote: action.payload.weekNote,
+        projectsNote: action.payload.projectsNote,
+        inboxNote: action.payload.inboxNote,
+        somedayNote: action.payload.somedayNote,
+        logNote: action.payload.logNote
+      }
+
     case 'ADD_NOTE':
       return {
         ...state,
         notes: [action.payload, ...state.notes]
       }
-    
+
     case 'UPDATE_NOTE':
       return {
         ...state,
-        notes: state.notes.map(n => 
+        notes: state.notes.map(n =>
           n.id === action.payload.id ? { ...n, ...action.payload } : n
         ),
-        selectedNote: state.selectedNote?.id === action.payload.id 
+        selectedNote: state.selectedNote?.id === action.payload.id
           ? { ...state.selectedNote, ...action.payload }
           : state.selectedNote,
+        secondaryNote: state.secondaryNote?.id === action.payload.id
+          ? { ...state.secondaryNote, ...action.payload }
+          : state.secondaryNote,
         homeNote: state.homeNote?.id === action.payload.id
           ? { ...state.homeNote, ...action.payload }
           : state.homeNote
       }
-    
+
     case 'DELETE_NOTE':
       return {
         ...state,
         notes: state.notes.filter(n => n.id !== action.payload),
-        selectedNote: state.selectedNote?.id === action.payload ? null : state.selectedNote
+        selectedNote: state.selectedNote?.id === action.payload ? null : state.selectedNote,
+        secondaryNote: state.secondaryNote?.id === action.payload ? null : state.secondaryNote
       }
-    
+
     default:
       return state
   }
@@ -53,7 +72,15 @@ export function NotesProvider({ children }) {
   const [state, dispatch] = useReducer(notesReducer, {
     notes: [],
     selectedNote: null,
+    secondaryNote: null,
     homeNote: null,
+    tasksNote: null,
+    todayNote: null,
+    weekNote: null,
+    projectsNote: null,
+    inboxNote: null,
+    somedayNote: null,
+    logNote: null,
     loading: true
   })
 
@@ -63,13 +90,35 @@ export function NotesProvider({ children }) {
       dispatch({ type: 'SET_LOADING', payload: true })
       const notes = await NotesService.fetchAll()
       dispatch({ type: 'SET_NOTES', payload: notes })
-      
+
       // Set home note
       const home = notes.find(n => n.is_home === true)
       if (home) {
         dispatch({ type: 'SET_HOME', payload: home })
       }
-      
+
+      // Set special notes
+      const tasks = notes.find(n => n.title === 'Tasks' && n.note_type === 'task_list')
+      const today = notes.find(n => n.title === 'Today' && n.list_metadata?.type === 'today')
+      const week = notes.find(n => n.title === 'Week' && n.list_metadata?.type === 'week')
+      const projects = notes.find(n => n.title === 'Projects' && n.note_type === 'project_list')
+      const inbox = notes.find(n => n.title === 'Inbox')
+      const someday = notes.find(n => n.title === 'Someday' && n.list_metadata?.type === 'someday')
+      const log = notes.find(n => n.title === 'Log' && n.note_type === 'log_list')
+
+      dispatch({
+        type: 'SET_SPECIAL_NOTES',
+        payload: {
+          tasksNote: tasks,
+          todayNote: today,
+          weekNote: week,
+          projectsNote: projects,
+          inboxNote: inbox,
+          somedayNote: someday,
+          logNote: log
+        }
+      })
+
       return notes
     } catch (error) {
       console.error('Error fetching notes:', error.message)
@@ -281,6 +330,54 @@ export function NotesProvider({ children }) {
     }
   }, [state.homeNote])
 
+  // Set secondary note (for side-by-side view)
+  const setSecondaryNote = useCallback((note) => {
+    dispatch({ type: 'SET_SECONDARY', payload: note })
+  }, [])
+
+  // Navigate to special notes
+  const goToTasks = useCallback(() => {
+    if (state.tasksNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.tasksNote })
+    }
+  }, [state.tasksNote])
+
+  const goToToday = useCallback(() => {
+    if (state.todayNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.todayNote })
+    }
+  }, [state.todayNote])
+
+  const goToWeek = useCallback(() => {
+    if (state.weekNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.weekNote })
+    }
+  }, [state.weekNote])
+
+  const goToProjects = useCallback(() => {
+    if (state.projectsNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.projectsNote })
+    }
+  }, [state.projectsNote])
+
+  const goToInbox = useCallback(() => {
+    if (state.inboxNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.inboxNote })
+    }
+  }, [state.inboxNote])
+
+  const goToSomeday = useCallback(() => {
+    if (state.somedayNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.somedayNote })
+    }
+  }, [state.somedayNote])
+
+  const goToLog = useCallback(() => {
+    if (state.logNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.logNote })
+    }
+  }, [state.logNote])
+
   // Initialize - fetch notes on mount
   useEffect(() => {
     fetchNotes().catch(error => {
@@ -326,7 +423,15 @@ export function NotesProvider({ children }) {
     removeLink,
     navigateToNote,
     selectNote,
+    setSecondaryNote,
     goToHome,
+    goToTasks,
+    goToToday,
+    goToWeek,
+    goToProjects,
+    goToInbox,
+    goToSomeday,
+    goToLog,
   }
 
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>

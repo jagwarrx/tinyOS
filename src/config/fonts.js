@@ -139,7 +139,7 @@ export function getFontsByCategory(category) {
  * @returns {Object} Default font object
  */
 export function getDefaultFont() {
-  return availableFonts[0] // JetBrains Mono
+  return availableFonts.find(f => f.id === 'inter') // Inter
 }
 
 /**
@@ -192,5 +192,5 @@ function loadGoogleFont(url, fontId) {
  * @returns {string} Font ID from storage
  */
 export function loadFontPreference() {
-  return localStorage.getItem('font-preference') || 'jetbrains-mono'
+  return localStorage.getItem('font-preference') || 'inter'
 }

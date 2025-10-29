@@ -74,6 +74,39 @@ export default function TaskList({
     }
   }, [openDropdown, openDatePicker])
 
+  // Handle keyboard shortcuts for reordering tasks
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle if a task is selected and Shift is pressed
+      if (!selectedTaskId || !e.shiftKey) return
+
+      // Find the index of the selected task
+      const selectedIndex = tasks.findIndex(task => task.id === selectedTaskId)
+      if (selectedIndex === -1) return
+
+      // Handle Shift + ArrowUp - move task up
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (selectedIndex > 0) {
+          onReorder(selectedIndex, selectedIndex - 1)
+        }
+      }
+
+      // Handle Shift + ArrowDown - move task down
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (selectedIndex < tasks.length - 1) {
+          onReorder(selectedIndex, selectedIndex + 1)
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedTaskId, tasks, onReorder])
+
   /**
    * Get the title of a project note by its ID
    * @param {string} projectId - ID of the project note
@@ -263,8 +296,8 @@ export default function TaskList({
               />
             )}
 
-            {/* Project */}
-            {task.project_id && (
+            {/* Project - hide when already viewing a project page */}
+            {task.project_id && viewType !== 'project' && (
               <span className="text-fg-tertiary text-xs">
                 [{getProjectName(task.project_id)}]
               </span>

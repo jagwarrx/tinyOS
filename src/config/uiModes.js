@@ -38,7 +38,7 @@ export function getUIMode(modeId) {
  * @returns {Object} Default UI mode object
  */
 export function getDefaultUIMode() {
-  return availableUIModes[1] // Hacker mode
+  return availableUIModes[0] // Standard mode
 }
 
 /**
@@ -66,5 +66,5 @@ export function applyUIMode(modeId) {
  * @returns {string} UI mode ID from storage
  */
 export function loadUIModePreference() {
-  return localStorage.getItem('ui-mode') || 'hacker'
+  return localStorage.getItem('ui-mode') || 'standard'
 }

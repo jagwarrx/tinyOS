@@ -18,7 +18,7 @@ import { useState, useEffect } from 'react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
 
-export default function TaskDetail({ task, taskNumber, onClose, onSave, showPriorityFormula = true }) {
+export default function TaskDetail({ task, taskNumber, onClose, onSave, showPriorityFormula = true, allNotes, onProjectClick }) {
   const [editedTask, setEditedTask] = useState(task)
   const [isEditingRefId, setIsEditingRefId] = useState(false)
   const [isEditingDates, setIsEditingDates] = useState(false)
@@ -225,6 +225,18 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
             className="flex-1 min-w-0 text-base font-medium text-fg-primary bg-transparent border-none focus:outline-none"
             placeholder="Task description..."
           />
+          {task.project_id && allNotes && (() => {
+            const project = allNotes.find(n => n.id === task.project_id)
+            return project ? (
+              <span
+                onDoubleClick={() => onProjectClick?.(project)}
+                className="flex-shrink-0 text-xs text-accent-primary bg-accent-primary/10 px-2 py-1 rounded cursor-pointer hover:bg-accent-primary/20 transition-colors"
+                title="Double-click to navigate to project"
+              >
+                [{project.title}]
+              </span>
+            ) : null
+          })()}
           {task.ref_id && (
             <span className="font-mono text-xs text-fg-tertiary bg-bg-secondary px-2 py-1 rounded flex-shrink-0">
               {task.ref_id}
