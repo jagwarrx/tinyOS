@@ -17,18 +17,25 @@ import {
   Play,
   AlertCircle,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Tag as TagIcon,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
+import TagFilter from './TagFilter'
 
 export default function CollapsibleFilterBar({
   selectedTaskType = null,
   selectedStatuses = [],
+  selectedTagIds = [],
   onTaskTypeChange,
   onStatusChange,
+  onTagsChange,
   tasks = []
 }) {
   const [isTaskTypeExpanded, setIsTaskTypeExpanded] = useState(true)
   const [isStatusExpanded, setIsStatusExpanded] = useState(true)
+  const [showTagPanel, setShowTagPanel] = useState(false)
 
   const taskTypeOptions = [
     { value: 'DEEP_WORK', label: 'Deep Work', icon: Brain },
@@ -90,6 +97,7 @@ export default function CollapsibleFilterBar({
   }
 
   return (
+    <div className="relative">
     <div className="flex items-center gap-3 px-3 py-2 bg-bg-secondary border-b border-border-primary">
       {/* Task Type Filter Bar */}
       <div className="flex items-center gap-1.5">
@@ -189,17 +197,55 @@ export default function CollapsibleFilterBar({
         </div>
       </div>
 
+      {/* Tags Filter Button */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Tags</span>
+
+        <button
+          onClick={() => setShowTagPanel(!showTagPanel)}
+          className={`flex items-center gap-1 rounded border px-2 py-1 transition-all ${
+            selectedTagIds.length > 0
+              ? 'bg-accent-primary/20 text-accent-primary border-accent-primary/30'
+              : 'bg-bg-primary border-border-primary text-fg-tertiary hover:text-fg-secondary'
+          }`}
+        >
+          <TagIcon size={12} strokeWidth={selectedTagIds.length > 0 ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">
+            {selectedTagIds.length > 0 ? `${selectedTagIds.length} selected` : 'Filter'}
+          </span>
+          {showTagPanel ? (
+            <ChevronUp size={10} />
+          ) : (
+            <ChevronDown size={10} />
+          )}
+        </button>
+      </div>
+
       {/* Clear Filters Button */}
-      {(selectedTaskType || selectedStatuses.length > 0) && (
+      {(selectedTaskType || selectedStatuses.length > 0 || selectedTagIds.length > 0) && (
         <button
           onClick={() => {
             onTaskTypeChange?.(null)
             onStatusChange?.([])
+            onTagsChange?.([])
           }}
           className="ml-auto text-[10px] text-fg-tertiary hover:text-fg-secondary transition-colors"
         >
-          Clear
+          Clear All
         </button>
+      )}
+    </div>
+
+      {/* Tag Filter Panel (Dropdown) */}
+      {showTagPanel && (
+        <div className="absolute left-0 right-0 top-full z-50 bg-bg-elevated border-b border-l border-r border-border-primary shadow-lg">
+          <div className="p-4 max-w-2xl mx-auto">
+            <TagFilter
+              selectedTagIds={selectedTagIds}
+              onTagsChange={onTagsChange}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

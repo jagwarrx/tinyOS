@@ -45,6 +45,7 @@ import SettingsModal from './components/SettingsModal'
 import LogPage from './components/LogPage'
 import SearchModal from './components/SearchModal'
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
+import WorkspaceView from './components/workspace/WorkspaceView'
 import { useNotes } from './contexts/NotesContext'
 import { useTasks } from './contexts/TasksContext'
 import { supabase } from './supabaseClient'
@@ -67,6 +68,7 @@ import {
 } from './services/claudeService'
 import * as activityLogger from './utils/activityLogger'
 import * as activityLogService from './services/activityLogService'
+import { filterTasksByTags } from './services/tagService'
 
 function App() {
   // Use contexts for state management
@@ -111,10 +113,12 @@ function App() {
     selectedTaskId,
     statusFilter,
     taskTypeFilter,
+    tagFilter,
     selectTask,
     setSelectedTaskId: setTaskIdFromContext,
     setStatusFilter,
     setTaskTypeFilter,
+    setTagFilter,
     setCurrentTasks,
     toggleComplete,
     toggleStar: toggleTaskStar,
@@ -158,6 +162,10 @@ function App() {
   // New modals state
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false)
+
+  // Workspace state
+  const [isInWorkspace, setIsInWorkspace] = useState(false)
+  const [workspaceTask, setWorkspaceTask] = useState(null)
 
   // Trigger music links reload in FloatingAudioPlayer
   const handleMusicLinksChanged = () => {
@@ -767,11 +775,18 @@ function App() {
         throw error
       }
 
+      const updatedTaskWithTimestamp = { ...updatedTask, updated_at: new Date().toISOString() }
+
       // Update local state
       setCurrentTasks(currentTasks.map(t =>
-        t.id === updatedTask.id ? { ...updatedTask, updated_at: new Date().toISOString() } : t
+        t.id === updatedTask.id ? updatedTaskWithTimestamp : t
       ))
-      selectTask({ ...updatedTask, updated_at: new Date().toISOString() })
+      selectTask(updatedTaskWithTimestamp)
+
+      // Update workspace task if in workspace mode
+      if (isInWorkspace && workspaceTask && workspaceTask.id === updatedTask.id) {
+        setWorkspaceTask(updatedTaskWithTimestamp)
+      }
 
       // Refresh the view if we're on a task list
       if (selectedNote?.note_type === 'task_list') {
@@ -929,6 +944,11 @@ function App() {
         updatedTasks = updatedTasks.filter(task => task.task_type === taskTypeFilter)
       }
 
+      // Apply tag filter if selected
+      if (tagFilter && tagFilter.length > 0) {
+        updatedTasks = await filterTasksByTags(updatedTasks, tagFilter)
+      }
+
       setCurrentTasks(updatedTasks)
     } catch (error) {
       console.error('Error fetching tasks for view:', error)
@@ -972,6 +992,13 @@ function App() {
       fetchTasksForView(selectedNote.title)
     }
   }, [taskTypeFilter])
+
+  // Re-fetch tasks when tag filter changes
+  useEffect(() => {
+    if (selectedNote?.note_type === 'task_list') {
+      fetchTasksForView(selectedNote.title)
+    }
+  }, [tagFilter])
 
   // Load tasks for secondary pane when a task list note is opened
   useEffect(() => {
@@ -1675,6 +1702,36 @@ Type /help anytime to see this message.`
     return await reorderTasksFromContext(fromIndex, toIndex)
   }
 
+  /**
+   * Get project for a task
+   * @param {Object} task - Task object
+   * @returns {Object|null} - Project note or null
+   */
+  const getProjectForTask = (task) => {
+    if (!task || !task.project_id) return null
+    return notes.find(n => n.id === task.project_id)
+  }
+
+  /**
+   * Enter workspace mode for a task
+   * @param {Object} task - Task to work on
+   */
+  const enterWorkspace = (task) => {
+    setWorkspaceTask(task)
+    setIsInWorkspace(true)
+    // Close any open panels
+    selectTask(null)
+    setSelectedTaskNumber(null)
+  }
+
+  /**
+   * Exit workspace mode
+   */
+  const exitWorkspace = () => {
+    setIsInWorkspace(false)
+    setWorkspaceTask(null)
+  }
+
   if (notesLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-bg-primary">
@@ -1843,10 +1900,23 @@ Type /help anytime to see this message.`
 
       {/* Main content area - takes remaining space above terminal */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Main content */}
-        <div className="main-content-area flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16 gap-4">
+        {/* Workspace View (Full Screen) */}
+        {isInWorkspace && workspaceTask ? (
+          <div className="w-full h-full">
+            <WorkspaceView
+              task={workspaceTask}
+              project={getProjectForTask(workspaceTask)}
+              onExit={exitWorkspace}
+              onSaveTask={saveTask}
+              allNotes={notes}
+            />
+          </div>
+        ) : (
+          <>
+          {/* Main content */}
+          <div className="main-content-area flex-1 flex items-center overflow-hidden p-8 md:p-16 gap-4 transition-all">
           {/* Primary note editor */}
-          <div className={`w-full h-full ${secondaryNote || selectedTask ? 'max-w-2xl' : 'max-w-6xl'} max-h-[800px] transition-all`}>
+          <div className={`h-full max-h-[900px] transition-all ${selectedTask && !secondaryNote ? 'w-1/2' : secondaryNote ? 'w-1/2' : 'w-full max-w-6xl mx-auto'}`}>
             <NoteEditor
               note={selectedNote}
               allNotes={notes}
@@ -1886,8 +1956,10 @@ Type /help anytime to see this message.`
               onProjectClick={handleProjectClick}
               statusFilter={statusFilter}
               taskTypeFilter={taskTypeFilter}
+              tagFilter={tagFilter}
               onStatusFilterChange={setStatusFilter}
               onTaskTypeFilterChange={setTaskTypeFilter}
+              onTagFilterChange={setTagFilter}
               todaysReminders={todaysReminders}
               onToggleReminderComplete={async (reminderId) => {
                 try {
@@ -1905,7 +1977,7 @@ Type /help anytime to see this message.`
 
           {/* Secondary note editor (side-by-side) */}
           {secondaryNote && (
-            <div className="w-full h-full max-w-2xl max-h-[800px] relative">
+            <div className="w-1/2 h-full max-h-[900px] relative">
               {/* Close button */}
               <button
                 onClick={() => setSecondaryNote(null)}
@@ -2009,8 +2081,10 @@ Type /help anytime to see this message.`
                 }}
                 statusFilter={statusFilter}
                 taskTypeFilter={taskTypeFilter}
+                tagFilter={tagFilter}
                 onStatusFilterChange={setStatusFilter}
                 onTaskTypeFilterChange={setTaskTypeFilter}
+                onTagFilterChange={setTagFilter}
                 logUpdateTrigger={logUpdateTrigger}
               />
             </div>
@@ -2027,10 +2101,10 @@ Type /help anytime to see this message.`
             />
           )}
 
-          {/* Task Detail Panel */}
+          {/* Task Detail Panel - Full Height with 50% Width */}
           {selectedTask && !secondaryNote && (
             <div
-              className="w-full h-full max-w-xl max-h-[800px] relative z-[60]"
+              className="fixed right-8 top-8 bottom-8 w-1/2 z-[60]"
               onClick={(e) => e.stopPropagation()}
             >
               <TaskDetail
@@ -2044,14 +2118,17 @@ Type /help anytime to see this message.`
                 showPriorityFormula={uiPreferences.show_priority_formula}
                 allNotes={notes}
                 onProjectClick={handleProjectClick}
+                onEnterWorkspace={enterWorkspace}
               />
             </div>
           )}
-        </div>
+          </div>
+          </>
+        )}
       </div>
 
-      {/* Terminal - fixed at bottom */}
-      <Terminal ref={terminalRef} onCommand={handleCommand} />
+      {/* Terminal - fixed at bottom (hidden in workspace mode) */}
+      {!isInWorkspace && <Terminal ref={terminalRef} onCommand={handleCommand} />}
 
       {/* Timer - overlay when active (always mounted, just hidden when minimized) */}
       {timerConfig && (

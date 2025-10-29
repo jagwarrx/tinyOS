@@ -753,10 +753,10 @@ const Editor = forwardRef(({ initialContent, onContentChange, onRefIdNavigate },
         <div className="h-full">
           <RichTextPlugin
             contentEditable={
-              <ContentEditable className="editor-input focus:outline-none text-gray-900 dark:text-gray-100 leading-relaxed h-full" />
+              <ContentEditable className="editor-input focus:outline-none text-fg-primary leading-relaxed h-full" />
             }
             placeholder={
-              <div className="editor-placeholder text-gray-400 dark:text-gray-600">Start typing...</div>
+              <div className="editor-placeholder text-fg-tertiary">Start typing...</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />

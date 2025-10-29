@@ -40,8 +40,10 @@ export default function NoteEditor({
   onProjectClick,
   statusFilter,
   taskTypeFilter,
+  tagFilter,
   onStatusFilterChange,
   onTaskTypeFilterChange,
+  onTagFilterChange,
   todaysReminders,
   onToggleReminderComplete,
   logUpdateTrigger
@@ -827,8 +829,10 @@ export default function NoteEditor({
                 <CollapsibleFilterBar
                   selectedTaskType={taskTypeFilter}
                   selectedStatuses={statusFilter}
+                  selectedTagIds={tagFilter}
                   onTaskTypeChange={onTaskTypeFilterChange}
                   onStatusChange={onStatusFilterChange}
+                  onTagsChange={onTagFilterChange}
                   tasks={currentTasks || []}
                 />
               )}

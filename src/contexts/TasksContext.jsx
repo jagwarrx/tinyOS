@@ -27,6 +27,9 @@ const tasksReducer = (state, action) => {
     case 'SET_TASK_TYPE_FILTER':
       return { ...state, taskTypeFilter: action.payload }
 
+    case 'SET_TAG_FILTER':
+      return { ...state, tagFilter: action.payload }
+
     case 'ADD_TASK':
       return {
         ...state,
@@ -69,6 +72,7 @@ export function TasksProvider({ children }) {
     selectedTaskId: null,
     statusFilter: [],
     taskTypeFilter: null,
+    tagFilter: [],
     loading: true
   })
 
@@ -242,6 +246,11 @@ export function TasksProvider({ children }) {
     dispatch({ type: 'SET_TASK_TYPE_FILTER', payload: filter })
   }, [])
 
+  // Set tag filter
+  const setTagFilter = useCallback((filter) => {
+    dispatch({ type: 'SET_TAG_FILTER', payload: filter })
+  }, [])
+
   // Reorder tasks
   const reorderTasks = useCallback(async (fromIndex, toIndex) => {
     try {
@@ -289,6 +298,7 @@ export function TasksProvider({ children }) {
     setSelectedTaskId,
     setStatusFilter,
     setTaskTypeFilter,
+    setTagFilter,
     reorderTasks,
   }
 
