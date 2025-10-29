@@ -1,642 +1,146 @@
-# Lexical Notes App - LLM Context Documentation
+# Lexical Notes App - Quick Context
+
+> **Note:** This is a condensed overview. For comprehensive details, see `CLAUDE-EXTENSIVE.md`.
 
 ## Overview
 
-This is a knowledge and task management application that combines rich-text note-taking with a powerful task management system. It's designed for personal productivity with unique features like bidirectional note linking, reference IDs for cross-linking, task scheduling, projects, and a built-in terminal for quick commands.
+A knowledge and task management application combining rich-text note-taking with powerful task management. Built on Lexical editor (Meta), featuring bidirectional note linking, reference IDs for cross-linking, task scheduling, projects, hierarchical tagging, and a built-in terminal for quick commands.
+
+**Tech Stack:** React 18, Lexical, Supabase (PostgreSQL), Tailwind CSS, Vite, Lucide React
 
 ## Core Concepts
 
 ### 1. Notes System
-- **Notes** are the primary content type, built on the Lexical editor (Meta's rich text framework)
-- Notes support rich formatting: bold, underline, highlights, code blocks, lists, links
-- Notes have unique **reference IDs** (e.g., `a3x7k9`) that act as permanent links
-- Notes can be linked to other notes bidirectionally (up/down/left/right navigation)
+- Built on Lexical editor with rich formatting (bold, underline, highlights, code, lists, links)
+- Unique **reference IDs** (e.g., `a3x7k9`) for permanent linking
+- Bidirectional navigation (up/down/left/right relationships)
+- Special note types: HOME, Inbox, Tasks, Today, Week, Projects, Log, Diagrams
 
 ### 2. Tasks System
-- **Tasks** are stored in a separate database table (not in note content)
-- Tasks can be organized into projects
-- Tasks have statuses: BACKLOG, PLANNED, DOING, BLOCKED, OVERDUE, DONE, CANCELLED
-- Tasks can be scheduled to specific dates with natural language display
-- Tasks can be starred to appear in the "Today" view
+- Separate database table (not in note content)
+- Statuses: BACKLOG, PLANNED, DOING, BLOCKED, OVERDUE, DONE, CANCELLED
+- Scheduling with natural language dates ("Today", "Tomorrow", "Mon")
+- Project organization, starring, types (null, 'next', 'waiting', 'someday')
+- Hierarchical tagging with slash-separated paths
 
 ### 3. Special Pages
-The app has several special note types that act as views:
-- **HOME**: Main entry point (is_home: true)
-- **Inbox**: Quick capture for ideas/items to process later
-- **Tasks**: Master list of all tasks (supports List and Kanban views)
-- **Today**: Shows starred tasks + tasks scheduled for today
-- **Week**: Filtered task view (uncompleted tasks)
-- **Someday**: Tasks you might do someday
-- **Projects**: List of all projects (note_type: 'project_list')
-- **Individual Projects**: Each project is a note (note_type: 'project')
-- **Log**: Activity log showing all actions (navigate with 'L' key or via sidebar)
+- **HOME**: Main entry point
+- **Inbox**: Quick capture
+- **Tasks**: Master list (List and Kanban views)
+- **Today**: Starred + scheduled for today
+- **Week/Someday**: Filtered task views
+- **Projects**: Project list and individual project notes
+- **Log**: Activity tracking (press 'L' to navigate)
 
 ## Database Schema
 
-### Notes Table
-```
-id: UUID (primary key)
-title: TEXT
-content: JSONB (Lexical editor state)
-note_type: TEXT (null, 'task_list', 'project', 'project_list')
-ref_id: TEXT UNIQUE (e.g., 'a3x7k9')
-is_home: BOOLEAN
-is_starred: BOOLEAN
-list_metadata: JSONB (for special views like Today, Week)
-up_id, down_id, left_id, right_id: UUID (bidirectional links)
-project_status: TEXT (for project notes)
-project_start_date: TEXT
-project_due_date: TEXT
-project_context: TEXT
-created_at, updated_at: TIMESTAMP
-```
+**Tables:** notes, tasks, activity_log, settings, tags, task_tags, note_tags
 
-### Tasks Table
-```
-id: UUID (primary key)
-text: TEXT (task description)
-status: TEXT (BACKLOG, PLANNED, DOING, BLOCKED, OVERDUE, DONE, CANCELLED)
-priority: INTEGER (0 = highest)
-project_id: UUID (references notes.id)
-scheduled_date: TEXT (YYYY-MM-DD format or natural language)
-is_starred: BOOLEAN
-task_type: TEXT (null, 'next', 'waiting', 'someday')
-context: TEXT (why this task matters)
-work_notes: TEXT (how to do it, blockers, etc.)
-ref_id: TEXT UNIQUE (e.g., 'b5m2n8')
-created_at, updated_at: TIMESTAMP
-```
-
-### Activity Log Table
-```
-id: UUID (primary key)
-action_type: TEXT (e.g., 'task_created', 'note_updated', 'timer_started', 'log_entry')
-entity_type: TEXT (e.g., 'task', 'note', 'project', 'timer')
-entity_id: UUID (references the entity)
-entity_ref_id: TEXT (ref_id of the entity)
-entity_title: TEXT (title/text of the entity)
-details: JSONB (action-specific metadata)
-timestamp: TIMESTAMPTZ (default: now())
-```
-
-### Settings Table
-```
-key: TEXT (primary key)
-value: JSONB (can store any JSON data)
-description: TEXT (optional description)
-updated_at: TIMESTAMPTZ (default: now())
-```
-
-**Common Settings Keys:**
-- `theme`: Current theme ID
-- `music_links`: Object with spotify/youtube arrays
-- `show_priority_formula`: Boolean for UI preference
+See `CLAUDE-EXTENSIVE.md` for complete schema details and `schema.sql` for SQL definitions.
 
 ## Key Features
 
 ### 1. Reference ID Linking
-- Every note and task gets a unique 6-character ref_id (format: `[a-z][0-9][a-z0-9]{4}`)
-- Type a ref_id in a note (e.g., `a3x7k9`) and it becomes a clickable badge
-- Badges display as `[NOTE | Note Title] a3x7k9` or `[TASK | Task Text] b5m2n8`
-- Clicking a badge navigates to that note or shows task details
-- Implemented via custom Lexical nodes: `RefIdNode` and `RefIdTransformPlugin`
+- 6-char unique IDs (format: `[a-z][0-9][a-z0-9]{4}`)
+- Type ref_id in note → becomes clickable badge → navigates to target
+- Works for notes, tasks, and diagrams
 
-### 2. Task Scheduling
-- Tasks can be scheduled to specific dates
-- Dates display naturally: "Today", "Tomorrow", "Mon", "Wed, Dec 25"
-- When scheduling a BACKLOG task, it auto-changes to PLANNED
-- Tasks scheduled for today automatically appear in the Today view
-- OVERDUE status is automatically set for tasks past their scheduled_date
-- See: `src/utils/dateUtils.js` for date formatting
+### 2. Hierarchical Tagging
+- Multi-level tags: `work/qbotica/projects/calvetti`
+- Autocomplete filtered by hierarchy level
+- Filter tasks by tags (includes descendants)
 
-### 3. Project Management
-- Projects are special notes with `note_type: 'project'`
-- Tasks can be linked to projects via `task.project_id � notes.id`
-- Projects have status (ACTIVE, COMPLETED, ON_HOLD, ARCHIVED), dates, and context
-- Projects page shows statistics: total tasks, completed, active
+### 3. Workspace Mode
+- Full-screen focused work environment per task
+- Split view: scratchpad (left) + AI chat (right)
+- Session tracking with persistence (>2min saved to DB)
+- Built-in collapsible terminal
 
-### 4. Terminal Commands
-Quick command interface for productivity. Commands include:
+### 4. Draw.io Diagram Integration
+- Embedded Draw.io editor (embed.diagrams.net)
+- Dual storage: XML (editing) + SVG (preview)
+- Inline previews via ref_id in notes
 
-```bash
-# Task management
-/task "Task text" [:today] [:project] [:note "Details"]
-/inbox "Item title" :note "Details"
-complete task N
-star task N
+### 5. Terminal Commands
+Built-in terminal with 20+ commands including task creation, navigation, timers, and Claude AI integration.
+See `CLAUDE-EXTENSIVE.md` for complete command reference.
 
-# Navigation
-goto home
-goto tasks
-goto today
-goto week
-goto projects
-goto inbox
+### 6. Other Key Features
+- **20+ Themes**: Terminal, Sonokai, Monokai Pro, Claude AI, Things 3, Trello (see `themes.md`)
+- **Font Customization**: 10+ fonts with ligature support
+- **UI Modes**: Standard, Hacker Terminal, Expanded View
+- **Global Search**: Fuzzy search across notes/tasks with keyboard navigation
+- **Activity Logging**: Comprehensive tracking with smart grouping and filters
+- **Music Player**: Floating Spotify/YouTube player
+- **Kanban Board**: Drag-and-drop task cards
+- **Keyboard Shortcuts**: Press `?` for help modal
 
-# Projects
-/project "Project Name"
+## Architecture
 
-# Timer
-start timer 25
+**Central Hub:** App.jsx manages all state and command routing
+**Data Layer:** services/ (notes, tasks, tags, claude, activity, settings, theme, music)
+**Editor:** lexical/ (RefId nodes and transform plugins)
+**Utilities:** utils/ (commandParser, dateUtils, tagUtils, workspaceStorage)
 
-# Claude AI Commands (requires Edge Function setup)
-/joke          # Get a programming joke
-/tip           # Get a productivity tip
-/quote         # Get an inspiring quote
-/fact          # Get a tech fact
-/ask <query>   # Ask Claude anything
-/explain <concept>  # Get explanation
-/brainstorm <topic> # Brainstorm ideas
-
-# Help
-help
-```
-
-See: `src/utils/commandParser.js` for full command parsing logic
-
-### 5. Timer Feature
-- Pomodoro-style timer with customizable durations
-- Can be minimized while working
-- Displays remaining time
-- Pause/resume functionality
-- See: `src/components/Timer.jsx`
-
-### 6. Task Status System
-- **BACKLOG**: Not yet planned
-- **PLANNED**: Scheduled or planned (shows circle icon)
-- **DOING**: Currently working on (blue)
-- **BLOCKED**: Waiting on something (yellow)
-- **OVERDUE**: Auto-set for tasks past scheduled_date (red, bold)
-- **DONE**: Completed (green)
-- **CANCELLED**: Won't do (red)
-
-OVERDUE is special: it's automatically set by the system when tasks are fetched, not manually selectable.
-
-### 7. Today View Logic
-Shows tasks that meet ANY of these criteria:
-- Task is starred (is_starred = true)
-- Task is scheduled for today's date
-- Excludes CANCELLED tasks
-- Includes DONE tasks if they match criteria
-
-### 8. Task Filtering
-- Filter by status (multi-select checkboxes)
-- Filter by task type (radio buttons: null, 'next', 'waiting', 'someday')
-- Collapsible filter bar in UI
-- See: `src/components/StatusFilter.jsx` and `src/components/CollapsibleFilterBar.jsx`
-
-### 9. Bidirectional Navigation
-- Notes can link to other notes via up/down/left/right relationships
-- Example: Projects page � left_id points to individual projects
-- Individual projects � left_id points back to Projects page
-- Enables graph-like navigation through notes
-
-### 10. Advanced Theme System
-- **20+ Professional Color Schemes** organized into 7 collections
-- Collections: Original Classic (3), Terminal (5), Sonokai (6), Monokai Pro (5), Claude AI (2), Things 3 (2), Trello (1)
-- **Dynamic CSS Variables** for instant theme switching without page reloads
-- **WYSIWYG Theme Previews** in Settings showing actual UI appearance
-- **Dual Persistence**: Database (settings table) + localStorage cache
-- **Special Features**: Gradient backgrounds (Trello), theme-specific colors, dark mode support
-- See: `src/config/themes/` for theme definitions, `src/services/themeService.js` for management
-- Reference: `themes.md` for complete documentation
-
-### 11. Font Customization
-- **10+ Font Options** including JetBrains Mono, Fira Code, Source Code Pro, IBM Plex Mono, Inter, SF Pro
-- Support for **programming ligatures** (JetBrains Mono, Fira Code, Cascadia Code)
-- Categories: Monospace (for code/terminal aesthetic) and Sans-Serif (for modern UI)
-- Dynamic loading from Google Fonts or system fonts
-- Persisted to localStorage
-- See: `src/config/fonts.js`
-
-### 12. UI Mode Selection
-- **Standard**: Modern, polished interface with rounded corners and shadows
-- **Hacker Terminal**: Raw terminal aesthetic with high information density (default)
-- **Expanded View**: Distraction-free full-width layout with centered content
-- Applied via CSS class on document root
-- See: `src/config/uiModes.js`
-
-### 13. Global Search
-- **Fuzzy Search** across notes and tasks with intelligent scoring
-- **Keyboard Navigation** (↑/↓ arrows, Enter to select, Esc to close)
-- Searches: Note titles, note content (extracted from Lexical JSON), task text, context, work notes
-- **Grouped Results** (Notes, Tasks) with top 5 results each
-- Shows preview snippets and ref_id for quick identification
-- See: `src/components/SearchModal.jsx`
-
-### 14. Activity Logging
-- **Comprehensive Activity Tracking**: All task/note/project actions logged automatically
-- **Activity Types**: Task operations, note updates, project changes, timer events, reminders, custom text logs
-- **Smart Grouping**: Consecutive note edits grouped automatically
-- **Time Filters**: Today, Yesterday, This Week, All Time
-- **Category Filters**: Text Logs, Task Activity, Note Activity, Reminders, Other
-- **Inline Editing**: Edit text logs and reminders directly
-- **Expandable Groups**: Collapse/expand note edit groups and long text
-- Logged to `activity_log` table with timestamp, action type, entity references
-- See: `src/components/LogPage.jsx`, `src/services/activityLogService.js`
-
-### 15. Background Music Player
-- **Floating Audio Player** with Spotify and YouTube integration
-- **Multi-Source Support**: Add multiple Spotify playlists and YouTube videos
-- **Default Selection**: Mark favorite sources as default
-- **Minimizable Interface**: Player runs in background while working
-- **Music Links Management**: Add/edit/delete music sources in Settings
-- Stored in `settings` table as `music_links` key
-- See: `src/components/FloatingAudioPlayer.jsx`, `src/services/musicLinksService.js`
-
-### 16. Kanban Board View
-- **Drag-and-Drop** task cards between columns
-- **5 Columns**: Backlog, Planned, Waiting, Doing, Done
-- **Visual Task Cards** with priority badges, status indicators, scheduled dates
-- **Project Integration**: Shows project name on task cards
-- **Auto-Status Update**: Dragging task to column updates status automatically
-- Color-coded columns with task counts
-- See: `src/components/KanbanBoard.jsx`
-
-### 17. Keyboard Shortcuts
-- **Global Shortcuts**: ?, Cmd/Ctrl+K (search - coming soon), Esc, Tab
-- **Navigation**: L (Log page), Arrow keys (note navigation)
-- **Task Management**: Space (quick entry), ↑/↓ (select), Shift+↑/↓ (reorder), → (open panel), ← (close)
-- **Editor**: Cmd/Ctrl+B/I/U (formatting), Cmd/Ctrl+Z (undo), Cmd/Ctrl+K (link)
-- **Help Modal**: Press ? anytime to show shortcuts reference
-- See: `src/components/KeyboardShortcutsHelp.jsx`
-
-### 18. Centralized Settings
-- **Settings Modal** with tabbed interface (General, Theme, Music)
-- **General Tab**: UI preferences (task score formula visibility)
-- **Theme Tab**: UI Mode selection, Font selection, Color Scheme picker with live previews
-- **Music Tab**: Manage Spotify/YouTube links, set defaults
-- All settings persisted to database `settings` table
-- See: `src/components/SettingsModal.jsx`, `src/services/settingsService.js`
-
-### 19. Claude AI Integration
-- Direct Claude API integration via Supabase Edge Function
-- Secure API key management (stored in Supabase secrets)
-- Quick AI commands for jokes, tips, quotes, facts, and explanations
-- Custom loading animation with wave bounce effect while waiting for responses
-- Uses Claude Sonnet 4.5 model (`claude-sonnet-4-5`)
-- See: `src/services/claudeService.js` and `supabase/functions/claude-proxy/`
-
-**Setup Requirements:**
-1. Deploy Edge Function: `supabase functions deploy claude-proxy`
-2. Set API key: `supabase secrets set CLAUDE_API_KEY=sk-ant-api03-...`
-3. Edge Function handles CORS and secure API calls
-4. Temperature range: 0-1 (default: 1.0)
-5. Max tokens configurable per command (default: 1024)
-
-**Loading Animation:**
-- Three bouncing dots with staggered wave effect
-- Smooth opacity and scale transitions
-- "Thinking..." text with pulse animation
-- Implemented with custom CSS keyframes (`@keyframes loadingWave`)
-- See: `src/index.css` and `src/components/Terminal.jsx`
-
-## Component Structure
-
-```
-src/
-   App.jsx                           # Main app, state management, command handling
-   components/
-      Editor.jsx                    # Lexical rich text editor
-      NoteEditor.jsx                # Note editing view with editor
-      NotesList.jsx                 # Sidebar list of notes
-      TaskList.jsx                  # Displays tasks with actions
-      TaskDetail.jsx                # Detailed task view/edit panel
-      Terminal.jsx                  # Command line interface
-      Timer.jsx                     # Pomodoro timer
-      DatePicker.jsx                # Date selection for scheduling
-      StatusFilter.jsx              # Task status filter UI
-      CollapsibleFilterBar.jsx     # Filter bar with collapse
-      RefIdBadge.jsx                # Badge for ref_id display
-      ProjectsList.jsx              # Projects view
-      InboxList.jsx                 # Inbox items view
-   lexical/
-      RefIdNode.jsx                 # Custom Lexical node for ref_ids
-      RefIdTransformPlugin.jsx     # Auto-transforms ref_ids to badges
-   utils/
-      commandParser.js              # Terminal command parsing
-      dateUtils.js                  # Date formatting utilities
-      refIdLookup.js                # Ref_id lookup utilities
-   services/
-      notesService.js               # CRUD for notes
-      tasksService.js               # CRUD for tasks
-   contexts/
-      NotesContext.jsx              # (If using context)
-   hooks/
-       useAutoSave.js                # Auto-save hook for notes
-```
-
-## State Management (App.jsx)
-
-Key state variables:
-- `notes`: All notes from database
-- `selectedNote`: Currently viewed note
-- `currentTasks`: Tasks for current view
-- `allTasks`: All tasks (for statistics)
-- `selectedTask`: Task detail panel
-- `homeNote`, `tasksNote`, `todayNote`, `weekNote`, `projectsNote`, `inboxNote`, `somedayNote`, `logNote`: Special note references
-- `currentTheme`: Current theme object (20+ available themes)
-- `timerConfig`: Timer state
-- `statusFilter`: Array of status values to filter by
-- `taskTypeFilter`: Single task type value
-- `view`: Current view mode ('list', 'kanban')
-- `showSearch`: Search modal visibility
-- `showKeyboardHelp`: Keyboard shortcuts modal visibility
-- `showSettings`: Settings modal visibility
-- `logUpdateTrigger`: Trigger for refreshing activity log
-- `uiPreferences`: UI-specific settings (e.g., show_priority_formula)
+See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structure.
 
 ## Important Behaviors
 
-### Optimistic Updates
-Most CRUD operations use optimistic UI updates for instant feedback, with rollback on error.
+- **Optimistic Updates**: UI updates first, DB second, rollback on error
+- **Auto-save**: Debounced saves for notes
+- **Task Order**: Priority field (0 = highest)
+- **OVERDUE Detection**: Automatic on task fetch (past scheduled_date)
+- **Ref ID Generation**: PostgreSQL function `generate_reference_id()`
+- **URL Routing**: `/<ref_id>` format with history.pushState
+- **Special Notes**: Identified by `note_type` or `list_metadata`
 
-### Auto-save
-Notes auto-save after a debounce period (see `useAutoSave` hook).
+## Quick Tips for LLMs
 
-### Task Order
-Tasks have a `priority` field (lower number = higher priority). Tasks are displayed in priority order.
+1. **App.jsx** is the central hub - check it first
+2. Use **optimistic updates** pattern (UI first, DB second, rollback on error)
+3. **Ref_id format** is strict: `[a-z][0-9][a-z0-9]{4}`
+4. **OVERDUE status** is automatic - not user-selectable
+5. **Task order**: Sort by `priority` ASC
+6. **Terminal commands**: Case-insensitive, parsed by `commandParser.js` → `App.jsx` handlers
 
-### OVERDUE Detection
-On every task fetch (page load, view change), the system checks for tasks with:
-- `scheduled_date` in the past
-- Status NOT IN (DONE, CANCELLED, OVERDUE)
+## Token Optimization Guidelines
 
-These are automatically updated to OVERDUE status.
+**This file (~4K tokens) covers most common tasks. Only request CLAUDE-EXTENSIVE.md (~15K tokens) when you need:**
+- Detailed workflow explanations
+- Complete service method signatures
+- Debugging procedures
+- Implementation examples
+- Full database schema details
 
-### Reference ID Generation
-Handled by PostgreSQL function `generate_reference_id()`:
-- Format: `[a-z][0-9][a-z0-9]{4}` (6 chars)
-- First char: lowercase letter
-- Second char: digit
-- Remaining 4: alphanumeric lowercase
-- Guaranteed unique via UNIQUE constraint and retry logic
+**Best practices:**
+- Use Grep/Glob to locate files before reading
+- Read files on-demand, not preemptively
+- Ask clarifying questions before exploring codebase
+- Reference file locations instead of re-reading (e.g., "See src/App.jsx:45")
+- Check this file first for common tasks:
+  - Adding terminal commands: `commandParser.js` + `App.jsx`
+  - Modifying task statuses: `TaskList.jsx`
+  - Understanding ref_id detection: `RefIdTransformPlugin.jsx`
 
-## API / Service Methods
-
-### NotesService (src/services/notesService.js)
-- `fetchAll()`: Get all notes
-- `fetchById(id)`: Get note by UUID
-- `fetchByRefId(refId)`: Get note by ref_id
-- `create(note)`: Create new note
-- `update(id, changes)`: Update note
-- `delete(id)`: Delete note
-
-### TasksService (src/services/tasksService.js)
-- `fetchAll()`: Get all tasks
-- `fetchByProject(projectId)`: Get tasks for project
-- `fetchByRefId(refId)`: Get task by ref_id
-- `create(task)`: Create new task
-- `update(id, changes)`: Update task
-- `delete(id)`: Delete task
-- `scheduleTask(id, scheduledDate)`: Schedule task (auto-changes status)
-- `reorderTasks(tasks)`: Bulk update task priorities
-
-### ClaudeService (src/services/claudeService.js)
-- `callClaude(prompt, options)`: Main API call function
-  - Options: `maxTokens` (default: 1024), `temperature` (0-1, default: 1.0), `model` (default: claude-sonnet-4-5)
-- `getJoke()`: Get a programming joke (200 tokens)
-- `getTip()`: Get a productivity tip (200 tokens)
-- `getQuote()`: Get an inspiring quote (200 tokens)
-- `getFact()`: Get a tech fact (200 tokens)
-- `getAdvice(topic)`: Get advice on a topic (300 tokens)
-- `explainConcept(concept)`: Explain a concept (400 tokens)
-- `summarizeText(text)`: Summarize text (300 tokens)
-- `brainstormIdeas(topic)`: Brainstorm ideas (400 tokens)
-
-**Implementation Details:**
-- Uses Supabase Edge Function `claude-proxy` for secure API calls
-- API key stored in Supabase secrets (never exposed to client)
-- CORS configured for cross-origin requests
-- Temperature must be between 0 and 1 (API constraint)
-- Model: `claude-sonnet-4-5` (latest Sonnet 4.5)
-- Anthropic API version: `2023-06-01`
-
-### ActivityLogService (src/services/activityLogService.js)
-- `fetchAll(limit)`: Get recent activity log entries (default 200)
-- `create(logEntry)`: Create new log entry
-- `update(id, changes)`: Update log entry (for text logs)
-- `deleteById(id)`: Delete log entry
-- Log entry structure: `action_type`, `entity_type`, `entity_id`, `entity_ref_id`, `entity_title`, `details` (JSONB), `timestamp`
-- Action types: task/note/project operations, timer events, reminders, custom text logs
-
-### SettingsService (src/services/settingsService.js)
-- `getSetting(key)`: Get setting value by key
-- `setSetting(key, value, description)`: Upsert setting
-- `getUIPreferences()`: Get UI-specific settings
-- `updateUIPreferences(prefs)`: Update UI settings
-- Settings stored as key-value pairs in `settings` table
-
-### MusicLinksService (src/services/musicLinksService.js)
-- `fetchAllMusicLinks()`: Get all music links (Spotify + YouTube)
-- `fetchMusicLinksByType(type)`: Get links by type ('spotify' or 'youtube')
-- `createMusicLink(musicLink)`: Add new music link
-- `updateMusicLink(id, type, updates)`: Update music link
-- `deleteMusicLink(id, type)`: Remove music link
-- `setAsDefault(id, type)`: Set as default for type
-- `extractSpotifyId(url)`: Extract playlist ID from Spotify URL
-- `extractYoutubeId(url)`: Extract video ID from YouTube URL
-- Music links stored in `settings` table under `music_links` key
-
-### ThemeService (src/services/themeService.js)
-- `loadAndApplyTheme()`: Load theme from DB/localStorage and apply
-- `saveTheme(themeId)`: Save theme preference to DB
-- `changeTheme(themeId)`: Change and apply new theme
-- `getCurrentThemeId()`: Get active theme ID
-- Falls back: Database → localStorage → default theme
-- Migrates old 'light'/'dark' values to 'sonokai-default'
-
-## File Locations for Common Tasks
-
-### Adding a new terminal command
-1. Add pattern matching in `src/utils/commandParser.js`
-2. Add handler in `App.jsx` handleCommand function
-
-### Adding a new task status
-1. Update status options in `src/components/TaskList.jsx`
-2. Update color coding in same component
-
-### Modifying ref_id detection
-1. Update pattern in `src/utils/refIdLookup.js`
-2. Update `RefIdTransformPlugin.jsx` if needed
-3. Update database function in SQL migration
-
-### Adding a new special view
-1. Create note with appropriate `note_type` or `list_metadata`
-2. Add handler in `App.jsx` fetchTasksForView function
-3. Add navigation option in sidebar
-
-## Technology Stack
-
-- **React 18**: UI framework
-- **Lexical**: Rich text editor (Meta)
-- **Supabase**: PostgreSQL database + real-time + auth
-- **Tailwind CSS**: Styling
-- **Vite**: Build tool
-- **Lucide React**: Icons
-
-## Database Schema
-
-Complete database schema in root directory:
-- `schema.sql`: Comprehensive database schema including all tables, indexes, and functions
-  - Creates `notes` table with bidirectional linking and reference IDs
-  - Creates `tasks` table with status, priority, and scheduling
-  - Creates `activity_log` table for tracking user actions and reminders
-  - Creates `settings` table for app configuration
-  - Includes `generate_reference_id()` function for unique ref_id generation
-
-To set up the database:
-1. Open Supabase SQL Editor
-2. Run the entire `schema.sql` file
-3. The app will create initial special notes (HOME, Tasks, Today, etc.) on first run
-
-## Common Workflows
-
-### Creating a new note
-1. User clicks "+" in sidebar or uses terminal
-2. App creates note in database
-3. App adds to notes state
-4. App selects new note
-5. User edits in NoteEditor
-
-### Adding a task via terminal
-1. User types: `/task "Task text" :today :note "Details"`
-2. `parseCommand` extracts: text, scheduleToday flag, note text
-3. App creates task in database with scheduled_date = today
-4. App creates linked note if :note provided
-5. Task appears in Today view
-
-### Navigating by ref_id
-1. User types `a3x7k9` in a note
-2. After 500ms, `RefIdTransformPlugin` detects pattern
-3. Plugin looks up ref_id in database via `lookupRefId`
-4. If found, creates `RefIdNode` with title and type
-5. Node renders as `RefIdBadge` component
-6. User clicks badge � `onRefIdNavigate` handler
-7. App navigates to note or shows task details
-
-### Scheduling a task
-1. User hovers over task → calendar icon appears
-2. User clicks icon → DatePicker opens
-3. User selects date (or quick option like "Tomorrow")
-4. App calls `scheduleTask(taskId, date)`
-5. If status is BACKLOG, auto-changes to PLANNED
-6. Date displays in purple text next to task
-7. If date is today, task appears in Today view
-
-### Using Claude AI commands
-1. User types `/joke` in terminal
-2. Terminal sets `isLoading` state to true
-3. Loading animation appears (wave bounce dots + "Thinking...")
-4. `handleCommand` in App.jsx calls `getJoke()` from claudeService
-5. claudeService invokes Supabase Edge Function `claude-proxy`
-6. Edge Function calls Anthropic API with stored CLAUDE_API_KEY
-7. Response returned to client
-8. Terminal sets `isLoading` to false
-9. Response displayed in terminal output
-10. If error occurs, error message displayed with ✗ symbol
-
-## Tips for LLMs Working on This Codebase
-
-1. **Always check App.jsx first**: It's the central hub for state and handlers
-2. **Database queries use Supabase client**: See `src/supabaseClient.js`
-3. **Lexical editor state is complex**: Stored as JSONB, manipulated via Lexical API
-4. **Optimistic updates**: Update UI first, then database. Rollback on error.
-5. **Special notes are identified by**: `note_type` field or `list_metadata` field
-6. **Task display order**: Sort by `priority` ASC (0 is highest)
-7. **Date handling**: Use `dateUtils.js` functions, not raw Date objects
-8. **Ref_id format is strict**: Must match `[a-z][0-9][a-z0-9]{4}` pattern
-9. **OVERDUE status is automatic**: Don't let users manually select it
-10. **Terminal commands are case-insensitive**: Parser uses `.toLowerCase()`
-
-## Known Design Patterns
-
-- **Optimistic UI**: Update UI immediately, sync with DB, rollback on error
-- **Debounced saves**: Don't save on every keystroke, wait for pause
-- **Ref tracking**: Use refs for components that need direct manipulation (Terminal)
-- **Conditional rendering**: Many UI elements shown only on hover (calendar, star icons)
-- **Two-step deselection**: On Today page, clicking selected task requires two clicks to deselect
-
-## Future Enhancement Ideas
-
-- **Recurring tasks**: Automatic task regeneration on schedules
-- **Calendar view**: Visual calendar with task scheduling
-- **Backlinks panel**: Show all notes referencing current note
-- **Ref_id autocomplete**: Autocomplete suggestions when typing ref_ids
-- **Task dependencies**: Link tasks that depend on each other
-- **Subtasks**: Hierarchical task breakdown
-- **Tags/labels**: Flexible categorization system
-- **Note templates**: Predefined note structures
-- **Export to Markdown**: Export notes and tasks to markdown files
-- **Real-time collaboration**: Multi-user support with conflict resolution
-- **Cmd+K Search**: Quick command palette (currently shows search modal)
-- **Attachments**: File uploads linked to notes/tasks
-- **Time tracking**: Integrated time tracking per task
-- **Analytics**: Productivity metrics and insights
-- **Mobile app**: Native mobile version
-- **Offline mode**: Full offline functionality with sync
-
-## Debugging Tips
-
-- Check browser console for Supabase errors
-- Verify database migrations ran: `SELECT * FROM notes LIMIT 1;` should show all columns
-- Check ref_id generation: `SELECT generate_reference_id();` should return valid ID
-- Task not appearing in Today? Check `is_starred` and `scheduled_date` values
-- Badge not appearing? Wait 500ms after typing ref_id
-- Navigation not working? Check `left_id`, `right_id`, etc. are valid UUIDs
-- Claude commands failing? Check:
-  - Edge Function deployed: Visit Supabase Dashboard → Edge Functions
-  - Secret set: `supabase secrets list --project-ref <project-ref>`
-  - Check browser Network tab for Edge Function errors (500 = missing key, 400 = invalid params)
-  - Temperature must be 0-1, not higher
-  - Model name must be exact: `claude-sonnet-4-5`
-- Theme not applying? Check:
-  - Browser console for CSS variable errors
-  - Theme ID exists in `src/config/themes/index.js`
-  - Settings table has theme entry
-  - localStorage has cached theme
-- Search not working? Verify:
-  - Notes have content (not empty)
-  - Search modal is open (check showSearch state)
-  - Search results being filtered correctly
-- Activity log not updating? Check:
-  - Activity log entries being created (check database)
-  - logUpdateTrigger being incremented on actions
-  - Filters not hiding all entries
-- Music player not loading? Verify:
-  - Valid Spotify playlist ID or YouTube video ID
-  - Music links stored in settings table
-  - Embeds not blocked by browser security
-- Kanban drag-and-drop not working? Ensure:
-  - HTML5 drag-and-drop supported
-  - Task status updates propagating
-  - onStatusChange callback defined
-
-## Environment Setup
-
-1. Install dependencies: `npm install`
-2. Set up Supabase project
-3. Run all SQL migrations in Supabase SQL Editor
-4. Create `.env` file with:
-   ```
-   VITE_SUPABASE_URL=your-project-url
-   VITE_SUPABASE_ANON_KEY=your-anon-key
-   ```
-5. **Claude AI Setup (Optional):**
-   - Get API key from https://console.anthropic.com/
-   - Install Supabase CLI: `brew install supabase/tap/supabase`
-   - Deploy Edge Function: `supabase functions deploy claude-proxy --project-ref <project-ref>`
-   - Set secret: `supabase secrets set CLAUDE_API_KEY=<your-key> --project-ref <project-ref>`
-6. Run dev server: `npm run dev`
-7. Visit: `http://localhost:5173`
+**Example token-efficient workflow:**
+```
+User: "Add a new task status"
+✅ Good: Check CLAUDE.md → Grep for status patterns → Read only TaskList.jsx
+❌ Bad: Read App.jsx + TaskList.jsx + CLAUDE-EXTENSIVE.md + TasksService.js
+```
 
 ## Documentation Files
 
-- `README.md`: General project overview and setup
-- `themes.md`: Complete theme system documentation with all 20+ themes, CSS variables, and customization guide
-- `CLAUDE.md` (this file): Comprehensive LLM context for AI assistants -- keep this updated
-- `schema.sql`: Complete database schema with all tables, indexes, and functions
+- **README.md**: General project overview
+- **CLAUDE.md** (this file): Quick LLM context (~4K tokens)
+- **CLAUDE-EXTENSIVE.md**: Detailed specifications, workflows, debugging (~15K tokens)
+- **themes.md**: Theme system documentation
+- **schema.sql**: Complete database schema
+
+## Setup
+
+Standard Vite+React setup with Supabase backend. See `CLAUDE-EXTENSIVE.md` for detailed setup instructions and debugging guide.
 
 ---
 
-This app is designed for a single user managing their personal knowledge and tasks. The unique features (ref_ids, bidirectional links, terminal) make it particularly powerful for building a connected knowledge base where notes, tasks, and projects all link together seamlessly.
+**For detailed information:** All comprehensive technical details, API specs, workflows, examples, and troubleshooting are in `CLAUDE-EXTENSIVE.md`. This file provides quick reference for 80% of common tasks.

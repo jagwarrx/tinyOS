@@ -197,7 +197,9 @@ export function parseNaturalTime(input) {
   targetDate.setMilliseconds(0)
 
   // Check for day keywords
-  if (trimmed.includes('tomorrow')) {
+  if (trimmed.includes('yesterday')) {
+    targetDate.setDate(targetDate.getDate() - 1)
+  } else if (trimmed.includes('tomorrow')) {
     targetDate.setDate(targetDate.getDate() + 1)
   } else if (trimmed.includes('next monday') || trimmed.includes('monday')) {
     const currentDay = targetDate.getDay()
@@ -244,13 +246,13 @@ export function parseNaturalTime(input) {
   }
 
   // If the time has already passed today and no day specified, assume tomorrow
-  if (!trimmed.includes('tomorrow') && !trimmed.match(/monday|tuesday|wednesday|thursday|friday|saturday|sunday/) && targetDate <= now) {
+  if (!trimmed.includes('yesterday') && !trimmed.includes('tomorrow') && !trimmed.match(/monday|tuesday|wednesday|thursday|friday|saturday|sunday/) && targetDate <= now) {
     targetDate.setDate(targetDate.getDate() + 1)
   }
 
   // Extract reminder text (everything that's not a time/date keyword)
   let remainingText = input
-  const timeKeywords = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|tomorrow|next\s+\w+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|in\s+\d+\s*(?:min|minutes?|hours?|m|h)/gi
+  const timeKeywords = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?|yesterday|tomorrow|next\s+\w+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|in\s+\d+\s*(?:min|minutes?|hours?|m|h)/gi
   remainingText = remainingText.replace(timeKeywords, '').trim()
 
   return { date: targetDate, remainingText }
@@ -271,4 +273,45 @@ export function formatReminderTime(date) {
   const minutes = String(date.getMinutes()).padStart(2, '0')
 
   return `${month} ${day}${suffix} ${hours}:${minutes}`
+}
+
+/**
+ * Format log timestamp for confirmation message
+ * Example: "today at 2:30pm", "yesterday at 10:00am", "Jan 20th at 3:45pm"
+ * @param {Date} date - Date object to format
+ * @returns {string} - Formatted log time string
+ */
+export function formatLogTime(date) {
+  const now = new Date()
+  const today = new Date(now)
+  today.setHours(0, 0, 0, 0)
+
+  const targetDate = new Date(date)
+  const targetDateOnly = new Date(targetDate)
+  targetDateOnly.setHours(0, 0, 0, 0)
+
+  const diffTime = targetDateOnly.getTime() - today.getTime()
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+
+  // Format time (12-hour format)
+  let hours = date.getHours()
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const period = hours >= 12 ? 'pm' : 'am'
+  hours = hours % 12 || 12
+  const timeStr = `${hours}:${minutes}${period}`
+
+  // Determine day description
+  if (diffDays === 0) {
+    return `today at ${timeStr}`
+  } else if (diffDays === -1) {
+    return `yesterday at ${timeStr}`
+  } else if (diffDays === 1) {
+    return `tomorrow at ${timeStr}`
+  } else {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = monthNames[date.getMonth()]
+    const day = date.getDate()
+    const suffix = getOrdinalSuffix(day)
+    return `${month} ${day}${suffix} at ${timeStr}`
+  }
 }

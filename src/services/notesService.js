@@ -23,7 +23,7 @@ export class NotesService {
   }
 
   static async fetchByRefId(refId) {
-    const { data, error } = await supabase
+    const { data, error} = await supabase
       .from('notes')
       .select('*')
       .eq('ref_id', refId)
@@ -31,6 +31,17 @@ export class NotesService {
 
     if (error) throw new Error(`Failed to fetch note by ref_id: ${error.message}`)
     return data
+  }
+
+  static async fetchByProjectId(projectId) {
+    const { data, error } = await supabase
+      .from('notes')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('updated_at', { ascending: false })
+
+    if (error) throw new Error(`Failed to fetch project notes: ${error.message}`)
+    return data || []
   }
 
   static async create(noteData) {

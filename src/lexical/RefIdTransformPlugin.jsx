@@ -131,6 +131,9 @@ export function RefIdTransformPlugin({ onNavigate }) {
                 const afterText = text.substring(matchEnd)
 
                 const title = itemType === 'note' ? data.title : data.text
+                const noteType = itemType === 'note' ? data.note_type : null
+                const diagramSvg = itemType === 'note' && data.note_type === 'diagram' ? data.diagram_svg : null
+                const mindmapSvg = itemType === 'note' && data.note_type === 'mindmap' ? data.mindmap_svg : null
 
                 // Store the transformation
                 transformations.push({
@@ -138,6 +141,9 @@ export function RefIdTransformPlugin({ onNavigate }) {
                   refId,
                   itemType,
                   title,
+                  noteType,
+                  diagramSvg,
+                  mindmapSvg,
                   beforeText,
                   afterText
                 })
@@ -146,13 +152,13 @@ export function RefIdTransformPlugin({ onNavigate }) {
           })
 
           // Now apply all transformations
-          transformations.forEach(({ textNode, refId, itemType, title, beforeText, afterText }) => {
+          transformations.forEach(({ textNode, refId, itemType, title, noteType, diagramSvg, mindmapSvg, beforeText, afterText }) => {
             // Skip if node was already replaced in a previous transformation
             try {
               if (!textNode.isAttached()) return
 
               // Create the RefIdNode badge
-              const refIdNode = $createRefIdNode(refId, itemType, title, onNavigate)
+              const refIdNode = $createRefIdNode(refId, itemType, title, onNavigate, noteType, diagramSvg, mindmapSvg)
 
               // Insert nodes in order: before text, badge, after text
               if (beforeText && afterText) {

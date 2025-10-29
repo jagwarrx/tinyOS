@@ -3,10 +3,11 @@
  * Full-screen workspace for focused task work with AI assistant
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft } from 'lucide-react'
 import WorkspaceScratchpad from './WorkspaceScratchpad'
 import WorkspaceChat from './WorkspaceChat'
+import Terminal from '../Terminal'
 import {
   loadScratchpad,
   saveScratchpad,
@@ -23,13 +24,15 @@ import {
 import { getInitialGreeting } from '../../services/workspaceChatService'
 import * as activityLogService from '../../services/activityLogService'
 
-export default function WorkspaceView({ task, project, onExit, onSaveTask, allNotes }) {
+export default function WorkspaceView({ task, project, onExit, onSaveTask, allNotes, onCommand }) {
   const [scratchpadContent, setScratchpadContent] = useState('')
   const [chatHistory, setChatHistory] = useState([])
   const [sessionDuration, setSessionDuration] = useState(0)
   const [currentSessionDuration, setCurrentSessionDuration] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
   const [hasUnsavedWork, setHasUnsavedWork] = useState(false)
+
+  const terminalRef = useRef(null)
 
   // Load existing session or start new one
   useEffect(() => {
@@ -260,21 +263,13 @@ export default function WorkspaceView({ task, project, onExit, onSaveTask, allNo
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Session Duration */}
+            {/* Session Duration - Combined Format */}
             <div className="flex items-center gap-2 text-xs">
               <span className="text-fg-primary font-medium">
-                Session Duration: {formatDuration(currentSessionDuration)}
+                This Session: <span className="text-fg-secondary">{formatDuration(currentSessionDuration)}</span>
+                {totalDuration > 0 && <span className="text-fg-secondary"> (Total: {formatDuration(sessionDuration)})</span>}
               </span>
             </div>
-
-            {/* Total Duration - only show if there's accumulated time */}
-            {totalDuration > 0 && (
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-fg-secondary">
-                  Total Duration: {formatDuration(sessionDuration)}
-                </span>
-              </div>
-            )}
 
             {/* Clear Session Button */}
             <button
@@ -288,28 +283,37 @@ export default function WorkspaceView({ task, project, onExit, onSaveTask, allNo
       </div>
 
       {/* Main Content - Split View */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Scratchpad */}
-        <div className="w-1/2 overflow-y-auto border-r border-border-primary">
-          <WorkspaceScratchpad
-            task={task}
-            project={project}
-            scratchpadContent={scratchpadContent}
-            onScratchpadChange={handleScratchpadChange}
-            onSaveToWorkNotes={handleSaveToWorkNotes}
-            onTaskUpdate={handleTaskUpdate}
-          />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left: Scratchpad */}
+          <div className="w-1/2 overflow-y-auto border-r border-border-primary">
+            <WorkspaceScratchpad
+              task={task}
+              project={project}
+              scratchpadContent={scratchpadContent}
+              onScratchpadChange={handleScratchpadChange}
+              onSaveToWorkNotes={handleSaveToWorkNotes}
+              onTaskUpdate={handleTaskUpdate}
+            />
+          </div>
+
+          {/* Right: Chat */}
+          <div className="w-1/2 overflow-hidden">
+            <WorkspaceChat
+              task={task}
+              project={project}
+              chatHistory={chatHistory}
+              onChatUpdate={handleChatUpdate}
+            />
+          </div>
         </div>
 
-        {/* Right: Chat */}
-        <div className="w-1/2 overflow-hidden">
-          <WorkspaceChat
-            task={task}
-            project={project}
-            chatHistory={chatHistory}
-            onChatUpdate={handleChatUpdate}
-          />
-        </div>
+        {/* Terminal - Collapsible at bottom */}
+        {onCommand && (
+          <div className="flex-shrink-0">
+            <Terminal ref={terminalRef} onCommand={onCommand} />
+          </div>
+        )}
       </div>
     </div>
   )

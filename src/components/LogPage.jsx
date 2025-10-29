@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2, Check, GlassWater, Bell, ChevronRight, ChevronLeft, Sun, Sunrise, CalendarRange, Archive, Zap, Pencil, X, ChevronDown } from 'lucide-react'
+import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2, Check, GlassWater, Bell, ChevronRight, ChevronLeft, Sun, Sunrise, CalendarRange, Archive, Zap, Pencil, X, ChevronDown, Tag } from 'lucide-react'
 import * as activityLogService from '../services/activityLogService'
 import RefIdBadge from './RefIdBadge'
 
@@ -1088,6 +1088,20 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                                 >
                                   {expandedLogs.has(log.id) ? 'Show less' : 'Show more'}
                                 </button>
+                              )}
+                              {/* Display tags if present */}
+                              {log.details?.tags && log.details.tags.length > 0 && (
+                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                  {log.details.tags.map((tag, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-syntax-purple/10 text-syntax-purple border border-syntax-purple/30"
+                                    >
+                                      <Tag size={10} />
+                                      <span className="font-mono">{tag.full_path}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           ) : (

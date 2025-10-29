@@ -147,26 +147,46 @@ export function parseCommand(input) {
   const logPattern = /^\/log\s+(.+)$/i
   const logMatch = trimmed.match(logPattern)
   if (logMatch) {
+    let logText = logMatch[1].trim()
+
+    // Extract hashtag from log text (format: #tag or #tag/path/subpath)
+    const hashtagPattern = /#([a-zA-Z0-9_/]+)(?:\s|$)/
+    const hashtagMatch = logText.match(hashtagPattern)
+    let tagPath = null
+    if (hashtagMatch) {
+      tagPath = hashtagMatch[1]
+      // Remove hashtag from log text
+      logText = logText.replace(hashtagPattern, '').trim()
+    }
+
     return {
       type: 'LOG_ENTRY',
       payload: {
-        text: logMatch[1].trim()
+        text: logText,
+        tag: tagPath
       }
     }
   }
 
-  // Quick task command: /task text [:today] [:note "text"] [:project] - adds to Tasks page (quotes optional)
+  // Quick task command: /task text [:today] [:note "text"] [:project] [:tag "tag/path"] - adds to Tasks page (quotes optional)
   // Inbox command: /inbox "title" :note "text" - adds to Inbox page
   // First, extract any :note "text" suffix (including multi-line content)
   const notePattern = /:note\s+"([^"]*)"/i
   const noteMatch = trimmed.match(notePattern)
   const noteText = noteMatch ? noteMatch[1] : null
 
-  // Remove :note suffix from command for further parsing
-  const withoutNote = noteText ? trimmed.replace(notePattern, '').trim() : trimmed
+  // Extract any :tag "tag/path" suffix
+  const tagPattern = /:tag\s+"([^"]*)"/i
+  const tagMatch = trimmed.match(tagPattern)
+  let tagPath = tagMatch ? tagMatch[1] : null
 
-  const quickTaskPattern = /^\/task\s+(.+?)(?:\s+:today)?(?:\s+:project)?$/i
-  const quickTaskMatch = withoutNote.match(quickTaskPattern)
+  // Remove :note and :tag suffixes from command for further parsing
+  let withoutOptions = trimmed
+  if (noteText) withoutOptions = withoutOptions.replace(notePattern, '').trim()
+  if (tagPath) withoutOptions = withoutOptions.replace(tagPattern, '').trim()
+
+  const quickTaskPattern = /^\/task\s+(.+?)(?:\s+:today)?(?:\s+:project)?(?:\s+:tag)?$/i
+  const quickTaskMatch = withoutOptions.match(quickTaskPattern)
 
   if (quickTaskMatch) {
     let taskText = quickTaskMatch[1].trim()
@@ -175,11 +195,21 @@ export function parseCommand(input) {
       taskText = taskText.slice(1, -1)
     }
 
+    // Extract hashtag from task text (format: #tag or #tag/path/subpath)
+    // Match hashtag at the end of the text or followed by whitespace
+    const hashtagPattern = /#([a-zA-Z0-9_/]+)(?:\s|$)/
+    const hashtagMatch = taskText.match(hashtagPattern)
+    if (hashtagMatch && !tagPath) {
+      tagPath = hashtagMatch[1]
+      // Remove hashtag from task text
+      taskText = taskText.replace(hashtagPattern, '').trim()
+    }
+
     // Check if :today suffix was present
-    const scheduleToday = withoutNote.toLowerCase().includes(':today')
+    const scheduleToday = withoutOptions.toLowerCase().includes(':today')
 
     // Check if :project suffix was present
-    const addToProject = withoutNote.toLowerCase().includes(':project')
+    const addToProject = withoutOptions.toLowerCase().includes(':project')
 
     return {
       type: 'ADD_TASK',
@@ -188,6 +218,7 @@ export function parseCommand(input) {
         target: addToProject ? 'project' : 'tasks',
         scheduleToday,
         note: noteText,
+        tag: tagPath,
         addToProject
       }
     }
@@ -195,7 +226,7 @@ export function parseCommand(input) {
 
   // Inbox command: /inbox "title" :note "multi-line text"
   const inboxPattern = /^\/inbox\s+(.+?)(?:\s+:note)?$/i
-  const inboxMatch = withoutNote.match(inboxPattern)
+  const inboxMatch = withoutOptions.match(inboxPattern)
 
   if (inboxMatch) {
     let itemTitle = inboxMatch[1].trim()
@@ -232,13 +263,51 @@ export function parseCommand(input) {
     }
   }
 
+  // Diagram command: /diagram "Diagram Name" or /diagram DiagramName
+  const diagramPattern = /^\/diagram\s+(.+)$/i
+  const diagramMatch = trimmed.match(diagramPattern)
+
+  if (diagramMatch) {
+    let diagramName = diagramMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (diagramName.startsWith('"') && diagramName.endsWith('"')) {
+      diagramName = diagramName.slice(1, -1)
+    }
+
+    return {
+      type: 'DIAGRAM',
+      payload: {
+        name: diagramName
+      }
+    }
+  }
+
+  // Mindmap command: /mindmap "Mindmap Name" or /mindmap MindmapName
+  const mindmapPattern = /^\/mindmap\s+(.+)$/i
+  const mindmapMatch = trimmed.match(mindmapPattern)
+
+  if (mindmapMatch) {
+    let mindmapName = mindmapMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (mindmapName.startsWith('"') && mindmapName.endsWith('"')) {
+      mindmapName = mindmapName.slice(1, -1)
+    }
+
+    return {
+      type: 'MINDMAP',
+      payload: {
+        name: mindmapName
+      }
+    }
+  }
+
   // Add task command: add task "text" to|in [today|week|tasks] [:today] [:note "text"]
-  // Note pattern already extracted above, use same withoutNote
+  // Note pattern already extracted above, use same withoutOptions
   const addTaskPattern = /^add\s+task\s+"([^"]*)"\s+(?:to|in)\s+(today|week|tasks)(?:\s+:today)?$/i
-  const addTaskMatch = withoutNote.match(addTaskPattern)
+  const addTaskMatch = withoutOptions.match(addTaskPattern)
 
   if (addTaskMatch) {
-    const scheduleToday = withoutNote.toLowerCase().includes(':today')
+    const scheduleToday = withoutOptions.toLowerCase().includes(':today')
 
     return {
       type: 'ADD_TASK',

@@ -22,9 +22,9 @@
  */
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
-import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from 'lucide-react'
+import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Home, Inbox, ListTodo, FolderKanban, ScrollText, Settings } from 'lucide-react'
 
-const Terminal = forwardRef(({ onCommand }, ref) => {
+const Terminal = forwardRef(({ onCommand, navigationActions }, ref) => {
   // Input state for current command being typed
   const [input, setInput] = useState('')
   
@@ -291,11 +291,60 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
   return (
     <div className="h-48 bg-bg-secondary border-t border-border-primary flex flex-col">
       {/* Header */}
-      <div className="h-10 bg-bg-tertiary border-b border-border-primary flex items-center justify-between px-4">
+      <div className="h-10 bg-bg-tertiary border-b border-border-primary flex items-center justify-between px-4 group relative">
         <div className="flex items-center gap-2 text-fg-secondary text-sm">
           <TerminalIcon size={16} />
           <span>Terminal</span>
         </div>
+
+        {/* Navigation Icons - Center of Terminal Bar */}
+        {navigationActions && (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={navigationActions.goToInbox}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Inbox"
+            >
+              <Inbox size={16} className="text-fg-secondary" />
+            </button>
+            <button
+              onClick={navigationActions.goToTasks}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Tasks"
+            >
+              <ListTodo size={16} className="text-fg-secondary" />
+            </button>
+            <button
+              onClick={navigationActions.goToProjects}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Projects"
+            >
+              <FolderKanban size={16} className="text-fg-secondary" />
+            </button>
+            <button
+              onClick={navigationActions.goToHome}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Home"
+            >
+              <Home size={16} className="text-fg-secondary" />
+            </button>
+            <button
+              onClick={navigationActions.goToLog}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Log"
+            >
+              <ScrollText size={16} className="text-fg-secondary" />
+            </button>
+            <button
+              onClick={navigationActions.openSettings}
+              className="p-2 hover:bg-bg-secondary rounded transition-colors"
+              title="Settings"
+            >
+              <Settings size={16} className="text-fg-secondary" />
+            </button>
+          </div>
+        )}
+
         <button
           onClick={() => setIsCollapsed(true)}
           className="p-1 hover:bg-bg-secondary rounded transition-colors"

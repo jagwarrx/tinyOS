@@ -46,6 +46,9 @@ import LogPage from './components/LogPage'
 import SearchModal from './components/SearchModal'
 import KeyboardShortcutsHelp from './components/KeyboardShortcutsHelp'
 import WorkspaceView from './components/workspace/WorkspaceView'
+import TagFilteredView from './components/TagFilteredView'
+import DiagramEditor from './components/DiagramEditor'
+import MindmapEditor from './components/MindmapEditor'
 import { useNotes } from './contexts/NotesContext'
 import { useTasks } from './contexts/TasksContext'
 import { supabase } from './supabaseClient'
@@ -68,7 +71,7 @@ import {
 } from './services/claudeService'
 import * as activityLogger from './utils/activityLogger'
 import * as activityLogService from './services/activityLogService'
-import { filterTasksByTags } from './services/tagService'
+import { filterTasksByTags, getNotesForTag, getTasksForTag, tagTask, createTagsFromPath } from './services/tagService'
 
 function App() {
   // Use contexts for state management
@@ -166,6 +169,20 @@ function App() {
   // Workspace state
   const [isInWorkspace, setIsInWorkspace] = useState(false)
   const [workspaceTask, setWorkspaceTask] = useState(null)
+
+  // Tag navigation state
+  const [selectedTag, setSelectedTag] = useState(null)
+  const [filteredNotes, setFilteredNotes] = useState([])
+  const [filteredTasks, setFilteredTasks] = useState([])
+  const [filteredProjects, setFilteredProjects] = useState([])
+
+  // Diagram editor state
+  const [isDiagramEditorOpen, setIsDiagramEditorOpen] = useState(false)
+  const [currentDiagramNote, setCurrentDiagramNote] = useState(null)
+
+  // Mindmap editor state
+  const [isMindmapEditorOpen, setIsMindmapEditorOpen] = useState(false)
+  const [currentMindmapNote, setCurrentMindmapNote] = useState(null)
 
   // Trigger music links reload in FloatingAudioPlayer
   const handleMusicLinksChanged = () => {
@@ -448,6 +465,41 @@ function App() {
     handleUIPreferencesChanged()
   }, [])
 
+  // Update URL when selectedNote changes
+  useEffect(() => {
+    if (selectedNote?.ref_id) {
+      // Update browser URL to show ref_id
+      const newPath = `/${selectedNote.ref_id}`
+      if (window.location.pathname !== newPath) {
+        window.history.pushState(null, '', newPath)
+      }
+    }
+  }, [selectedNote])
+
+  // Navigate to note from URL on initial load
+  useEffect(() => {
+    const navigateFromUrl = async () => {
+      const path = window.location.pathname
+      // Remove leading slash
+      const refId = path.substring(1)
+
+      if (refId && refId.length > 0 && notes.length > 0) {
+        // Try to find note by ref_id
+        const noteFromUrl = notes.find(n => n.ref_id === refId)
+        if (noteFromUrl && (!selectedNote || selectedNote.ref_id !== refId)) {
+          console.log('📍 Navigating to note from URL:', refId)
+          selectNote(noteFromUrl)
+        }
+      } else if (path === '/' && notes.length > 0 && homeNote && !selectedNote) {
+        // If root path and no note selected yet, go to home
+        console.log('📍 Navigating to home note (root path)')
+        selectNote(homeNote)
+      }
+    }
+
+    navigateFromUrl()
+  }, [notes, selectedNote, homeNote])
+
   // Load and apply font
   const loadFont = () => {
     const fontId = loadFontPreference()
@@ -543,6 +595,135 @@ function App() {
       return data
     } catch (error) {
       console.error('Error creating project note:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new diagram note
+   * Diagram notes have note_type='diagram' and can be referenced via ref_id
+   *
+   * @param {string} diagramName - The name/title of the diagram
+   * @param {string} projectId - Optional project ID to link the diagram to
+   * @returns {object} - The created diagram note
+   */
+  const createDiagramNote = async (diagramName, projectId = null) => {
+    try {
+      const diagramNoteData = {
+        title: diagramName,
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        note_type: 'diagram',
+        diagram_xml: null, // Will be set when user saves in diagram editor
+        diagram_svg: null, // Will be set when user saves
+        project_id: projectId, // Link to project if provided
+        is_starred: false,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: null,
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('notes')
+        .insert([diagramNoteData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Reload notes from context
+      // Since we're using contexts, we should use the context method
+      // But for now, we'll just manually refetch
+      const { data: allNotes } = await supabase
+        .from('notes')
+        .select('*')
+        .order('updated_at', { ascending: false })
+
+      // We don't have direct access to setNotes from context here,
+      // so we'll return the note and handle navigation
+
+      return data
+    } catch (error) {
+      console.error('Error creating diagram note:', error.message)
+      throw error
+    }
+  }
+
+  /**
+   * Create a new mindmap note
+   * Mindmap notes have note_type='mindmap' and can be referenced via ref_id
+   *
+   * @param {string} mindmapName - The name/title of the mindmap
+   * @param {string} projectId - Optional project ID to link the mindmap to
+   * @returns {object} - The created mindmap note
+   */
+  const createMindmapNote = async (mindmapName, projectId = null) => {
+    try {
+      const mindmapNoteData = {
+        title: mindmapName,
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        note_type: 'mindmap',
+        mindmap_markdown: null, // Will be set when user saves in mindmap editor
+        mindmap_svg: null, // Will be set when user saves
+        project_id: projectId, // Link to project if provided
+        is_starred: false,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: null,
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('notes')
+        .insert([mindmapNoteData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      return data
+    } catch (error) {
+      console.error('Error creating mindmap note:', error.message)
       throw error
     }
   }
@@ -1121,13 +1302,14 @@ function App() {
    *
    * @param {string} text - Task description
    * @param {object} targetNote - Target note object (determines starred status)
-   * @param {object} options - Optional parameters { scheduleToday: boolean, note: string, projectId: string }
+   * @param {object} options - Optional parameters { scheduleToday: boolean, note: string, projectId: string, tag: string }
    *
    * Process:
    * 1. Get highest priority to determine new task's priority
    * 2. Create new task with appropriate status and starred flag
    * 3. Insert into tasks table
-   * 4. Refresh the current view
+   * 4. If tag provided, apply tag to task
+   * 5. Refresh the current view
    */
   const addTask = async (text, targetNote, options = {}) => {
     try {
@@ -1162,6 +1344,16 @@ function App() {
         .select()
 
       if (error) throw error
+
+      // Apply tag if provided
+      if (data && data[0] && options.tag) {
+        try {
+          await tagTask(data[0].id, options.tag)
+        } catch (tagError) {
+          console.error('Error tagging task:', tagError)
+          // Don't throw - task was created successfully, just tagging failed
+        }
+      }
 
       // Log task creation
       if (data && data[0]) {
@@ -1216,13 +1408,14 @@ TASK MANAGEMENT:
   /task "text" :today             Add task scheduled for today (status: PLANNED)
   /task "text" :project           Add task to current project (when on project page)
   /task "text" :note "details"    Add task with context notes
+  /task "text #tag/path"          Add task with hierarchical tag (e.g., #work/qbotica)
   add task "text" to/in today     Add task to Today list
   add task "text" to/in week      Add task to Week list
   add task "text" to/in tasks     Add task to Tasks list
 
 COMBINE OPTIONS:
-  /task "text" :today :note "note"     Schedule for today with notes
-  /task "text" :project :today         Add to project, scheduled today
+  /task "text #tag" :today :note "note"         Schedule for today with tag and notes
+  /task "text #work/project" :project :today    Add to project with tag, scheduled today
   add task "text" to tasks :today :note "note"  Full syntax example
 
 PROJECT MANAGEMENT:
@@ -1246,7 +1439,10 @@ TIMER:
 
 LOGGING:
   /log <text>                     Log an event or note (e.g., "meeting with Prasad")
+  /log <time> <text>              Log with specific time (e.g., "/log 10am meeting notes")
+  /log <time> yesterday <text>    Log for past date (e.g., "/log 2pm yesterday called John")
   /log energy <0-5>               Log your energy level (0=exhausted, 5=energized)
+  /log <text> #tag/path           Log with tag (e.g., "/log 10am standup #work/meetings")
 
 AI COMMANDS (requires Claude API key):
   /joke                           Get a programming joke
@@ -1266,7 +1462,8 @@ TIPS:
 • Use :today to schedule tasks and set status to PLANNED
 • Use :project to add tasks to the current project
 • Use :note "text" to add context/details to tasks or inbox items
-• You can combine :today, :project, and :note in any order
+• Use #tag/path in task text to organize with hierarchical tags (e.g., #work/project/feature)
+• You can combine :today, :project, :note, and hashtags in any order
 • Star tasks to add them to Today list
 • Drag tasks to reorder them
 • Use /inbox for quick capture of ideas and information
@@ -1276,18 +1473,20 @@ Type /help anytime to see this message.`
         }
 
         case 'ADD_TASK': {
-          const { text, target, scheduleToday, note, addToProject } = command.payload
+          const { text, target, scheduleToday, note, tag, addToProject } = command.payload
           let targetNote = null
 
           // Auto-detect project page: if on a project page and using /task without explicit target
           // OR if :project flag is present
           if ((selectedNote?.note_type === 'project' && target === 'tasks') ||
               (addToProject && selectedNote?.note_type === 'project')) {
-            await addTask(text, null, { scheduleToday, note, projectId: selectedNote.id })
-            let statusMsg = ''
-            if (scheduleToday) statusMsg += ' (scheduled for today, status: PLANNED)'
-            if (note) statusMsg += ' (note added)'
-            return `✓ Task added to project "${selectedNote.title}"${statusMsg}`
+            await addTask(text, null, { scheduleToday, note, tag, projectId: selectedNote.id })
+
+            // Build natural response message
+            let message = `Task added to ${selectedNote.title}`
+            if (scheduleToday) message += ' for Today'
+            if (tag) message += ` with #${tag}`
+            return message
           }
 
           // Handle regular task list targets
@@ -1300,11 +1499,15 @@ Type /help anytime to see this message.`
           }
 
           if (targetNote) {
-            await addTask(text, targetNote, { scheduleToday, note })
-            let statusMsg = ''
-            if (scheduleToday) statusMsg += ' (scheduled for today, status: PLANNED)'
-            if (note) statusMsg += ' (note added)'
-            return `✓ Task added to ${target}${statusMsg}`
+            await addTask(text, targetNote, { scheduleToday, note, tag })
+
+            // Build natural response message
+            // Capitalize page name (today -> Today, tasks -> Tasks, week -> Week)
+            const pageName = target.charAt(0).toUpperCase() + target.slice(1)
+            let message = `Task added to ${pageName}`
+            if (scheduleToday) message += ' for Today'
+            if (tag) message += ` with #${tag}`
+            return message
           } else {
             return `✗ Target note "${target}" not found`
           }
@@ -1400,6 +1603,46 @@ Type /help anytime to see this message.`
             return `✓ Item added to Inbox: "${title}"${statusMsg}`
           } catch (error) {
             return `✗ Error adding to inbox: ${error.message}`
+          }
+        }
+
+        case 'DIAGRAM': {
+          const { name } = command.payload
+          try {
+            // Check if we're on a project page and link the diagram to it
+            const projectId = selectedNote?.note_type === 'project' ? selectedNote.id : null
+            const newDiagram = await createDiagramNote(name, projectId)
+            setCurrentDiagramNote(newDiagram)
+            setIsDiagramEditorOpen(true)
+
+            let message = `✓ Diagram "${name}" created`
+            if (projectId) {
+              message += ` and linked to ${selectedNote.title}`
+            }
+            message += '. Opening editor...'
+            return message
+          } catch (error) {
+            return `✗ Error creating diagram: ${error.message}`
+          }
+        }
+
+        case 'MINDMAP': {
+          const { name } = command.payload
+          try {
+            // Check if we're on a project page and link the mindmap to it
+            const projectId = selectedNote?.note_type === 'project' ? selectedNote.id : null
+            const newMindmap = await createMindmapNote(name, projectId)
+            setCurrentMindmapNote(newMindmap)
+            setIsMindmapEditorOpen(true)
+
+            let message = `✓ Mindmap "${name}" created`
+            if (projectId) {
+              message += ` and linked to ${selectedNote.title}`
+            }
+            message += '. Opening editor...'
+            return message
+          } catch (error) {
+            return `✗ Error creating mindmap: ${error.message}`
           }
         }
 
@@ -1563,25 +1806,54 @@ Type /help anytime to see this message.`
         }
 
         case 'LOG_ENTRY': {
-          const { text } = command.payload
+          const { text, tag } = command.payload
           try {
-            // Import activityLogService dynamically
+            // Import utilities
+            const { parseNaturalTime, formatLogTime } = await import('./utils/dateUtils')
             const { create } = await import('./services/activityLogService')
+
+            // Try to parse time/date from the log text
+            let logTimestamp = new Date()
+            let logText = text
+            const parsed = parseNaturalTime(text)
+
+            if (parsed && parsed.date && parsed.remainingText) {
+              // Time/date found - use parsed timestamp and remaining text
+              logTimestamp = parsed.date
+              logText = parsed.remainingText
+            }
+
+            // Prepare details object with tag information if provided
+            const details = {}
+            if (tag) {
+              // Create tags and store tag IDs
+              const tags = await createTagsFromPath(tag)
+              details.tags = tags.map(t => ({
+                id: t.id,
+                name: t.name,
+                full_path: t.full_path,
+                level: t.level
+              }))
+            }
 
             await create({
               action_type: 'log_entry',
               entity_type: 'log',
               entity_id: null,
               entity_ref_id: null,
-              entity_title: text,
-              details: {},
-              timestamp: new Date().toISOString()
+              entity_title: logText,
+              details,
+              timestamp: logTimestamp.toISOString()
             })
 
             // Trigger log page refresh
             setLogUpdateTrigger(prev => prev + 1)
 
-            return `✓ Logged: ${text}`
+            // Build confirmation message
+            const timeStr = formatLogTime(logTimestamp)
+            let message = `Logged "${logText}" for ${timeStr}`
+            if (tag) message += ` with #${tag}`
+            return message
           } catch (error) {
             return `✗ Error logging: ${error.message}`
           }
@@ -1732,6 +2004,153 @@ Type /help anytime to see this message.`
     setWorkspaceTask(null)
   }
 
+  /**
+   * Handle tag selection from sidebar
+   * Fetches all notes, tasks, and projects with the selected tag
+   * @param {Object} tag - The selected tag object
+   */
+  const handleTagSelect = async (tag) => {
+    try {
+      setSelectedTag(tag)
+      setSidebarOpen(false)
+
+      // Fetch notes with this tag (including descendants)
+      const noteIds = await getNotesForTag(tag.id, true)
+      const taggedNotes = notes.filter(n => noteIds.includes(n.id))
+      setFilteredNotes(taggedNotes)
+
+      // Fetch tasks with this tag (including descendants)
+      const taskIds = await getTasksForTag(tag.id, true)
+      const taggedTasks = allTasks.filter(t => taskIds.includes(t.id))
+      setFilteredTasks(taggedTasks)
+
+      // Filter projects (notes with note_type='project')
+      const taggedProjects = taggedNotes.filter(n => n.note_type === 'project')
+      setFilteredProjects(taggedProjects)
+
+    } catch (error) {
+      console.error('Error fetching tag data:', error)
+      setSelectedTag(null)
+      setFilteredNotes([])
+      setFilteredTasks([])
+      setFilteredProjects([])
+    }
+  }
+
+  /**
+   * Go back from tag filtered view
+   */
+  const handleBackFromTag = () => {
+    setSelectedTag(null)
+    setFilteredNotes([])
+    setFilteredTasks([])
+    setFilteredProjects([])
+  }
+
+  /**
+   * Save diagram data to database
+   * @param {Object} diagramData - Object with xml and svg properties
+   */
+  const handleDiagramSave = async (diagramData) => {
+    try {
+      if (!currentDiagramNote) {
+        throw new Error('No diagram note found')
+      }
+
+      // Decode SVG from base64 data URI if needed
+      let svgData = diagramData.svg
+      if (svgData && svgData.startsWith('data:image/svg+xml;base64,')) {
+        const base64Data = svgData.replace('data:image/svg+xml;base64,', '')
+        svgData = atob(base64Data)
+        console.log('📊 Decoded SVG from base64')
+      }
+
+      const { error } = await supabase
+        .from('notes')
+        .update({
+          diagram_xml: diagramData.xml,
+          diagram_svg: svgData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentDiagramNote.id)
+
+      if (error) throw error
+
+      // Fetch the updated note to get the latest data
+      const { data: updatedNoteData, error: fetchError } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('id', currentDiagramNote.id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      selectNote(updatedNoteData)
+      console.log('✅ Diagram saved successfully')
+    } catch (error) {
+      console.error('Error saving diagram:', error)
+      alert(`Error saving diagram: ${error.message}`)
+    }
+  }
+
+  /**
+   * Open diagram editor for an existing diagram note
+   * @param {Object} diagramNote - The diagram note to edit
+   */
+  const handleEditDiagram = (diagramNote) => {
+    setCurrentDiagramNote(diagramNote)
+    setIsDiagramEditorOpen(true)
+  }
+
+  /**
+   * Save mindmap data to database
+   * @param {Object} mindmapData - Object with mindmap_markdown and mindmap_svg properties
+   */
+  const handleMindmapSave = async (mindmapData) => {
+    try {
+      if (!currentMindmapNote) {
+        throw new Error('No mindmap note found')
+      }
+
+      const { error } = await supabase
+        .from('notes')
+        .update({
+          mindmap_markdown: mindmapData.mindmap_markdown,
+          mindmap_svg: mindmapData.mindmap_svg,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentMindmapNote.id)
+
+      if (error) throw error
+
+      // Fetch the updated note to get the latest data
+      const { data: updatedNoteData, error: fetchError } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('id', currentMindmapNote.id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      selectNote(updatedNoteData)
+      setIsMindmapEditorOpen(false)
+      setCurrentMindmapNote(null)
+      console.log('✅ Mindmap saved successfully')
+    } catch (error) {
+      console.error('Error saving mindmap:', error)
+      alert(`Error saving mindmap: ${error.message}`)
+    }
+  }
+
+  /**
+   * Open mindmap editor for an existing mindmap note
+   * @param {Object} mindmapNote - The mindmap note to edit
+   */
+  const handleEditMindmap = (mindmapNote) => {
+    setCurrentMindmapNote(mindmapNote)
+    setIsMindmapEditorOpen(true)
+  }
+
   if (notesLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-bg-primary">
@@ -1775,95 +2194,6 @@ Type /help anytime to see this message.`
         {/* Theme toggle removed - use Settings > Theme tab instead */}
       </div>
 
-      {/* Vertical Navigation Sidebar */}
-      <div className="fixed left-6 top-[20%] z-40 flex flex-col gap-2 group py-4 px-2 -ml-2">
-        <button
-          onClick={(e) => {
-            const inbox = notes.find(n => n.note_type === 'inbox_list' && n.title === 'Inbox')
-            if (e.shiftKey && inbox) {
-              setSecondaryNote(inbox)
-            } else {
-              goToInboxWrapper()
-            }
-          }}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Inbox (Shift+click for side-by-side)"
-        >
-          <Inbox size={20} className="text-fg-secondary" />
-        </button>
-
-        <button
-          onClick={(e) => {
-            const tasks = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
-            if (e.shiftKey && tasks) {
-              setSecondaryNote(tasks)
-            } else {
-              goToTasksWrapper()
-            }
-          }}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Tasks (Shift+click for side-by-side)"
-        >
-          <ListTodo size={20} className="text-fg-secondary" />
-        </button>
-
-        <button
-          onClick={(e) => {
-            const projects = notes.find(n => n.note_type === 'project_list' && n.title === 'Projects')
-            if (e.shiftKey && projects) {
-              setSecondaryNote(projects)
-            } else {
-              goToProjectsWrapper()
-            }
-          }}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Projects (Shift+click for side-by-side)"
-        >
-          <FolderKanban size={20} className="text-fg-secondary" />
-        </button>
-
-        <button
-          onClick={(e) => {
-            const home = notes.find(n => n.is_home === true)
-            if (e.shiftKey && home) {
-              setSecondaryNote(home)
-            } else {
-              goToHomeWrapper()
-            }
-          }}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Home (Shift+click for side-by-side)"
-        >
-          <Home size={20} className="text-fg-secondary" />
-        </button>
-
-        <button
-          onClick={(e) => {
-            const log = notes.find(n => n.note_type === 'log_list' && n.title === 'Log')
-            if (e.shiftKey && log) {
-              setSecondaryNote(log)
-            } else {
-              goToLogWrapper()
-            }
-          }}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Log (Shift+click for side-by-side)"
-        >
-          <ScrollText size={20} className="text-fg-secondary" />
-        </button>
-
-        {/* Spacer to push settings to bottom */}
-        <div className="flex-1"></div>
-
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-3 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-all opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-          title="Settings"
-        >
-          <Settings size={20} className="text-fg-secondary" />
-        </button>
-      </div>
-
       {/* Sidebar */}
       <div
         className={`sidebar-container fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${
@@ -1887,6 +2217,7 @@ Type /help anytime to see this message.`
           onCreateNote={createNoteFromContext}
           onGoHome={goToHome}
           onToggleStar={toggleNoteStarFromContext}
+          onSelectTag={handleTagSelect}
         />
       </div>
 
@@ -1900,8 +2231,31 @@ Type /help anytime to see this message.`
 
       {/* Main content area - takes remaining space above terminal */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Workspace View (Full Screen) */}
-        {isInWorkspace && workspaceTask ? (
+        {/* Tag Filtered View */}
+        {selectedTag ? (
+          <div className="w-full h-full">
+            <TagFilteredView
+              selectedTag={selectedTag}
+              filteredNotes={filteredNotes}
+              filteredTasks={filteredTasks}
+              filteredProjects={filteredProjects}
+              onBack={handleBackFromTag}
+              onSelectNote={(note) => {
+                selectNote(note)
+                setSelectedTag(null)
+              }}
+              onSelectTask={selectTask}
+              onUpdateTask={updateTask}
+              onScheduleTask={scheduleTask}
+              onDeleteTask={deleteTask}
+              onToggleComplete={toggleComplete}
+              onToggleStar={toggleTaskStar}
+              allNotes={notes}
+              selectedTask={selectedTask}
+            />
+          </div>
+        ) : isInWorkspace && workspaceTask ? (
+          /* Workspace View (Full Screen) */
           <div className="w-full h-full">
             <WorkspaceView
               task={workspaceTask}
@@ -1909,6 +2263,7 @@ Type /help anytime to see this message.`
               onExit={exitWorkspace}
               onSaveTask={saveTask}
               allNotes={notes}
+              onCommand={handleCommand}
             />
           </div>
         ) : (
@@ -1972,6 +2327,8 @@ Type /help anytime to see this message.`
                 }
               }}
               logUpdateTrigger={logUpdateTrigger}
+              onEditDiagram={handleEditDiagram}
+              onEditMindmap={handleEditMindmap}
             />
           </div>
 
@@ -2086,6 +2443,8 @@ Type /help anytime to see this message.`
                 onTaskTypeFilterChange={setTaskTypeFilter}
                 onTagFilterChange={setTagFilter}
                 logUpdateTrigger={logUpdateTrigger}
+                onEditDiagram={handleEditDiagram}
+                onEditMindmap={handleEditMindmap}
               />
             </div>
           )}
@@ -2128,7 +2487,20 @@ Type /help anytime to see this message.`
       </div>
 
       {/* Terminal - fixed at bottom (hidden in workspace mode) */}
-      {!isInWorkspace && <Terminal ref={terminalRef} onCommand={handleCommand} />}
+      {!isInWorkspace && (
+        <Terminal
+          ref={terminalRef}
+          onCommand={handleCommand}
+          navigationActions={{
+            goToInbox: goToInboxWrapper,
+            goToTasks: goToTasksWrapper,
+            goToProjects: goToProjectsWrapper,
+            goToHome: goToHomeWrapper,
+            goToLog: goToLogWrapper,
+            openSettings: () => setIsSettingsOpen(true)
+          }}
+        />
+      )}
 
       {/* Timer - overlay when active (always mounted, just hidden when minimized) */}
       {timerConfig && (
@@ -2220,6 +2592,30 @@ Type /help anytime to see this message.`
         isOpen={isKeyboardHelpOpen}
         onClose={() => setIsKeyboardHelpOpen(false)}
       />
+
+      {/* Diagram Editor */}
+      <DiagramEditor
+        isOpen={isDiagramEditorOpen}
+        onClose={() => {
+          setIsDiagramEditorOpen(false)
+          setCurrentDiagramNote(null)
+        }}
+        initialXml={currentDiagramNote?.diagram_xml || null}
+        onSave={handleDiagramSave}
+        diagramTitle={currentDiagramNote?.title || ''}
+      />
+
+      {/* Mindmap Editor */}
+      {isMindmapEditorOpen && currentMindmapNote && (
+        <MindmapEditor
+          note={currentMindmapNote}
+          onSave={handleMindmapSave}
+          onClose={() => {
+            setIsMindmapEditorOpen(false)
+            setCurrentMindmapNote(null)
+          }}
+        />
+      )}
     </div>
   )
 }

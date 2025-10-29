@@ -93,6 +93,75 @@ export async function fetchAllTags() {
 }
 
 /**
+ * Get all tags that are actually in use (from tasks, notes, and log entries)
+ * Returns tags that have at least one association
+ *
+ * @returns {Promise<Array>} - Array of tags in use
+ */
+export async function fetchUsedTags() {
+  try {
+    // Get unique tag IDs from task_tags
+    const { data: taskTagIds, error: taskError } = await supabase
+      .from('task_tags')
+      .select('tag_id')
+
+    if (taskError) throw taskError
+
+    // Get unique tag IDs from note_tags
+    const { data: noteTagIds, error: noteError } = await supabase
+      .from('note_tags')
+      .select('tag_id')
+
+    if (noteError) throw noteError
+
+    // Get unique tag IDs from activity_log entries
+    const { data: logEntries, error: logError } = await supabase
+      .from('activity_log')
+      .select('details')
+      .not('details->tags', 'is', null)
+
+    if (logError) throw logError
+
+    // Extract tag IDs from all sources
+    const usedTagIds = new Set()
+
+    // Add task tag IDs
+    taskTagIds?.forEach(item => usedTagIds.add(item.tag_id))
+
+    // Add note tag IDs
+    noteTagIds?.forEach(item => usedTagIds.add(item.tag_id))
+
+    // Add log entry tag IDs
+    logEntries?.forEach(entry => {
+      if (entry.details?.tags && Array.isArray(entry.details.tags)) {
+        entry.details.tags.forEach(tag => {
+          if (tag.id) usedTagIds.add(tag.id)
+        })
+      }
+    })
+
+    // If no tags are used, return empty array
+    if (usedTagIds.size === 0) {
+      return []
+    }
+
+    // Fetch full tag details for used tags
+    const { data: tags, error: tagsError } = await supabase
+      .from('tags')
+      .select('*')
+      .in('id', Array.from(usedTagIds))
+      .order('full_path', { ascending: true })
+
+    if (tagsError) throw tagsError
+
+    return tags || []
+  } catch (error) {
+    console.error('Error fetching used tags:', error)
+    throw error
+  }
+}
+
+/**
  * Search tags by partial path or name
  *
  * @param {string} query - Search query
@@ -439,6 +508,62 @@ export async function getNoteTags(noteId) {
     return tags.sort((a, b) => a.level - b.level)
   } catch (error) {
     console.error('Error fetching note tags:', error)
+    throw error
+  }
+}
+
+/**
+ * Get all notes for a tag (and optionally its descendants)
+ *
+ * @param {string} tagId - Tag UUID
+ * @param {boolean} includeDescendants - Include notes tagged with descendant tags
+ * @returns {Promise<Array>} - Array of note IDs
+ */
+export async function getNotesForTag(tagId, includeDescendants = false) {
+  try {
+    if (!includeDescendants) {
+      // Simple query for just this tag
+      const { data, error } = await supabase
+        .from('note_tags')
+        .select('note_id')
+        .eq('tag_id', tagId)
+
+      if (error) throw error
+      return (data || []).map(item => item.note_id)
+    } else {
+      // Get the tag's full path
+      const { data: tag, error: tagError } = await supabase
+        .from('tags')
+        .select('full_path')
+        .eq('id', tagId)
+        .single()
+
+      if (tagError) throw tagError
+
+      // Get all descendant tags
+      const { data: descendantTags, error: descError } = await supabase
+        .from('tags')
+        .select('id')
+        .like('full_path', `${tag.full_path}%`)
+
+      if (descError) throw descError
+
+      const tagIds = descendantTags.map(t => t.id)
+
+      // Get all notes with these tags
+      const { data, error } = await supabase
+        .from('note_tags')
+        .select('note_id')
+        .in('tag_id', tagIds)
+
+      if (error) throw error
+
+      // Deduplicate note IDs
+      const uniqueNoteIds = [...new Set((data || []).map(item => item.note_id))]
+      return uniqueNoteIds
+    }
+  } catch (error) {
+    console.error('Error fetching notes for tag:', error)
     throw error
   }
 }

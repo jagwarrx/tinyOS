@@ -73,11 +73,13 @@ CREATE TABLE IF NOT EXISTS public.notes (
   project_start_date text,
   project_due_date text,
   project_context text,
+  project_id uuid,
   CONSTRAINT notes_pkey PRIMARY KEY (id),
   CONSTRAINT notes_up_id_fkey FOREIGN KEY (up_id) REFERENCES public.notes(id) ON DELETE SET NULL,
   CONSTRAINT notes_down_id_fkey FOREIGN KEY (down_id) REFERENCES public.notes(id) ON DELETE SET NULL,
   CONSTRAINT notes_left_id_fkey FOREIGN KEY (left_id) REFERENCES public.notes(id) ON DELETE SET NULL,
-  CONSTRAINT notes_right_id_fkey FOREIGN KEY (right_id) REFERENCES public.notes(id) ON DELETE SET NULL
+  CONSTRAINT notes_right_id_fkey FOREIGN KEY (right_id) REFERENCES public.notes(id) ON DELETE SET NULL,
+  CONSTRAINT notes_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.notes(id) ON DELETE SET NULL
 );
 
 -- Create indexes for notes
@@ -85,6 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_notes_ref_id ON public.notes(ref_id);
 CREATE INDEX IF NOT EXISTS idx_notes_is_home ON public.notes(is_home);
 CREATE INDEX IF NOT EXISTS idx_notes_note_type ON public.notes(note_type);
 CREATE INDEX IF NOT EXISTS idx_notes_is_starred ON public.notes(is_starred);
+CREATE INDEX IF NOT EXISTS idx_notes_project_id ON public.notes(project_id);
 
 -- Tasks table: Stores all tasks with status, priority, and metadata
 CREATE TABLE IF NOT EXISTS public.tasks (

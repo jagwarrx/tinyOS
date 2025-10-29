@@ -6,8 +6,9 @@ import InboxList from './InboxList'
 import LogPage from './LogPage'
 import CollapsibleFilterBar from './CollapsibleFilterBar'
 import KanbanBoard from './KanbanBoard'
-import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText, LayoutList, LayoutGrid } from 'lucide-react'
+import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText, LayoutList, LayoutGrid, Pencil, FileText, Map, Network } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
+import { NotesService } from '../services/notesService'
 
 export default function NoteEditor({
   note,
@@ -46,7 +47,9 @@ export default function NoteEditor({
   onTagFilterChange,
   todaysReminders,
   onToggleReminderComplete,
-  logUpdateTrigger
+  logUpdateTrigger,
+  onEditDiagram,
+  onEditMindmap
 }) {
   const [title, setTitle] = useState('')
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -60,6 +63,8 @@ export default function NoteEditor({
   const [showSavedBadge, setShowSavedBadge] = useState(false)
   const [projectTasks, setProjectTasks] = useState([]) // Tasks for the current project
   const [projectViewMode, setProjectViewMode] = useState('list') // 'list' or 'kanban'
+  const [projectTab, setProjectTab] = useState('tasks') // 'tasks', 'notes', 'assets'
+  const [projectAssets, setProjectAssets] = useState([]) // Assets (mindmaps, diagrams, docs) linked to project
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
@@ -77,6 +82,25 @@ export default function NoteEditor({
       setProjectTasks([])
     }
   }, [note, allTasks])
+
+  // Fetch project assets (mindmaps, diagrams, docs) when viewing a project note
+  useEffect(() => {
+    const fetchProjectAssets = async () => {
+      if (note && note.note_type === 'project') {
+        try {
+          const assets = await NotesService.fetchByProjectId(note.id)
+          setProjectAssets(assets)
+        } catch (error) {
+          console.error('Failed to fetch project assets:', error)
+          setProjectAssets([])
+        }
+      } else {
+        setProjectAssets([])
+      }
+    }
+
+    fetchProjectAssets()
+  }, [note])
 
   // Detect navigation direction and trigger animation
   useEffect(() => {
@@ -709,32 +733,97 @@ export default function NoteEditor({
               />
             </div>
           ) : note.note_type === 'project' ? (
-            /* Project Note View - Editor + Tasks */
+            /* Project Note View - Tabbed Interface */
             <div className="flex-1 overflow-hidden flex flex-col">
-              {/* Editor Section - Project Notes - Collapsible */}
-              <div
-                className={`overflow-y-auto border-b border-border-primary ${
-                  projectViewMode === 'kanban' ? 'flex-none h-24 p-4' : 'flex-1 p-6'
-                }`}
-              >
-                {projectViewMode === 'kanban' ? (
-                  <div className="text-sm text-fg-tertiary italic text-center">
-                    Editor minimized in Kanban view
-                  </div>
-                ) : (
-                  <Editor
-                    ref={editorRef}
-                    initialContent={note.content}
-                    onContentChange={triggerAutoSave}
-                    onRefIdNavigate={onRefIdNavigate}
-                  />
-                )}
+              {/* Tab Navigation */}
+              <div className="flex items-center gap-1 px-4 py-2 border-b border-border-primary bg-bg-secondary">
+                <button
+                  onClick={() => setProjectTab('tasks')}
+                  className={`px-4 py-2 rounded-t text-sm font-medium transition-colors flex items-center gap-2 ${
+                    projectTab === 'tasks'
+                      ? 'bg-bg-primary text-fg-primary border-b-2 border-accent-primary'
+                      : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-tertiary'
+                  }`}
+                >
+                  <ListTodo size={16} />
+                  Tasks ({projectTasks.length})
+                </button>
+                <button
+                  onClick={() => setProjectTab('assets')}
+                  className={`px-4 py-2 rounded-t text-sm font-medium transition-colors flex items-center gap-2 ${
+                    projectTab === 'assets'
+                      ? 'bg-bg-primary text-fg-primary border-b-2 border-accent-primary'
+                      : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-tertiary'
+                  }`}
+                >
+                  <Network size={16} />
+                  Assets ({projectAssets.length})
+                </button>
               </div>
 
-              {/* Tasks Section - Project Tasks */}
-              <div className={`flex-none overflow-hidden ${
-                projectViewMode === 'kanban' ? 'flex-1' : 'h-80 bg-bg-secondary'
-              }`}>
+              {/* Tab Content */}
+              {projectTab === 'assets' ? (
+                /* Assets Tab - Linked Notes/Mindmaps/Diagrams */
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-6">
+                    {projectAssets.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projectAssets.map((asset) => {
+                          const getAssetIcon = () => {
+                            if (asset.note_type === 'mindmap') return <Map size={20} className="text-blue-500" />
+                            if (asset.note_type === 'diagram') return <Network size={20} className="text-purple-500" />
+                            return <FileText size={20} className="text-fg-secondary" />
+                          }
+
+                          const getAssetBadge = () => {
+                            if (asset.note_type === 'mindmap') return 'Mindmap'
+                            if (asset.note_type === 'diagram') return 'Diagram'
+                            return 'Note'
+                          }
+
+                          return (
+                            <div
+                              key={asset.id}
+                              onClick={() => onNavigate(asset.id)}
+                              className="bg-bg-primary border border-border-primary rounded-lg p-4 hover:shadow-md hover:border-border-focus transition-all cursor-pointer group"
+                            >
+                              <div className="flex items-start gap-3 mb-2">
+                                {getAssetIcon()}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-semibold text-fg-primary truncate group-hover:text-accent-primary transition-colors">
+                                    {asset.title || 'Untitled'}
+                                  </h4>
+                                  <span className="inline-block px-2 py-0.5 mt-1 rounded text-xs bg-bg-tertiary text-fg-secondary">
+                                    {getAssetBadge()}
+                                  </span>
+                                </div>
+                              </div>
+                              {asset.ref_id && (
+                                <div className="text-xs text-fg-tertiary font-mono mt-2">
+                                  {asset.ref_id}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-fg-tertiary">
+                        <Network size={48} className="opacity-40 mb-4" />
+                        <p className="text-sm mb-2">No assets linked to this project yet</p>
+                        <p className="text-xs">Create mindmaps, diagrams, or documents linked to this project</p>
+                        <p className="text-xs mt-2 font-mono text-accent-primary">
+                          Use /mindmap in terminal while viewing this project
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Tasks Tab */
+                <div className={`flex-none overflow-hidden ${
+                  projectViewMode === 'kanban' ? 'flex-1' : 'flex-1 bg-bg-secondary'
+                }`}>
                 {/* Header with view toggle */}
                 <div className="px-6 py-3 flex items-center justify-between border-b border-border-primary" style={
                   projectViewMode === 'kanban' ? { background: 'var(--color-bg-primary)' } : {}
@@ -820,7 +909,8 @@ export default function NoteEditor({
                     </div>
                   )}
                 </div>
-              </div>
+                </div>
+              )}
             </div>
           ) : note.note_type === 'task_list' ? (
             <>
@@ -1028,6 +1118,132 @@ export default function NoteEditor({
                 )}
               </div>
             </>
+          ) : note.note_type === 'diagram' ? (
+            /* Diagram View */
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6">
+                {/* Diagram Preview */}
+                {note.diagram_svg ? (
+                  <div className="mb-6 border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-auto bg-white p-8 flex items-center justify-center min-h-[400px] relative group">
+                    {/* Edit Icon - Top Right Corner */}
+                    <button
+                      onClick={() => {
+                        if (onEditDiagram) {
+                          onEditDiagram(note)
+                        }
+                      }}
+                      className="absolute top-3 right-3 p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                      title="Edit Diagram"
+                    >
+                      <Pencil size={18} />
+                    </button>
+
+                    <div
+                      className="diagram-preview"
+                      dangerouslySetInnerHTML={{ __html: note.diagram_svg }}
+                      style={{
+                        maxWidth: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-6 border-2 border-dashed border-border-primary rounded-lg p-12 text-center">
+                    <p className="text-fg-secondary">No diagram yet. Click "Edit Diagram" to create one.</p>
+
+                    {/* Edit Diagram Button - Only show when no diagram */}
+                    <button
+                      onClick={() => {
+                        if (onEditDiagram) {
+                          onEditDiagram(note)
+                        }
+                      }}
+                      className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                    >
+                      Create Diagram
+                    </button>
+                  </div>
+                )}
+
+                {/* Notes Section */}
+                <div className="mt-6 border-t border-border-primary pt-6">
+                  <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                    Notes
+                  </h3>
+                  <Editor
+                    ref={editorRef}
+                    initialContent={note.content}
+                    onContentChange={triggerAutoSave}
+                    onRefIdNavigate={onRefIdNavigate}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : note.note_type === 'mindmap' ? (
+            /* Mindmap View */
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6">
+                {/* Mindmap Preview */}
+                {note.mindmap_svg ? (
+                  <div className="mb-6 border-2 border-blue-300 dark:border-blue-700 rounded-lg overflow-auto bg-white p-8 flex items-center justify-center min-h-[400px] relative group">
+                    {/* Edit Icon - Top Right Corner */}
+                    <button
+                      onClick={() => {
+                        if (onEditMindmap) {
+                          onEditMindmap(note)
+                        }
+                      }}
+                      className="absolute top-3 right-3 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                      title="Edit Mindmap"
+                    >
+                      <Pencil size={18} />
+                    </button>
+
+                    <div
+                      className="mindmap-preview"
+                      dangerouslySetInnerHTML={{ __html: note.mindmap_svg }}
+                      style={{
+                        maxWidth: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="mb-6 border-2 border-dashed border-border-primary rounded-lg p-12 text-center">
+                    <p className="text-fg-secondary">No mindmap yet. Click "Edit Mindmap" to create one.</p>
+
+                    {/* Edit Mindmap Button - Only show when no mindmap */}
+                    <button
+                      onClick={() => {
+                        if (onEditMindmap) {
+                          onEditMindmap(note)
+                        }
+                      }}
+                      className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Create Mindmap
+                    </button>
+                  </div>
+                )}
+
+                {/* Notes Section */}
+                <div className="mt-6 border-t border-border-primary pt-6">
+                  <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                    Notes
+                  </h3>
+                  <Editor
+                    ref={editorRef}
+                    initialContent={note.content}
+                    onContentChange={triggerAutoSave}
+                    onRefIdNavigate={onRefIdNavigate}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="editor-container flex-1 p-6 overflow-y-auto">
               <Editor

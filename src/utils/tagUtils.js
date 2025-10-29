@@ -179,3 +179,42 @@ export function sortTagsByHierarchy(tags) {
     return a.full_path.localeCompare(b.full_path)
   })
 }
+
+/**
+ * Build a hierarchical tree structure from flat tags
+ * Converts flat array of tags into nested tree for rendering
+ *
+ * @param {Array<{id: string, name: string, full_path: string, level: number}>} tags - Flat array of tags
+ * @returns {Array<{tag: object, children: Array}>} - Tree structure
+ */
+export function buildTagHierarchy(tags) {
+  if (!tags || tags.length === 0) return []
+
+  // Create a map for quick lookup
+  const tagMap = new Map()
+  const roots = []
+
+  // Sort tags by hierarchy first
+  const sortedTags = sortTagsByHierarchy(tags)
+
+  // Build the tree
+  sortedTags.forEach(tag => {
+    const node = {
+      tag,
+      children: []
+    }
+    tagMap.set(tag.full_path, node)
+
+    // Find parent
+    const parentPath = getParentPath(tag.full_path)
+    if (parentPath && tagMap.has(parentPath)) {
+      // Add to parent's children
+      tagMap.get(parentPath).children.push(node)
+    } else {
+      // This is a root node
+      roots.push(node)
+    }
+  })
+
+  return roots
+}

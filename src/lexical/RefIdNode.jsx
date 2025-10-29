@@ -14,6 +14,9 @@ export class RefIdNode extends DecoratorNode {
   __itemType
   __title
   __onClick
+  __noteType
+  __diagramSvg
+  __mindmapSvg
 
   static getType() {
     console.log('🔧 RefIdNode.getType() called, returning: "refid"')
@@ -27,17 +30,23 @@ export class RefIdNode extends DecoratorNode {
       node.__itemType,
       node.__title,
       node.__onClick,
-      node.__key
+      node.__key,
+      node.__noteType,
+      node.__diagramSvg,
+      node.__mindmapSvg
     )
   }
 
-  constructor(refId, itemType, title, onClick, key) {
+  constructor(refId, itemType, title, onClick, key, noteType = null, diagramSvg = null, mindmapSvg = null) {
     super(key)
-    console.log('🔧 RefIdNode constructor - itemType param:', itemType, 'refId:', refId)
+    console.log('🔧 RefIdNode constructor - itemType param:', itemType, 'refId:', refId, 'noteType:', noteType)
     this.__refId = refId
     this.__itemType = itemType // 'note' or 'task'
     this.__title = title
     this.__onClick = onClick
+    this.__noteType = noteType // e.g., 'diagram', 'mindmap', 'project', etc.
+    this.__diagramSvg = diagramSvg // SVG data for diagram preview
+    this.__mindmapSvg = mindmapSvg // SVG data for mindmap preview
   }
 
   createDOM() {
@@ -58,6 +67,9 @@ export class RefIdNode extends DecoratorNode {
           refId={this.__refId}
           type={this.__itemType}
           title={this.__title}
+          noteType={this.__noteType}
+          diagramSvg={this.__diagramSvg}
+          mindmapSvg={this.__mindmapSvg}
         />
       </Suspense>
     )
@@ -68,7 +80,11 @@ export class RefIdNode extends DecoratorNode {
     const node = $createRefIdNode(
       serializedNode.refId,
       serializedNode.itemType,
-      serializedNode.title
+      serializedNode.title,
+      null,
+      serializedNode.noteType,
+      serializedNode.diagramSvg,
+      serializedNode.mindmapSvg
     )
     return node
   }
@@ -80,6 +96,9 @@ export class RefIdNode extends DecoratorNode {
       refId: this.__refId,
       itemType: this.__itemType,
       title: this.__title,
+      noteType: this.__noteType,
+      diagramSvg: this.__diagramSvg,
+      mindmapSvg: this.__mindmapSvg,
       version: 1
     }
     console.log('🔧 RefIdNode.exportJSON() called - returning:', json)
@@ -103,7 +122,7 @@ export class RefIdNode extends DecoratorNode {
 /**
  * React component that renders the badge
  */
-function RefIdBadgeComponent({ refId, type, title }) {
+function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmapSvg }) {
   // Get the navigation handler from context
   const onNavigate = useContext(RefIdNavigationContext)
 
@@ -116,6 +135,59 @@ function RefIdBadgeComponent({ refId, type, title }) {
     }
   }
 
+  // Special rendering for diagram notes
+  if (noteType === 'diagram' && diagramSvg) {
+    return (
+      <span
+        onClick={handleClick}
+        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 dark:border-purple-700 rounded-lg overflow-hidden bg-white"
+        title={`Click to open diagram: ${title}\nShift+Click to open side-by-side`}
+        contentEditable={false}
+        suppressContentEditableWarning={true}
+      >
+        {/* Diagram Preview */}
+        <div className="p-4 max-w-md flex flex-col items-center justify-center">
+          <div
+            className="diagram-preview flex items-center justify-center"
+            dangerouslySetInnerHTML={{ __html: diagramSvg }}
+            style={{ maxHeight: '300px', maxWidth: '100%', overflow: 'auto' }}
+          />
+          {/* Caption */}
+          <div className="mt-3 text-xs text-center font-mono text-purple-700">
+            <span className="font-bold">DIAGRAM</span> | {title} | {refId}
+          </div>
+        </div>
+      </span>
+    )
+  }
+
+  // Special rendering for mindmap notes
+  if (noteType === 'mindmap' && mindmapSvg) {
+    return (
+      <span
+        onClick={handleClick}
+        className="inline-block mx-1 my-2 cursor-pointer hover:shadow-lg transition-all border-2 border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden bg-white"
+        title={`Click to open mindmap: ${title}\nShift+Click to open side-by-side`}
+        contentEditable={false}
+        suppressContentEditableWarning={true}
+      >
+        {/* Mindmap Preview */}
+        <div className="p-4 max-w-md flex flex-col items-center justify-center">
+          <div
+            className="mindmap-preview flex items-center justify-center"
+            dangerouslySetInnerHTML={{ __html: mindmapSvg }}
+            style={{ maxHeight: '300px', maxWidth: '100%', overflow: 'auto' }}
+          />
+          {/* Caption */}
+          <div className="mt-3 text-xs text-center font-mono text-blue-700">
+            <span className="font-bold">MINDMAP</span> | {title} | {refId}
+          </div>
+        </div>
+      </span>
+    )
+  }
+
+  // Default rendering for notes and tasks
   const bgColor = type === 'task'
     ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
     : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
@@ -160,9 +232,9 @@ function RefIdBadgeComponent({ refId, type, title }) {
 /**
  * Helper function to create a RefIdNode
  */
-export function $createRefIdNode(refId, type, title, onClick) {
-  console.log('🔧 $createRefIdNode() called - refId:', refId, 'type:', type, 'title:', title)
-  return new RefIdNode(refId, type, title, onClick)
+export function $createRefIdNode(refId, type, title, onClick, noteType = null, diagramSvg = null, mindmapSvg = null) {
+  console.log('🔧 $createRefIdNode() called - refId:', refId, 'type:', type, 'title:', title, 'noteType:', noteType)
+  return new RefIdNode(refId, type, title, onClick, null, noteType, diagramSvg, mindmapSvg)
 }
 
 /**
