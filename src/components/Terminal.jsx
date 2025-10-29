@@ -46,6 +46,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
   // Refs for input focus and output scrolling
   const inputRef = useRef(null)
   const outputRef = useRef(null)
+  const overlayRef = useRef(null)
 
   // Expose focus and setInput methods to parent component
   useImperativeHandle(ref, () => ({
@@ -162,9 +163,20 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
   const highlightSyntax = (text) => {
     if (!text) return null
 
+    // Theme-aware colors using CSS variables
+    const colors = {
+      primary: 'var(--color-fg-primary)',      // Default text
+      secondary: 'var(--color-fg-secondary)',  // Quoted content
+      tertiary: 'var(--color-fg-tertiary)',    // Darker gray
+      blue: 'var(--color-syntax-blue)',        // Blue (commands)
+      green: 'var(--color-syntax-green)',      // Green (entity types)
+      purple: 'var(--color-syntax-purple)',    // Purple (targets)
+      accent: 'var(--color-syntax-orange)'     // Orange (partial matches)
+    }
+
     // Special case: /help command - highlight entirely in blue
     if (text.match(/^\/?help$/i)) {
-      return <span className="text-syntax-blue">{text}</span>
+      return <span style={{ color: colors.blue }}>{text}</span>
     }
 
     const parts = []
@@ -172,7 +184,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
 
     // Split by spaces while preserving them for proper reconstruction
     const tokens = text.split(/(\s+)/)
-    
+
     // Track which word we're on (0=command, 1=task, 2=content, 3=to, 4=target)
     let wordIndex = 0
     
@@ -181,7 +193,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       
       // Spaces don't count as words, just render them as-is
       if (token.match(/^\s+$/)) {
-        parts.push(<span key={position++} className="text-fg-primary">{token}</span>)
+        parts.push(<span key={position++} style={{ color: colors.primary }}>{token}</span>)
         continue
       }
 
@@ -189,38 +201,38 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       const isLastToken = i === tokens.length - 1
 
       // Determine color based on word position in command structure
-      let colorClass = 'text-fg-primary'
+      let colorStyle = { color: colors.primary }
 
       if (wordIndex === 0) {
         // First word: command verbs (add, complete, star, goto)
         if (token.match(/^(add|complete|star|goto)$/i) && (!isLastToken || token.length >= 3)) {
-          colorClass = 'text-syntax-blue'
+          colorStyle = { color: colors.blue }
         }
       } else if (wordIndex === 1) {
         // Second word: entity type (task)
         if (token.match(/^task$/i) && (!isLastToken || token.length === 4)) {
-          colorClass = 'text-syntax-green'
+          colorStyle = { color: colors.green }
         }
       } else if (wordIndex === 2) {
         // Third word: content in quotes (task description)
         if (token.startsWith('"')) {
-          colorClass = 'text-fg-secondary'
+          colorStyle = { color: colors.secondary }
         }
       } else if (wordIndex === 3) {
         // Fourth word: connector (to)
         if (token.match(/^to$/i) && (!isLastToken || token.length === 2)) {
-          colorClass = 'text-fg-primary'
+          colorStyle = { color: colors.primary }
         }
       } else if (wordIndex === 4) {
         // Fifth word: target destination (today, week, tasks)
         if (token.match(/^(today|week|tasks)$/i)) {
-          colorClass = 'text-syntax-purple'
+          colorStyle = { color: colors.purple }
         } else if (isLastToken) {
           // Partial match: show lighter purple while typing
           const partial = token.toLowerCase()
           if ('today'.startsWith(partial) || 'week'.startsWith(partial) || 'tasks'.startsWith(partial)) {
             if (partial.length >= 2) {
-              colorClass = 'text-accent-primary' // Theme accent for incomplete
+              colorStyle = { color: colors.accent }
             }
           }
         }
@@ -243,14 +255,14 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
           }
         }
 
-        parts.push(<span key={position++} className="text-fg-secondary">{quotedContent}</span>)
+        parts.push(<span key={position++} style={{ color: colors.secondary }}>{quotedContent}</span>)
         i = j // Skip ahead past the quoted content
         wordIndex++ // Count entire quoted string as one word
         continue
       }
 
       // Add the colored token
-      parts.push(<span key={position++} className={colorClass}>{token}</span>)
+      parts.push(<span key={position++} style={colorStyle}>{token}</span>)
       wordIndex++ // Move to next word position
     }
 
@@ -293,7 +305,7 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
       </div>
 
       {/* Content */}
-      <div ref={outputRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm">
+      <div ref={outputRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm text-fg-primary">
         {/* Output history */}
         {output.map((item, idx) => (
           <div key={idx} className={item.type === 'command' ? 'mb-1 text-fg-tertiary' : 'mb-3 text-fg-primary'}>
@@ -323,24 +335,35 @@ const Terminal = forwardRef(({ onCommand }, ref) => {
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <span className="text-syntax-green">→</span>
           <div className="flex-1 relative">
-            {/* Hidden input for actual typing */}
+            {/* Syntax highlighted overlay - ON TOP */}
+            <div
+              ref={overlayRef}
+              className="absolute inset-0 pointer-events-none whitespace-pre font-mono text-sm"
+              style={{
+                color: 'var(--color-fg-primary)',
+                zIndex: 10
+              }}
+            >
+              {input ? highlightSyntax(input) : (
+                <span style={{ color: 'var(--color-fg-tertiary)' }}>Type /help for commands</span>
+              )}
+            </div>
+            {/* Hidden input for actual typing - BELOW */}
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full bg-transparent outline-none text-fg-primary absolute inset-0"
-              style={{ color: 'transparent', caretColor: 'var(--color-fg-primary)' }}
-              placeholder="Type /help for commands"
+              className="w-full bg-transparent outline-none font-mono text-sm"
+              style={{
+                color: 'transparent',
+                caretColor: 'var(--color-fg-primary)',
+                zIndex: 1
+              }}
+              placeholder=""
               autoFocus
             />
-            {/* Syntax highlighted overlay */}
-            <div className="pointer-events-none whitespace-pre">
-              {input ? highlightSyntax(input) : (
-                <span className="text-fg-tertiary">Type /help for commands</span>
-              )}
-            </div>
           </div>
         </form>
       </div>

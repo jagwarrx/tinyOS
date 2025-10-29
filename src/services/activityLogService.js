@@ -135,11 +135,10 @@ export async function updateRecentLog(entityId, actionType, updates) {
     .eq('action_type', actionType)
     .order('timestamp', { ascending: false })
     .limit(1)
-    .select()
-    .single();
+    .select();
 
   if (error) throw error;
-  return data;
+  return data?.[0] || null;
 }
 
 /**
@@ -189,4 +188,57 @@ export async function deleteByEntity(entityId) {
     .eq('entity_id', entityId);
 
   if (error) throw error;
+}
+
+/**
+ * Update a specific log entry by ID
+ * @param {string} logId - UUID of the log entry
+ * @param {Object} updates - Fields to update
+ * @returns {Promise<Object>} Updated log entry
+ */
+export async function update(logId, updates) {
+  const { data, error } = await supabase
+    .from('activity_log')
+    .update(updates)
+    .eq('id', logId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Delete a specific log entry by ID
+ * @param {string} logId - UUID of the log entry
+ * @returns {Promise<void>}
+ */
+export async function deleteById(logId) {
+  const { error } = await supabase
+    .from('activity_log')
+    .delete()
+    .eq('id', logId);
+
+  if (error) throw error;
+}
+
+/**
+ * Fetch reminders for today
+ * @returns {Promise<Array>} Array of reminder log entries for today
+ */
+export async function fetchTodaysReminders() {
+  const today = new Date();
+  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+  const { data, error } = await supabase
+    .from('activity_log')
+    .select('*')
+    .eq('action_type', 'reminder')
+    .gte('timestamp', startOfDay.toISOString())
+    .lte('timestamp', endOfDay.toISOString())
+    .order('timestamp', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
 }

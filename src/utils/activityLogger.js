@@ -372,3 +372,47 @@ export async function logBulkTasksCompleted(taskCount, taskIds) {
     console.error('Error logging bulk task completion:', error);
   }
 }
+
+/**
+ * Log a reminder creation
+ * @param {string} text - Reminder text
+ * @param {Date} reminderTime - When the reminder should trigger
+ * @param {string} refId - Optional reference ID
+ */
+export async function logReminderCreated(text, reminderTime, refId = null) {
+  try {
+    const logEntry = await activityLogService.create({
+      action_type: 'reminder',
+      entity_type: 'reminder',
+      entity_id: null, // Reminders don't have separate entity IDs
+      entity_ref_id: refId,
+      entity_title: text,
+      timestamp: reminderTime.toISOString(), // Use reminder time as the timestamp
+      details: {
+        is_completed: false,
+        created_at: new Date().toISOString(), // Store when it was created
+      },
+    });
+    return logEntry;
+  } catch (error) {
+    console.error('Error logging reminder creation:', error);
+    throw error;
+  }
+}
+
+/**
+ * Mark a reminder as completed
+ * @param {string} logId - Activity log ID of the reminder
+ */
+export async function logReminderCompleted(logId) {
+  try {
+    await activityLogService.update(logId, {
+      details: {
+        is_completed: true,
+        completed_at: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error logging reminder completion:', error);
+  }
+}

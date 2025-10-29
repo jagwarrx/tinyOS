@@ -8,6 +8,8 @@ import { monokaiThemes } from './monokai'
 import { terminalThemes } from './terminal'
 import { originalThemes } from './original'
 import { claudeThemes } from './claude'
+import { thingsThemes } from './things'
+import { trelloThemes } from './trello'
 
 // Combine all themes
 export const allThemes = {
@@ -15,7 +17,9 @@ export const allThemes = {
   ...sonokaiThemes,
   ...monokaiThemes,
   ...terminalThemes,
-  ...claudeThemes
+  ...claudeThemes,
+  ...thingsThemes,
+  ...trelloThemes
 }
 
 // Theme collections for UI organization
@@ -74,6 +78,23 @@ export const themeCollections = [
     themes: [
       'claude-light',
       'claude-dark'
+    ]
+  },
+  {
+    id: 'things',
+    name: 'Things 3',
+    description: 'Clean, minimalist themes inspired by Things 3',
+    themes: [
+      'things-light',
+      'things-dark'
+    ]
+  },
+  {
+    id: 'trello',
+    name: 'Trello',
+    description: 'Vibrant board-style theme with gradient background',
+    themes: [
+      'trello-blue'
     ]
   }
 ]

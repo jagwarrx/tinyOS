@@ -108,6 +108,16 @@ export default function TaskList({
     }
   }
 
+  /**
+   * Check if task is scheduled for today
+   */
+  const isScheduledForToday = (task) => {
+    if (!task.scheduled_date) return false
+    const today = new Date()
+    const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    return task.scheduled_date === todayISO
+  }
+
   const handleStatusClick = (taskId) => {
     setOpenDropdown(openDropdown === taskId ? null : taskId)
   }
@@ -336,11 +346,11 @@ export default function TaskList({
                   onToggleStar(task.id)
                 }}
                 className="flex-shrink-0"
-                title={task.starred ? "Remove from Today" : "Add to Today"}
+                title={(task.starred || isScheduledForToday(task)) ? "Remove from Today" : "Add to Today"}
               >
                 <Star
                   size={14}
-                  className={task.starred ? "fill-syntax-yellow text-syntax-yellow" : "text-fg-tertiary"}
+                  className={(task.starred || isScheduledForToday(task)) ? "fill-syntax-yellow text-syntax-yellow" : "text-fg-tertiary"}
                 />
               </button>
 

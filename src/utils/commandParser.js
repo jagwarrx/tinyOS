@@ -130,6 +130,19 @@ export function parseCommand(input) {
     }
   }
 
+  // /remind <time> <text> - Create reminder
+  const remindPattern = /^\/remind\s+(.+)$/i
+  const remindMatch = trimmed.match(remindPattern)
+  if (remindMatch) {
+    // We'll parse the time and text in the handler
+    return {
+      type: 'REMINDER',
+      payload: {
+        input: remindMatch[1]
+      }
+    }
+  }
+
   // /log <text> - Log general entry
   const logPattern = /^\/log\s+(.+)$/i
   const logMatch = trimmed.match(logPattern)

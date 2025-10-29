@@ -10,8 +10,16 @@
 export function applyTheme(theme) {
   const root = document.documentElement;
 
+  // Handle gradient background for special themes
+  if (theme.gradient && theme.gradient.enabled) {
+    root.style.setProperty('--color-bg-primary', theme.gradient.value);
+    root.style.setProperty('--color-bg-gradient', theme.gradient.value);
+  } else {
+    root.style.setProperty('--color-bg-primary', theme.colors.bg.primary);
+    root.style.removeProperty('--color-bg-gradient');
+  }
+
   // Background colors
-  root.style.setProperty('--color-bg-primary', theme.colors.bg.primary);
   root.style.setProperty('--color-bg-secondary', theme.colors.bg.secondary);
   root.style.setProperty('--color-bg-tertiary', theme.colors.bg.tertiary);
   root.style.setProperty('--color-bg-elevated', theme.colors.bg.elevated);
@@ -55,6 +63,32 @@ export function applyTheme(theme) {
   root.style.setProperty('--color-syntax-blue', theme.colors.syntax.blue);
   root.style.setProperty('--color-syntax-purple', theme.colors.syntax.purple);
   root.style.setProperty('--color-syntax-grey', theme.colors.syntax.grey);
+
+  // Trello-specific colors (optional, for enhanced theming)
+  if (theme.colors.card) {
+    root.style.setProperty('--color-card-bg', theme.colors.card.background);
+    root.style.setProperty('--color-card-hover', theme.colors.card.hover);
+    root.style.setProperty('--color-card-text', theme.colors.card.text);
+    root.style.setProperty('--color-card-text-secondary', theme.colors.card.textSecondary);
+  }
+
+  if (theme.colors.list) {
+    root.style.setProperty('--color-list-bg', theme.colors.list.background);
+    root.style.setProperty('--color-list-hover', theme.colors.list.hover);
+  }
+
+  if (theme.colors.label) {
+    root.style.setProperty('--color-label-yellow', theme.colors.label.yellow);
+    root.style.setProperty('--color-label-orange', theme.colors.label.orange);
+    root.style.setProperty('--color-label-red', theme.colors.label.red);
+    root.style.setProperty('--color-label-purple', theme.colors.label.purple);
+    root.style.setProperty('--color-label-blue', theme.colors.label.blue);
+    root.style.setProperty('--color-label-green', theme.colors.label.green);
+    root.style.setProperty('--color-label-lime', theme.colors.label.lime);
+    root.style.setProperty('--color-label-pink', theme.colors.label.pink);
+    root.style.setProperty('--color-label-black', theme.colors.label.black);
+    root.style.setProperty('--color-label-sky', theme.colors.label.sky);
+  }
 
   // Set theme category attribute for CSS selectors
   root.setAttribute('data-theme-category', theme.category);

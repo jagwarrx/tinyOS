@@ -5,6 +5,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom placeholder color for inputs - Trello theme support */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-card-text-secondary, var(--color-fg-tertiary));
+  opacity: 0.7;
+}
+
 /* Global Developer/Terminal-style Typography */
 @layer base {
   body {
@@ -31,6 +38,8 @@
 
 /* Theme System CSS Variables */
 /* These are dynamically set by the theme system */
+
+/* Dark Theme (default) */
 :root {
   /* Background colors */
   --color-bg-primary: #2c2e34;
@@ -77,6 +86,55 @@
   --color-syntax-blue: #76cce0;
   --color-syntax-purple: #b39df3;
   --color-syntax-grey: #7f8490;
+}
+
+/* Light Theme - High contrast colors for visibility */
+:root:not(.dark) {
+  /* Background colors - light neutrals */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;
+  --color-bg-tertiary: #f1f5f9;
+  --color-bg-elevated: #ffffff;
+
+  /* Foreground/text colors - dark for contrast */
+  --color-fg-primary: #0f172a;
+  --color-fg-secondary: #475569;
+  --color-fg-tertiary: #64748b;
+  --color-fg-inverse: #ffffff;
+
+  /* Border colors */
+  --color-border-primary: #cbd5e1;
+  --color-border-secondary: #e2e8f0;
+  --color-border-focus: #8b5cf6;
+
+  /* Semantic colors - darker for visibility */
+  --color-semantic-error: #dc2626;
+  --color-semantic-warning: #d97706;
+  --color-semantic-success: #16a34a;
+  --color-semantic-info: #0284c7;
+
+  /* Accent colors */
+  --color-accent-primary: #8b5cf6;
+  --color-accent-secondary: #0284c7;
+  --color-accent-hover: #7c3aed;
+  --color-accent-active: #6d28d9;
+
+  /* Editor colors */
+  --color-editor-text: #0f172a;
+  --color-editor-bg: #ffffff;
+  --color-editor-bold: #d97706;
+  --color-editor-code: #0284c7;
+  --color-editor-highlight: #fef08a;
+  --color-editor-highlight-text: #0f172a;
+
+  /* Syntax colors - vibrant but readable */
+  --color-syntax-red: #dc2626;
+  --color-syntax-orange: #ea580c;
+  --color-syntax-yellow: #d97706;
+  --color-syntax-green: #16a34a;
+  --color-syntax-blue: #0284c7;
+  --color-syntax-purple: #8b5cf6;
+  --color-syntax-grey: #64748b;
 }
 
 /* Custom editor styles - Sublime Text inspired */
@@ -241,9 +299,9 @@
 /* Text formatting styles */
 .editor-input .editor-text-bold,
 .editor-input span[data-lexical-text="true"][style*="font-weight: bold"],
-.editor-input span[data-lexical-text="true"][style*="font-weight:bold"] {
-  color: var(--color-editor-bold) !important;
-  font-weight: normal !important;
+.editor-input span[data-lexical-text="true"][style*="font-weight:bold"],
+.editor-input strong {
+  font-weight: 700 !important;
 }
 
 /* Electric blue text (code format repurposed) */
@@ -275,11 +333,9 @@
   color: var(--color-editor-highlight-text);
 }
 
-/* Bold - yellow text (for strong tags if rendered) */
-.editor-input strong,
+/* Yellow text color for special highlighting */
 .editor-input .text-yellow-400 {
   color: var(--color-editor-bold);
-  font-weight: normal;
 }
 
 /* Highlight */
@@ -711,4 +767,99 @@
 
 .animate-loading-wave {
   animation: loadingWave 1.4s ease-in-out infinite;
+}
+
+/* ============================================
+   EXPANDED VIEW UI MODE
+   Distraction-free, full-width reading experience
+   ============================================ */
+
+.ui-expanded {
+  /* Note: Main layout changes handled in component-level styles */
+}
+
+/* Remove all card-like styling */
+.ui-expanded .note-card-container {
+  background: var(--color-bg-primary) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Full-width content area */
+.ui-expanded .main-content-area {
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Content wrapper with optimal reading width */
+.ui-expanded .note-content-wrapper {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 120px; /* Generous horizontal padding */
+}
+
+/* Editor gets full width but text stays centered */
+.ui-expanded .editor-container {
+  max-width: none !important;
+  width: 100%;
+}
+
+/* Log page container - responsive width, no overflow */
+.log-page-container {
+  max-width: 896px;
+  width: 100%;
+}
+
+/* Expand LogPage content in expanded view */
+.ui-expanded .log-page-container {
+  max-width: 1400px !important;
+  width: 100% !important;
+}
+
+/* Hide breadcrumb navigation in expanded mode */
+.ui-expanded .breadcrumb-nav {
+  opacity: 0.3;
+  transition: opacity 0.2s ease;
+}
+
+.ui-expanded .breadcrumb-nav:hover {
+  opacity: 1;
+}
+
+/* Minimize visual distractions */
+.ui-expanded .note-border,
+.ui-expanded .section-divider {
+  border-color: transparent !important;
+}
+
+/* Keep scrollbars subtle */
+.ui-expanded::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ui-expanded::-webkit-scrollbar-thumb {
+  background: var(--color-border-secondary);
+  border-radius: 3px;
+}
+
+/* Fade borders between sections */
+.ui-expanded .border-border-primary {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+.ui-expanded.dark .border-border-primary {
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Seamless background */
+.ui-expanded .bg-bg-secondary,
+.ui-expanded .bg-bg-elevated {
+  background: var(--color-bg-primary) !important;
+}
+
+/* Minimal shadows */
+.ui-expanded * {
+  box-shadow: none !important;
 }

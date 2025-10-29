@@ -15,6 +15,12 @@ export const availableUIModes = [
     name: 'Hacker Terminal',
     description: 'Raw terminal aesthetic with text-based UI and high information density',
     className: 'ui-hacker'
+  },
+  {
+    id: 'expanded',
+    name: 'Expanded View',
+    description: 'Distraction-free full-width layout with content centered at optimal reading width',
+    className: 'ui-expanded'
   }
 ]
 

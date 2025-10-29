@@ -62,6 +62,7 @@ import {
   brainstormIdeas
 } from './services/claudeService'
 import * as activityLogger from './utils/activityLogger'
+import * as activityLogService from './services/activityLogService'
 
 function App() {
   // Core state: all notes and current selection
@@ -92,6 +93,9 @@ function App() {
   const [deselectionPending, setDeselectionPending] = useState(false) // For two-step deselection on Today page
   const [statusFilter, setStatusFilter] = useState([]) // Array of status values to filter by
   const [taskTypeFilter, setTaskTypeFilter] = useState(null) // Single task type value (radio behavior)
+
+  // Reminders state (from activity_log table)
+  const [todaysReminders, setTodaysReminders] = useState([]) // Reminders for today
 
   // UI state
   const [loading, setLoading] = useState(true)
@@ -1794,6 +1798,15 @@ function App() {
             task.status !== 'CANCELLED' &&
             task.scheduled_date !== 'SOMEDAY'
         })
+
+        // Fetch today's reminders
+        try {
+          const reminders = await activityLogService.fetchTodaysReminders()
+          setTodaysReminders(reminders)
+        } catch (error) {
+          console.error('Error fetching reminders:', error)
+          setTodaysReminders([])
+        }
       } else if (noteTitle === 'Week') {
         // Week: show active tasks (not done, not cancelled, not someday)
         // Include: tasks scheduled this week OR tasks with no date OR tasks marked as THIS_WEEK
@@ -2075,17 +2088,24 @@ function App() {
    * @param {string} taskId - Unique task ID
    */
   const toggleTaskComplete = async (taskId) => {
-    if (!selectedNote || selectedNote.note_type !== 'task_list') return
+    if (!selectedNote) return
 
     try {
-      // Find the task in current view
-      const task = currentTasks.find(t => t.id === taskId)
+      // Find the task in either currentTasks or allTasks
+      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
       if (!task) return
 
       const newStatus = task.status === 'DONE' ? 'BACKLOG' : 'DONE'
 
-      // Optimistic update
-      setCurrentTasks(currentTasks.map(t =>
+      // Optimistic update for currentTasks
+      if (currentTasks.some(t => t.id === taskId)) {
+        setCurrentTasks(currentTasks.map(t =>
+          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+        ))
+      }
+
+      // Optimistic update for allTasks (used by project pages)
+      setAllTasks(allTasks.map(t =>
         t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
       ))
 
@@ -2105,13 +2125,23 @@ function App() {
         await activityLogger.logTaskCompleted(task)
       }
 
-      // Refresh the view
-      await fetchTasksForView(selectedNote.title)
+      // Refresh the view - check both primary and secondary notes
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        await fetchAllTasks()
+      }
     } catch (error) {
       console.error('Error toggling task completion:', error)
       // Rollback on error
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        await fetchAllTasks()
       }
     }
   }
@@ -2123,17 +2153,24 @@ function App() {
    * @param {string} newStatus - New status value
    */
   const changeTaskStatus = async (taskId, newStatus) => {
-    if (!selectedNote || selectedNote.note_type !== 'task_list') return
+    if (!selectedNote) return
 
     try {
-      // Find the task to get old status
-      const task = currentTasks.find(t => t.id === taskId)
+      // Find the task in either currentTasks or allTasks
+      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
       if (!task) return
 
       const oldStatus = task.status
 
-      // Optimistic update
-      setCurrentTasks(currentTasks.map(t =>
+      // Optimistic update for currentTasks
+      if (currentTasks.some(t => t.id === taskId)) {
+        setCurrentTasks(currentTasks.map(t =>
+          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+        ))
+      }
+
+      // Optimistic update for allTasks (used by project pages)
+      setAllTasks(allTasks.map(t =>
         t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
       ))
 
@@ -2151,13 +2188,24 @@ function App() {
       // Log status change
       await activityLogger.logTaskStatusChanged(task, oldStatus, newStatus)
 
-      // Refresh the view
-      await fetchTasksForView(selectedNote.title)
+      // Refresh the view - check both primary and secondary notes
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
+      if (selectedNote?.note_type === 'task_list') {
+        await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        // Refresh allTasks to update project task lists
+        await fetchAllTasks()
+      }
     } catch (error) {
       console.error('Error changing task status:', error)
       // Rollback on error
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        await fetchAllTasks()
       }
     }
   }
@@ -2171,13 +2219,16 @@ function App() {
    */
   const toggleTaskStar = async (taskId) => {
     try {
-      // Find the task in current view
-      const task = currentTasks.find(t => t.id === taskId)
+      // Find the task in either currentTasks or allTasks
+      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
       if (!task) return
 
       const newStarredState = !task.starred
       const updates = { starred: newStarredState }
-      const today = new Date().toISOString().split('T')[0]
+
+      // Get today's date in local timezone
+      const today = new Date()
+      const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
       // Auto-adjust status and schedule when starring/unstarring
       if (newStarredState) {
@@ -2187,17 +2238,28 @@ function App() {
         }
         // Set scheduled_date to today if not already scheduled
         if (!task.scheduled_date) {
-          updates.scheduled_date = today
+          updates.scheduled_date = todayISO
         }
       } else {
         // Unstarring a task
         if (task.status === 'PLANNED') {
           updates.status = 'BACKLOG'
         }
+        // If the task was scheduled for today, clear the date
+        if (task.scheduled_date === todayISO) {
+          updates.scheduled_date = null
+        }
       }
 
-      // Optimistic update
-      setCurrentTasks(currentTasks.map(t =>
+      // Optimistic update for currentTasks
+      if (currentTasks.some(t => t.id === taskId)) {
+        setCurrentTasks(currentTasks.map(t =>
+          t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+        ))
+      }
+
+      // Optimistic update for allTasks (used by project pages)
+      setAllTasks(allTasks.map(t =>
         t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
       ))
 
@@ -2215,15 +2277,23 @@ function App() {
       // Log star toggle
       await activityLogger.logTaskStarred(task, newStarredState)
 
-      // Refresh the view
+      // Refresh the view - check both primary and secondary notes
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        await fetchAllTasks()
       }
     } catch (error) {
       console.error('Error toggling task star:', error)
       // Rollback on error
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        await fetchAllTasks()
       }
     }
   }
@@ -2237,10 +2307,21 @@ function App() {
    * @param {string} scheduledDate - Date string (YYYY-MM-DD), 'SOMEDAY', 'THIS_WEEK', or null to clear
    */
   const scheduleTask = async (taskId, scheduledDate) => {
+    console.log('📅 scheduleTask called:', { taskId, scheduledDate, selectedNoteType: selectedNote?.note_type, secondaryNoteType: secondaryNote?.note_type })
+
     try {
-      // Find the task in current view
-      const task = currentTasks.find(t => t.id === taskId)
-      if (!task) return
+      // Find the task in either currentTasks or allTasks
+      const task = currentTasks.find(t => t.id === taskId) || allTasks.find(t => t.id === taskId)
+      if (!task) {
+        console.log('❌ Task not found:', taskId)
+        return
+      }
+
+      console.log('✅ Task found:', { taskId: task.id, currentSchedule: task.scheduled_date, newSchedule: scheduledDate, currentStarred: task.starred })
+
+      // Get today's date in local timezone
+      const today = new Date()
+      const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
       const updates = { scheduled_date: scheduledDate }
 
@@ -2250,10 +2331,32 @@ function App() {
         updates.status = 'PLANNED'
       }
 
-      // Optimistic update
-      setCurrentTasks(currentTasks.map(t =>
+      // Bidirectional star/today relationship
+      if (scheduledDate === todayISO) {
+        // Scheduling to today? Auto-star the task
+        updates.starred = true
+        console.log('⭐ Auto-starring task because scheduled to today')
+      } else if (task.scheduled_date === todayISO && scheduledDate !== todayISO) {
+        // Changing from today to another date? Auto-unstar if currently starred
+        if (task.starred) {
+          updates.starred = false
+          console.log('☆ Auto-unstarring task because moved from today')
+        }
+      }
+
+      // Optimistic update for currentTasks
+      if (currentTasks.some(t => t.id === taskId)) {
+        setCurrentTasks(currentTasks.map(t =>
+          t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
+        ))
+      }
+
+      // Optimistic update for allTasks (used by project pages)
+      setAllTasks(allTasks.map(t =>
         t.id === taskId ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
       ))
+
+      console.log('🔄 Optimistic updates applied')
 
       // Update in database
       const { error } = await supabase
@@ -2266,20 +2369,32 @@ function App() {
 
       if (error) throw error
 
+      console.log('💾 Database updated successfully')
+
       // Log task scheduling (only if a date is set)
       if (scheduledDate) {
         await activityLogger.logTaskScheduled(task, scheduledDate)
       }
 
-      // Refresh the view
+      // Refresh the view - check both primary and secondary notes
+      const isProjectView = selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project'
+
       if (selectedNote?.note_type === 'task_list') {
+        console.log('🔄 Refreshing task list view:', selectedNote.title)
         await fetchTasksForView(selectedNote.title)
+      } else if (isProjectView) {
+        console.log('🔄 Refreshing allTasks for project view')
+        await fetchAllTasks()
       }
+
+      console.log('✅ scheduleTask completed')
     } catch (error) {
-      console.error('Error scheduling task:', error)
+      console.error('❌ Error scheduling task:', error)
       // Rollback on error
       if (selectedNote?.note_type === 'task_list') {
         await fetchTasksForView(selectedNote.title)
+      } else if (selectedNote?.note_type === 'project' || secondaryNote?.note_type === 'project') {
+        await fetchAllTasks()
       }
     }
   }
@@ -2659,6 +2774,47 @@ Type /help anytime to see this message.`
           }
         }
 
+        case 'REMINDER': {
+          const { input } = command.payload
+          try {
+            // Import utilities
+            const { parseNaturalTime, formatReminderTime } = await import('./utils/dateUtils')
+            const { create } = await import('./services/activityLogService')
+
+            // Parse the input to extract time and reminder text
+            const parsed = parseNaturalTime(input)
+            if (!parsed || !parsed.date) {
+              return `✗ Could not parse time from: ${input}`
+            }
+
+            const { date, remainingText } = parsed
+            const reminderText = remainingText || input
+
+            // Create reminder log entry
+            await create({
+              action_type: 'reminder_created',
+              entity_type: 'reminder',
+              entity_id: null,
+              entity_ref_id: null,
+              entity_title: reminderText,
+              details: {
+                reminder_time: date.toISOString(),
+                status: 'pending'
+              },
+              timestamp: new Date().toISOString()
+            })
+
+            // Trigger log page refresh
+            setLogUpdateTrigger(prev => prev + 1)
+
+            const formattedTime = formatReminderTime(date)
+            return `✓ Reminder set for ${formattedTime}: ${reminderText}`
+          } catch (error) {
+            console.error('Error creating reminder:', error)
+            return `✗ Error creating reminder: ${error.message}`
+          }
+        }
+
         case 'LOG_ENTRY': {
           const { text } = command.payload
           try {
@@ -2780,10 +2936,11 @@ Type /help anytime to see this message.`
 
       {/* Control Panel */}
       <div className="fixed top-6 left-6 z-50 flex gap-2">
-        {/* Hide hamburger menu on task lists and project pages */}
+        {/* Hide hamburger menu on task lists, project pages, and log page */}
         {selectedNote?.note_type !== 'task_list' &&
          selectedNote?.note_type !== 'project' &&
-         selectedNote?.note_type !== 'project_list' && (
+         selectedNote?.note_type !== 'project_list' &&
+         selectedNote?.note_type !== 'log_list' && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-2.5 bg-bg-elevated border border-border-primary rounded hover:bg-bg-tertiary transition-colors"
@@ -2887,7 +3044,7 @@ Type /help anytime to see this message.`
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${
+        className={`sidebar-container fixed inset-y-0 left-0 z-40 transform transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -2922,7 +3079,7 @@ Type /help anytime to see this message.`
       {/* Main content area - takes remaining space above terminal */}
       <div className="flex-1 flex overflow-hidden">
         {/* Main content */}
-        <div className="flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16 gap-4">
+        <div className="main-content-area flex-1 flex justify-center items-center overflow-hidden p-8 md:p-16 gap-4">
           {/* Primary note editor */}
           <div className={`w-full h-full ${secondaryNote || selectedTask ? 'max-w-2xl' : 'max-w-6xl'} max-h-[800px] transition-all`}>
             <NoteEditor
@@ -2966,6 +3123,17 @@ Type /help anytime to see this message.`
               taskTypeFilter={taskTypeFilter}
               onStatusFilterChange={setStatusFilter}
               onTaskTypeFilterChange={setTaskTypeFilter}
+              todaysReminders={todaysReminders}
+              onToggleReminderComplete={async (reminderId) => {
+                try {
+                  await activityLogger.logReminderCompleted(reminderId)
+                  // Refresh reminders
+                  const reminders = await activityLogService.fetchTodaysReminders()
+                  setTodaysReminders(reminders)
+                } catch (error) {
+                  console.error('Error toggling reminder:', error)
+                }
+              }}
               logUpdateTrigger={logUpdateTrigger}
             />
           </div>
@@ -2985,6 +3153,7 @@ Type /help anytime to see this message.`
                 note={secondaryNote}
                 allNotes={notes}
                 currentTasks={secondaryTasks} // Show tasks in secondary view
+                allTasks={allTasks}
                 onSave={async (updatedNote) => {
                   await saveNote(updatedNote)
                   // Update secondary note with latest data
@@ -3061,6 +3230,22 @@ Type /help anytime to see this message.`
                     alert(`Could not find ${type} with ref_id: ${refId}`)
                   }
                 }}
+                onTaskDoubleClick={(task) => {
+                  console.log('📋 Opening task panel from secondary view:', { taskId: task?.id, taskText: task?.text })
+                  const taskIndex = allTasks.findIndex(t => t.id === task.id)
+                  setSelectedTaskNumber(taskIndex >= 0 ? taskIndex + 1 : null)
+                  setSelectedTask(task)
+                }}
+                onProjectClick={handleProjectClick}
+                selectedTaskId={selectedTaskId}
+                onTaskSelect={(taskId) => {
+                  setSelectedTaskId(taskId)
+                  setDeselectionPending(false)
+                }}
+                statusFilter={statusFilter}
+                taskTypeFilter={taskTypeFilter}
+                onStatusFilterChange={setStatusFilter}
+                onTaskTypeFilterChange={setTaskTypeFilter}
                 logUpdateTrigger={logUpdateTrigger}
               />
             </div>

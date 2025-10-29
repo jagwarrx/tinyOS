@@ -5,7 +5,8 @@ import ProjectsList from './ProjectsList'
 import InboxList from './InboxList'
 import LogPage from './LogPage'
 import CollapsibleFilterBar from './CollapsibleFilterBar'
-import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText } from 'lucide-react'
+import KanbanBoard from './KanbanBoard'
+import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText, LayoutList, LayoutGrid } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
 
 export default function NoteEditor({
@@ -41,6 +42,8 @@ export default function NoteEditor({
   taskTypeFilter,
   onStatusFilterChange,
   onTaskTypeFilterChange,
+  todaysReminders,
+  onToggleReminderComplete,
   logUpdateTrigger
 }) {
   const [title, setTitle] = useState('')
@@ -51,8 +54,10 @@ export default function NoteEditor({
   const [showDoneSection, setShowDoneSection] = useState(false)
   const [doneSectionWidth, setDoneSectionWidth] = useState(50) // Percentage width of done section
   const [isResizing, setIsResizing] = useState(false)
+  const [showRemindersSection, setShowRemindersSection] = useState(false)
   const [showSavedBadge, setShowSavedBadge] = useState(false)
   const [projectTasks, setProjectTasks] = useState([]) // Tasks for the current project
+  const [projectViewMode, setProjectViewMode] = useState('list') // 'list' or 'kanban'
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
@@ -427,13 +432,94 @@ export default function NoteEditor({
     return animations[slideDirection] || ''
   }
 
+  // Fullscreen Kanban mode for project notes
+  if (note.note_type === 'project' && projectViewMode === 'kanban') {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col" style={{ paddingBottom: 'var(--terminal-height, 200px)' }}>
+        {/* Fullscreen Kanban Container */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Minimal Header */}
+          <div className="px-8 py-4 flex items-center justify-between border-b border-border-primary" style={{
+            background: 'var(--color-bg-primary)'
+          }}>
+            <div className="flex items-center gap-5">
+              <h3 className="text-2xl font-bold" style={{ color: 'white' }}>
+                {note.title}
+              </h3>
+              <span className="px-3 py-1.5 text-sm font-mono rounded" style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                border: '1px solid rgba(255, 255, 255, 0.3)'
+              }}>
+                {note.ref_id}
+              </span>
+              <span className="text-base" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                {projectTasks.length} tasks
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* View mode toggle */}
+              <div className="flex items-center gap-1.5 rounded-lg p-1.5" style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.15)'
+              }}>
+                <button
+                  onClick={() => setProjectViewMode('list')}
+                  className="p-2 rounded transition-all"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                    color: 'rgba(255, 255, 255, 0.7)'
+                  }}
+                  title="Exit fullscreen (List view)"
+                >
+                  <LayoutList size={18} />
+                </button>
+                <button
+                  className="p-2 rounded"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    color: 'white'
+                  }}
+                  title="Kanban view (fullscreen)"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Fullscreen Kanban Board */}
+          <div className="flex-1 overflow-hidden">
+            {projectTasks.length > 0 ? (
+              <KanbanBoard
+                tasks={projectTasks}
+                allNotes={allNotes}
+                selectedTaskId={selectedTaskId}
+                onTaskSelect={onTaskSelect}
+                onToggleComplete={onToggleTaskComplete}
+                onToggleStar={onToggleTaskStar}
+                onStatusChange={onChangeTaskStatus}
+                onScheduleTask={onScheduleTask}
+                onTaskDoubleClick={onTaskDoubleClick}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-sm" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                No tasks yet. Use the terminal to add tasks to this project.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Card Container */}
-      <div className={`flex-1 flex flex-col bg-bg-primary rounded-2xl shadow-lg border border-border-primary overflow-hidden ${getAnimationClass()}`}>
+      <div className={`note-card-container flex-1 flex flex-col bg-bg-primary rounded-2xl shadow-lg border border-border-primary overflow-hidden ${getAnimationClass()}`}>
 
         {/* Navigation Breadcrumb Panel */}
-        <div className="px-6 py-3 bg-bg-secondary border-b border-border-primary">
+        <div className="breadcrumb-nav px-6 py-3 bg-bg-secondary border-b border-border-primary">
           <div className="flex items-center justify-center gap-3 text-sm flex-wrap">
             {/* Up Link */}
             {note.up_id ? (
@@ -530,10 +616,14 @@ export default function NoteEditor({
                 onContextMenu={handleTitleContextMenu}
                 placeholder="Untitled"
                 readOnly={isSpecialSystemPage(note)}
-                className={`text-3xl font-semibold outline-none bg-transparent text-fg-primary placeholder-fg-tertiary ${
+                className={`text-3xl font-semibold outline-none bg-transparent ${
                   isSpecialSystemPage(note) ? 'cursor-default' : ''
                 }`}
-                style={{ width: 'auto', minWidth: '100px' }}
+                style={{
+                  width: 'auto',
+                  minWidth: '100px',
+                  color: 'var(--color-editor-text, var(--color-fg-primary))'
+                }}
               />
 
               {/* Date next to Today title */}
@@ -545,7 +635,11 @@ export default function NoteEditor({
 
               {/* Project ID badge for project notes */}
               {note.note_type === 'project' && note.ref_id && (
-                <span className="px-2 py-1 bg-accent-primary/10 border border-accent-primary/30 text-accent-primary text-xs font-mono rounded whitespace-nowrap">
+                <span className="px-2 py-1 text-xs font-mono rounded whitespace-nowrap" style={{
+                  backgroundColor: 'var(--color-label-blue, #0079bf)',
+                  color: 'white',
+                  border: '1px solid var(--color-label-blue, #0079bf)'
+                }}>
                   {note.ref_id}
                 </span>
               )}
@@ -566,14 +660,19 @@ export default function NoteEditor({
             >
               <Star
                 size={20}
-                className={note.is_starred ? 'fill-syntax-yellow text-syntax-yellow' : 'text-fg-tertiary'}
+                style={note.is_starred ? {
+                  fill: 'var(--color-label-yellow, #f2d600)',
+                  color: 'var(--color-label-yellow, #f2d600)'
+                } : {
+                  color: 'var(--color-card-text-secondary, var(--color-fg-tertiary))'
+                }}
               />
             </button>
           </div>
         </div>
 
         {/* Editor Content Area */}
-        <div className="flex-1 overflow-hidden flex flex-col relative">
+        <div className="note-content-wrapper flex-1 overflow-hidden flex flex-col relative">
           {note.note_type === 'project_list' ? (
             /* Projects List View */
             <div className="flex-1 overflow-y-auto">
@@ -603,45 +702,119 @@ export default function NoteEditor({
           ) : note.note_type === 'project' ? (
             /* Project Note View - Editor + Tasks */
             <div className="flex-1 overflow-hidden flex flex-col">
-              {/* Editor Section - Project Notes */}
-              <div className="flex-1 p-6 overflow-y-auto border-b border-border-primary">
-                <Editor
-                  ref={editorRef}
-                  initialContent={note.content}
-                  onContentChange={triggerAutoSave}
-                  onRefIdNavigate={onRefIdNavigate}
-                />
+              {/* Editor Section - Project Notes - Collapsible */}
+              <div
+                className={`overflow-y-auto border-b border-border-primary ${
+                  projectViewMode === 'kanban' ? 'flex-none h-24 p-4' : 'flex-1 p-6'
+                }`}
+              >
+                {projectViewMode === 'kanban' ? (
+                  <div className="text-sm text-fg-tertiary italic text-center">
+                    Editor minimized in Kanban view
+                  </div>
+                ) : (
+                  <Editor
+                    ref={editorRef}
+                    initialContent={note.content}
+                    onContentChange={triggerAutoSave}
+                    onRefIdNavigate={onRefIdNavigate}
+                  />
+                )}
               </div>
 
               {/* Tasks Section - Project Tasks */}
-              <div className="flex-none h-80 p-6 overflow-y-auto bg-bg-secondary">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-fg-secondary uppercase tracking-wider">
+              <div className={`flex-none overflow-hidden ${
+                projectViewMode === 'kanban' ? 'flex-1' : 'h-80 bg-bg-secondary'
+              }`}>
+                {/* Header with view toggle */}
+                <div className="px-6 py-3 flex items-center justify-between border-b border-border-primary" style={
+                  projectViewMode === 'kanban' ? { background: 'var(--color-bg-primary)' } : {}
+                }>
+                  <h3 className="text-sm font-semibold uppercase tracking-wider" style={
+                    projectViewMode === 'kanban' ? { color: 'white' } : {}
+                  }>
                     Project Tasks ({projectTasks.length})
                   </h3>
-                  <span className="text-xs text-fg-tertiary">
-                    Use /task "text" :project to add tasks
-                  </span>
-                </div>
-                {projectTasks.length > 0 ? (
-                  <TaskList
-                    tasks={projectTasks}
-                    allNotes={allNotes}
-                    viewType="project"
-                    selectedTaskId={selectedTaskId}
-                    onTaskSelect={onTaskSelect}
-                    onToggleComplete={onToggleTaskComplete}
-                    onToggleStar={onToggleTaskStar}
-                    onStatusChange={onChangeTaskStatus}
-                    onScheduleTask={onScheduleTask}
-                    onReorder={onReorderTasks}
-                    onTaskDoubleClick={onTaskDoubleClick}
-                  />
-                ) : (
-                  <div className="text-center py-8 text-fg-tertiary text-sm">
-                    No tasks yet. Use the terminal to add tasks to this project.
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs" style={
+                      projectViewMode === 'kanban' ? { color: 'rgba(255, 255, 255, 0.8)' } : {}
+                    }>
+                      Use /task "text" :project to add tasks
+                    </span>
+
+                    {/* View mode toggle */}
+                    <div className="flex items-center gap-1 bg-bg-tertiary rounded-lg p-1">
+                      <button
+                        onClick={() => setProjectViewMode('list')}
+                        className={`p-1.5 rounded transition-all ${
+                          projectViewMode === 'list'
+                            ? 'bg-accent-primary text-white shadow-sm'
+                            : 'text-fg-tertiary hover:text-fg-primary'
+                        }`}
+                        title="List view"
+                      >
+                        <LayoutList size={16} />
+                      </button>
+                      <button
+                        onClick={() => setProjectViewMode('kanban')}
+                        className={`p-1.5 rounded transition-all ${
+                          projectViewMode === 'kanban'
+                            ? 'bg-accent-primary text-white shadow-sm'
+                            : 'text-fg-tertiary hover:text-fg-primary'
+                        }`}
+                        title="Kanban view"
+                      >
+                        <LayoutGrid size={16} />
+                      </button>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                {/* Content area */}
+                <div className="overflow-hidden" style={{ height: 'calc(100% - 52px)' }}>
+                  {projectTasks.length > 0 ? (
+                    <>
+                      {/* Kanban Board View */}
+                      {projectViewMode === 'kanban' && (
+                        <KanbanBoard
+                          tasks={projectTasks}
+                          allNotes={allNotes}
+                          selectedTaskId={selectedTaskId}
+                          onTaskSelect={onTaskSelect}
+                          onToggleComplete={onToggleTaskComplete}
+                          onToggleStar={onToggleTaskStar}
+                          onStatusChange={onChangeTaskStatus}
+                          onScheduleTask={onScheduleTask}
+                          onTaskDoubleClick={onTaskDoubleClick}
+                        />
+                      )}
+
+                      {/* List View */}
+                      {projectViewMode === 'list' && (
+                        <div className="p-6 overflow-y-auto h-full">
+                          <TaskList
+                            tasks={projectTasks}
+                            allNotes={allNotes}
+                            viewType="project"
+                            selectedTaskId={selectedTaskId}
+                            onTaskSelect={onTaskSelect}
+                            onToggleComplete={onToggleTaskComplete}
+                            onToggleStar={onToggleTaskStar}
+                            onStatusChange={onChangeTaskStatus}
+                            onScheduleTask={onScheduleTask}
+                            onReorder={onReorderTasks}
+                            onTaskDoubleClick={onTaskDoubleClick}
+                          />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-fg-tertiary text-sm">
+                      No tasks yet. Use the terminal to add tasks to this project.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : note.note_type === 'task_list' ? (
@@ -662,6 +835,21 @@ export default function NoteEditor({
                 {note.title === 'Today' ? (
                   // Today view: Optional split screen with Planned and Done
                   <>
+                    {/* Toggle Reminders Section Button - Above Done Button */}
+                    {todaysReminders && todaysReminders.length > 0 && (
+                      <button
+                        onClick={() => setShowRemindersSection(!showRemindersSection)}
+                        className={`absolute bottom-16 right-6 z-10 px-3 py-1.5 text-xs font-mono transition-all ${
+                          showRemindersSection
+                            ? 'bg-bg-tertiary text-fg-primary hover:bg-bg-secondary'
+                            : 'bg-transparent text-fg-tertiary hover:text-fg-secondary hover:bg-bg-tertiary/50'
+                        } rounded border border-border-primary`}
+                        title={showRemindersSection ? 'Hide Reminders section' : 'Show Reminders section'}
+                      >
+                        REMINDERS ({todaysReminders.length})
+                      </button>
+                    )}
+
                     {/* Toggle Done Section Button - Window Corner */}
                     <button
                       onClick={() => setShowDoneSection(!showDoneSection)}
@@ -675,33 +863,106 @@ export default function NoteEditor({
                       DONE ({(currentTasks || []).filter(t => t.status === 'DONE').length})
                     </button>
 
-                    <div className={`h-full ${showDoneSection ? 'flex' : ''}`} ref={resizeContainerRef}>
-                      {/* Planned Section */}
-                      <div
-                        className="flex flex-col h-full"
-                        style={showDoneSection ? { width: `${100 - doneSectionWidth}%` } : {}}
-                      >
-                        {showDoneSection && (
-                          <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
-                            Planned
+                    <div className="h-full flex flex-col">
+                      {/* Reminders Section - Collapsible */}
+                      {showRemindersSection && todaysReminders && todaysReminders.length > 0 && (
+                        <div className="flex-none border-b border-border-primary pb-4 mb-4">
+                          <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                            Reminders ({todaysReminders.length})
                           </h3>
-                        )}
-                        <div className="flex-1 overflow-y-auto">
-                          <TaskList
-                            tasks={(currentTasks || []).filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')}
-                            allNotes={allNotes}
-                            viewType={note.title}
-                            selectedTaskId={selectedTaskId}
-                            onTaskSelect={onTaskSelect}
-                            onToggleComplete={onToggleTaskComplete}
-                            onToggleStar={onToggleTaskStar}
-                            onStatusChange={onChangeTaskStatus}
-                            onScheduleTask={onScheduleTask}
-                            onReorder={onReorderTasks}
-                            onTaskDoubleClick={onTaskDoubleClick}
-                          />
+                          <div className="space-y-2">
+                            {todaysReminders.map((reminder) => {
+                              const reminderTime = new Date(reminder.timestamp)
+                              const timeStr = reminderTime.toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                hour12: true
+                              })
+                              const isCompleted = reminder.details?.is_completed || false
+
+                              return (
+                                <div
+                                  key={reminder.id}
+                                  className={`flex items-center gap-3 py-2 px-3 rounded border transition-all ${
+                                    isCompleted
+                                      ? 'bg-bg-secondary border-border-primary opacity-60'
+                                      : 'bg-bg-elevated border-border-secondary hover:border-accent-primary'
+                                  }`}
+                                >
+                                  {/* Checkbox */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (!isCompleted) {
+                                        onToggleReminderComplete?.(reminder.id)
+                                      }
+                                    }}
+                                    className="flex-shrink-0"
+                                    disabled={isCompleted}
+                                  >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                      isCompleted
+                                        ? 'bg-syntax-green border-syntax-green'
+                                        : 'border-border-primary hover:border-syntax-green'
+                                    }`}>
+                                      {isCompleted && (
+                                        <svg width="10" height="10" viewBox="0 0 10 10" className="text-fg-inverse">
+                                          <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="2" fill="none" />
+                                        </svg>
+                                      )}
+                                    </div>
+                                  </button>
+
+                                  {/* Time */}
+                                  <span className={`text-xs font-mono flex-shrink-0 ${
+                                    isCompleted ? 'text-fg-tertiary' : 'text-syntax-purple'
+                                  }`}>
+                                    {timeStr}
+                                  </span>
+
+                                  {/* Reminder Text */}
+                                  <span className={`flex-1 text-sm ${
+                                    isCompleted
+                                      ? 'line-through text-fg-tertiary'
+                                      : 'text-fg-primary'
+                                  }`}>
+                                    {reminder.entity_title}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Tasks Section - Resizable Split */}
+                      <div className={`flex-1 ${showDoneSection ? 'flex' : ''}`} ref={resizeContainerRef}>
+                        {/* Planned Section */}
+                        <div
+                          className="flex flex-col h-full"
+                          style={showDoneSection ? { width: `${100 - doneSectionWidth}%` } : {}}
+                        >
+                          {showDoneSection && (
+                            <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
+                              Planned
+                            </h3>
+                          )}
+                          <div className="flex-1 overflow-y-auto">
+                            <TaskList
+                              tasks={(currentTasks || []).filter(t => t.status !== 'DONE' && t.status !== 'CANCELLED')}
+                              allNotes={allNotes}
+                              viewType={note.title}
+                              selectedTaskId={selectedTaskId}
+                              onTaskSelect={onTaskSelect}
+                              onToggleComplete={onToggleTaskComplete}
+                              onToggleStar={onToggleTaskStar}
+                              onStatusChange={onChangeTaskStatus}
+                              onScheduleTask={onScheduleTask}
+                              onReorder={onReorderTasks}
+                              onTaskDoubleClick={onTaskDoubleClick}
+                            />
+                          </div>
+                        </div>
 
                       {/* Resizable Divider */}
                       {showDoneSection && (
@@ -739,6 +1000,7 @@ export default function NoteEditor({
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -760,7 +1022,7 @@ export default function NoteEditor({
               </div>
             </>
           ) : (
-            <div className="flex-1 p-6 overflow-y-auto">
+            <div className="editor-container flex-1 p-6 overflow-y-auto">
               <Editor
                 ref={editorRef}
                 initialContent={note.content}

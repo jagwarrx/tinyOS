@@ -58,7 +58,7 @@ export default function FloatingAudioPlayer() {
           activePlayer
             ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 animate-pulse'
             : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
-        } text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50`}
+        } text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center z-50 primary-action border-0`}
         title={activePlayer ? "Audio playing - Click to show controls" : "Background Audio"}
       >
         <Music size={24} />
@@ -67,12 +67,12 @@ export default function FloatingAudioPlayer() {
       {/* Audio Player Panel - Always render when activePlayer exists */}
       {(isOpen || activePlayer) && (
         <div
-          className={`fixed bottom-24 right-6 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-2xl overflow-hidden transition-all ${
+          className={`fixed bottom-24 right-6 w-80 bg-bg-elevated border border-border-primary rounded-lg shadow-2xl overflow-hidden transition-all ${
             isOpen ? 'z-50 opacity-100 scale-100' : '-z-10 opacity-0 scale-95 pointer-events-none'
           }`}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-purple-500 to-pink-500">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-primary bg-gradient-to-r from-purple-500 to-pink-500">
             <h3 className="text-sm font-semibold text-white">Background Audio</h3>
             <button
               onClick={handleMinimize}
@@ -86,7 +86,7 @@ export default function FloatingAudioPlayer() {
           {/* Player Selection or Active Player */}
           {!activePlayer ? (
             <div className="p-4 space-y-3">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Choose your focus audio:</p>
+              <p className="text-xs text-fg-tertiary mb-3">Choose your focus audio:</p>
 
               {/* Spotify Option */}
               {musicLinks.spotify?.length > 0 && (
@@ -98,7 +98,7 @@ export default function FloatingAudioPlayer() {
                         const link = musicLinks.spotify.find(l => l.id === e.target.value)
                         setSelectedSpotify(link)
                       }}
-                      className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-900 dark:text-gray-100"
+                      className="w-full px-3 py-1.5 bg-bg-secondary border border-border-primary rounded text-xs text-fg-primary"
                     >
                       {musicLinks.spotify.map(link => (
                         <option key={link.id} value={link.id}>{link.title}</option>
@@ -108,7 +108,7 @@ export default function FloatingAudioPlayer() {
                   <button
                     onClick={() => setActivePlayer('spotify')}
                     disabled={!selectedSpotify}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-[#1DB954] hover:bg-[#1ed760] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-[#1DB954] hover:bg-[#1ed760] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed primary-action border-0"
                   >
                     <SpotifyIcon size={24} />
                     <div className="flex-1 text-left">
@@ -129,7 +129,7 @@ export default function FloatingAudioPlayer() {
                         const link = musicLinks.youtube.find(l => l.id === e.target.value)
                         setSelectedYoutube(link)
                       }}
-                      className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-900 dark:text-gray-100"
+                      className="w-full px-3 py-1.5 bg-bg-secondary border border-border-primary rounded text-xs text-fg-primary"
                     >
                       {musicLinks.youtube.map(link => (
                         <option key={link.id} value={link.id}>{link.title}</option>
@@ -139,7 +139,7 @@ export default function FloatingAudioPlayer() {
                   <button
                     onClick={() => setActivePlayer('youtube')}
                     disabled={!selectedYoutube}
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed primary-action border-0"
                   >
                     <Youtube size={24} />
                     <div className="flex-1 text-left">
@@ -152,7 +152,7 @@ export default function FloatingAudioPlayer() {
 
               {/* No links message */}
               {musicLinks.spotify?.length === 0 && musicLinks.youtube?.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                <p className="text-sm text-fg-tertiary text-center py-4">
                   No music links configured. Add some in Settings → Music.
                 </p>
               )}
@@ -162,7 +162,7 @@ export default function FloatingAudioPlayer() {
               {/* Back button */}
               <button
                 onClick={handleStop}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 mb-3 flex items-center gap-1"
+                className="text-xs text-fg-tertiary hover:text-fg-primary mb-3 flex items-center gap-1"
               >
                 <X size={12} />
                 Stop & change audio source
