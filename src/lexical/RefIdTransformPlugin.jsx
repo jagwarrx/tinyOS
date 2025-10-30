@@ -52,11 +52,6 @@ export function RefIdTransformPlugin({ onNavigate }) {
       const refIdPattern = /\[([a-z][0-9][a-z0-9]{4})\]/g
       const matches = [...textContent.matchAll(refIdPattern)]
 
-      console.log('🔍 RefId Detection:', matches.length > 0 ? `Found ${matches.length} ref_ids` : 'No ref_ids found')
-      if (matches.length > 0) {
-        console.log('   Matched ref_ids:', matches.map(m => m[1]).join(', '))
-      }
-
       if (matches.length === 0) return
 
       // Get unique ref_ids that need to be looked up
@@ -87,13 +82,6 @@ export function RefIdTransformPlugin({ onNavigate }) {
       })
 
       const results = (await Promise.all(lookupPromises)).filter(Boolean)
-
-      console.log('💾 Database Lookup Results:', results.length > 0 ? `${results.length} found` : 'None found')
-      results.forEach(({ refId, type, data }) => {
-        const title = type === 'note' ? data.title : data.text
-        console.log(`   ✓ ${refId} → [${type.toUpperCase()}] ${title}`)
-        console.log('      Full data:', { type, title: data.title, text: data.text, id: data.id })
-      })
 
       if (results.length === 0) return
 
@@ -185,8 +173,6 @@ export function RefIdTransformPlugin({ onNavigate }) {
                 // Just the badge
                 textNode.replace(refIdNode)
               }
-
-              console.log(`✨ Transformed [${refId}] → Badge`)
             } catch (err) {
               console.error(`Failed to transform ${refId}:`, err)
             }

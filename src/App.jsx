@@ -72,6 +72,8 @@ import {
 import * as activityLogger from './utils/activityLogger'
 import * as activityLogService from './services/activityLogService'
 import { filterTasksByTags, getNotesForTag, getTasksForTag, tagTask, createTagsFromPath } from './services/tagService'
+import { addToHistory, navigateBack, navigateForward, canGoBack, canGoForward } from './utils/navigationHistory'
+import { getTodayISO } from './utils/dateUtils'
 
 function App() {
   // Use contexts for state management
@@ -136,6 +138,9 @@ function App() {
 
   // Ref for terminal component
   const terminalRef = useRef(null)
+
+  // Ref to track if we're navigating from history (to prevent duplicate entries)
+  const isNavigatingFromHistory = useRef(false)
 
   // Local UI state only (not managed by contexts)
   const [selectedTaskNumber, setSelectedTaskNumber] = useState(null) // Task number in current view
@@ -267,6 +272,34 @@ function App() {
         }
       }
 
+      // Alt+Left: Navigate back in history (Alt/Option key on Mac)
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        const prevNoteId = navigateBack()
+        if (prevNoteId) {
+          const note = notes.find(n => n.id === prevNoteId)
+          if (note) {
+            isNavigatingFromHistory.current = true
+            selectNote(note)
+          }
+        }
+        return
+      }
+
+      // Alt+Right: Navigate forward in history (Alt/Option key on Mac)
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault()
+        const nextNoteId = navigateForward()
+        if (nextNoteId) {
+          const note = notes.find(n => n.id === nextNoteId)
+          if (note) {
+            isNavigatingFromHistory.current = true
+            selectNote(note)
+          }
+        }
+        return
+      }
+
       // Tab: Focus terminal
       if (e.key === 'Tab' && isNotEditing) {
         e.preventDefault()
@@ -291,7 +324,8 @@ function App() {
       }
 
       // Left arrow: Close panel, reset navigation, or navigate left
-      if (e.key === 'ArrowLeft' && isNotEditing) {
+      // (but not Alt+Left, which is handled above for history navigation)
+      if (e.key === 'ArrowLeft' && isNotEditing && !e.altKey && !e.ctrlKey && !e.metaKey) {
         console.log('⬅️  Left Arrow:', {
           selectedTaskId,
           panelOpen: !!selectedTask,
@@ -336,7 +370,8 @@ function App() {
       }
 
       // Arrow key navigation for tasks (only on task list pages)
-      if (selectedNote?.note_type === 'task_list' && isNotEditing) {
+      // (but not Alt+Arrow, which is handled above for history navigation)
+      if (selectedNote?.note_type === 'task_list' && isNotEditing && !e.altKey && !e.ctrlKey && !e.metaKey) {
         // Get the filtered array that matches what TaskList displays
         const navigableTasks = getNavigableTasksForView()
 
@@ -416,8 +451,9 @@ function App() {
               console.log('  → At bottom boundary, staying at current task')
             }
           }
-        } else if (e.key === 'ArrowRight') {
+        } else if (e.key === 'ArrowRight' && !e.altKey && !e.ctrlKey && !e.metaKey) {
           // Right arrow: OPEN task panel when task is highlighted
+          // (but not Alt+Right, which is handled above for history navigation)
           console.log('➡️  Right Arrow:', { selectedTaskId, panelOpen: !!selectedTask })
 
           if (selectedTaskId) {
@@ -443,7 +479,7 @@ function App() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote, isSearchOpen, isKeyboardHelpOpen])
+  }, [selectedNote, currentTasks, selectedTaskId, selectedTask, deselectionPending, tasksNote, isSearchOpen, isKeyboardHelpOpen, notes])
 
   /**
    * Handle theme change from settings modal
@@ -473,6 +509,18 @@ function App() {
       if (window.location.pathname !== newPath) {
         window.history.pushState(null, '', newPath)
       }
+    }
+  }, [selectedNote])
+
+  // Track navigation history
+  useEffect(() => {
+    if (selectedNote?.id) {
+      // Only add to history if we're not navigating from history
+      if (!isNavigatingFromHistory.current) {
+        addToHistory(selectedNote.id)
+      }
+      // Reset the flag
+      isNavigatingFromHistory.current = false
     }
   }, [selectedNote])
 
@@ -1323,7 +1371,7 @@ function App() {
         ? Math.max(...allTasks.map(t => t.priority || 0))
         : 0
 
-      const today = new Date().toISOString().split('T')[0]
+      const today = getTodayISO()
 
       const newTask = {
         text,
@@ -1970,6 +2018,10 @@ Type /help anytime to see this message.`
     return await changeStatus(taskId, newStatus)
   }
 
+  const changeTaskType = async (taskId, newType) => {
+    return await updateTask(taskId, { task_type: newType })
+  }
+
   const reorderTasks = async (fromIndex, toIndex) => {
     return await reorderTasksFromContext(fromIndex, toIndex)
   }
@@ -2299,6 +2351,7 @@ Type /help anytime to see this message.`
               onToggleTaskComplete={toggleTaskComplete}
               onToggleTaskStar={toggleTaskStar}
               onChangeTaskStatus={changeTaskStatus}
+              onChangeTaskType={changeTaskType}
               onScheduleTask={scheduleTask}
               onReorderTasks={reorderTasks}
               onRefIdNavigate={navigateToRefId}
@@ -2388,6 +2441,7 @@ Type /help anytime to see this message.`
                 onToggleTaskComplete={toggleTaskComplete}
                 onToggleTaskStar={toggleTaskStar}
                 onChangeTaskStatus={changeTaskStatus}
+                onChangeTaskType={changeTaskType}
                 onScheduleTask={scheduleTask}
                 onReorderTasks={reorderTasks}
                 onRefIdNavigate={async (refId, type) => {

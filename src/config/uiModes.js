@@ -7,19 +7,28 @@ export const availableUIModes = [
   {
     id: 'standard',
     name: 'Standard',
-    description: 'Modern, polished interface with rounded corners and shadows',
+    description: 'Balanced productivity - comfortable sizing, polished interface with rounded corners',
+    useCase: 'General use, navigating between notes and tasks',
+    sizing: '14px base • Balanced spacing • Visual depth',
+    recommendedFont: 'inter',
     className: 'ui-standard'
   },
   {
     id: 'hacker',
     name: 'Hacker Terminal',
-    description: 'Raw terminal aesthetic with text-based UI and high information density',
+    description: 'Information density - compact layout for viewing many tasks at once',
+    useCase: 'Task management, quick scanning, keyboard workflows',
+    sizing: '12px base • Compact spacing • Minimal borders',
+    recommendedFont: 'monaco',
     className: 'ui-hacker'
   },
   {
     id: 'expanded',
     name: 'Expanded View',
-    description: 'Distraction-free full-width layout with content centered at optimal reading width',
+    description: 'Deep work - spacious, distraction-free layout for focused reading and writing',
+    useCase: 'Long-form notes, focused writing, comfortable reading',
+    sizing: '16px base • Generous spacing • Maximum comfort',
+    recommendedFont: 'inter',
     className: 'ui-expanded'
   }
 ]

@@ -98,7 +98,7 @@ export default function CollapsibleFilterBar({
 
   return (
     <div className="relative">
-    <div className="flex items-center gap-3 px-3 py-2 bg-bg-secondary border-b border-border-primary">
+    <div className="filter-bar-container flex items-center gap-3 px-3 py-2 bg-bg-secondary border-b border-border-primary">
       {/* Task Type Filter Bar */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Experience</span>

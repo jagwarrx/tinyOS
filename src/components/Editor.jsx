@@ -113,70 +113,27 @@ function TextFormatClassPlugin() {
 
   useEffect(() => {
     const removeUpdateListener = editor.registerUpdateListener(({ editorState }) => {
-      console.log('🔄 TextFormatClassPlugin: Update listener triggered')
-
       // Build element-to-format mapping by iterating through nodes
       const elementsToUpdate = []
 
       editorState.read(() => {
         const nodeMap = editorState._nodeMap
-        let formattedCount = 0
-        let totalTextNodes = 0
-        let totalNodes = nodeMap.size
-
-        console.log('  📦 Total nodes in map:', totalNodes)
 
         nodeMap.forEach((node, key) => {
-          const nodeType = node.getType()
-
-          // Log ALL nodes to see what we have
-          if (!$isTextNode(node)) {
-            console.log('  📄 Non-text node:', {
-              key,
-              type: nodeType,
-              __type: node.__type
-            })
-          }
-
           if ($isTextNode(node)) {
-            totalTextNodes++
             const format = node.getFormat()
             const text = node.getTextContent()
-
-            // Get the DOM element for this node key
             const element = editor.getElementByKey(key)
 
-            console.log('  🔍 Text node:', {
-              key,
-              text: text, // Show full text, no truncation
-              textLength: text.length,
-              format,
-              formatBits: format.toString(2).padStart(6, '0'), // Show as binary
-              hasElement: !!element,
-              elementTag: element?.tagName
-            })
-
             if (element && format > 0) {
-              formattedCount++
               elementsToUpdate.push({ element, format, text })
             }
           }
-        })
-
-        console.log('  📊 Summary:', {
-          totalNodes,
-          totalTextNodes,
-          formattedCount,
-          toUpdate: elementsToUpdate.length
         })
       })
 
       // Apply classes to the elements
       queueMicrotask(() => {
-        if (elementsToUpdate.length > 0) {
-          console.log('  💅 Applying classes to', elementsToUpdate.length, 'elements')
-        }
-
         elementsToUpdate.forEach(({ element, format, text }) => {
           const classes = []
           if (format & 1) classes.push('editor-text-bold')
@@ -187,7 +144,6 @@ function TextFormatClassPlugin() {
           if (format & 32) classes.push('editor-text-highlight')
 
           if (classes.length > 0) {
-            console.log('  ✅ Applying', classes, 'to', element.tagName, '"' + text.substring(0, 20) + '"')
             element.className = classes.join(' ')
           }
         })
@@ -563,21 +519,12 @@ function FormattingShortcutsPlugin() {
 
         // Cmd+B for bold
         if ((ctrlKey || metaKey) && code === 'KeyB' && !event.shiftKey) {
-          console.log('🔑 Cmd+B pressed')
           event.preventDefault()
           event.stopPropagation()
           editor.update(() => {
             const selection = $getSelection()
-            console.log('  📍 Selection:', {
-              isRange: $isRangeSelection(selection),
-              text: selection?.getTextContent(),
-              hasSelection: !!selection
-            })
             if ($isRangeSelection(selection)) {
               selection.formatText('bold')
-              console.log('  ✅ Bold format applied')
-            } else {
-              console.log('  ❌ No valid selection')
             }
           })
           return true

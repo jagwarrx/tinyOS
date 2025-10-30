@@ -22,7 +22,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle, FileText } from 'lucide-react'
+import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle, FileText, Brain, Zap, Wrench, Users, Compass } from 'lucide-react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
 
@@ -37,12 +37,15 @@ export default function TaskList({
   onReorder,
   onStatusChange,
   onTaskDoubleClick,
-  onScheduleTask
+  onScheduleTask,
+  onTypeChange
 }) {
   // State for dropdowns and date pickers
   const [openDropdown, setOpenDropdown] = useState(null)
+  const [openTypeDropdown, setOpenTypeDropdown] = useState(null)
   const [openDatePicker, setOpenDatePicker] = useState(null)
   const dropdownRef = useRef(null)
+  const typeDropdownRef = useRef(null)
   const datePickerRef = useRef(null)
 
   const statusOptions = [
@@ -54,49 +57,109 @@ export default function TaskList({
     { value: 'CANCELLED', label: 'CANCELLED', icon: null }
   ]
 
+  const typeOptions = [
+    { value: 'deep_work', label: 'Deep Work', icon: Brain },
+    { value: 'quick_wins', label: 'Quick Wins', icon: Zap },
+    { value: 'grunt_work', label: 'Grunt Work', icon: Wrench },
+    { value: 'people_time', label: 'People Time', icon: Users },
+    { value: 'planning', label: 'Planning', icon: Compass }
+  ]
+
   // Close dropdown and date picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setOpenDropdown(null)
       }
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(event.target)) {
+        setOpenTypeDropdown(null)
+      }
       if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
         setOpenDatePicker(null)
       }
     }
 
-    if (openDropdown || openDatePicker) {
+    if (openDropdown || openTypeDropdown || openDatePicker) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [openDropdown, openDatePicker])
+  }, [openDropdown, openTypeDropdown, openDatePicker])
 
-  // Handle keyboard shortcuts for reordering tasks
+  // Handle keyboard shortcuts for navigation and reordering tasks
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only handle if a task is selected and Shift is pressed
-      if (!selectedTaskId || !e.shiftKey) return
+      // Skip if user is typing in an input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+      // Only handle arrow keys
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+
+      // If no task selected and there are tasks, select the first one
+      if (!selectedTaskId && tasks.length > 0) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          const firstTask = tasks[0]
+          onTaskSelect?.(firstTask.id)
+          setTimeout(() => {
+            const element = document.querySelector(`[data-task-id="${firstTask.id}"]`)
+            element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          }, 0)
+          return
+        }
+      }
+
+      if (!selectedTaskId) return
 
       // Find the index of the selected task
       const selectedIndex = tasks.findIndex(task => task.id === selectedTaskId)
       if (selectedIndex === -1) return
 
-      // Handle Shift + ArrowUp - move task up
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        if (selectedIndex > 0) {
-          onReorder(selectedIndex, selectedIndex - 1)
+      // Handle Shift + Arrow keys for reordering
+      if (e.shiftKey) {
+        // Handle Shift + ArrowUp - move task up
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          if (selectedIndex > 0) {
+            onReorder(selectedIndex, selectedIndex - 1)
+          }
         }
-      }
 
-      // Handle Shift + ArrowDown - move task down
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        if (selectedIndex < tasks.length - 1) {
-          onReorder(selectedIndex, selectedIndex + 1)
+        // Handle Shift + ArrowDown - move task down
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          if (selectedIndex < tasks.length - 1) {
+            onReorder(selectedIndex, selectedIndex + 1)
+          }
+        }
+      } else {
+        // Handle Arrow keys for navigation (without Shift)
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          if (selectedIndex > 0) {
+            const prevTask = tasks[selectedIndex - 1]
+            onTaskSelect?.(prevTask.id)
+            // Scroll into view
+            setTimeout(() => {
+              const element = document.querySelector(`[data-task-id="${prevTask.id}"]`)
+              element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }, 0)
+          }
+        }
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          if (selectedIndex < tasks.length - 1) {
+            const nextTask = tasks[selectedIndex + 1]
+            onTaskSelect?.(nextTask.id)
+            // Scroll into view
+            setTimeout(() => {
+              const element = document.querySelector(`[data-task-id="${nextTask.id}"]`)
+              element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            }, 0)
+          }
         }
       }
     }
@@ -105,7 +168,7 @@ export default function TaskList({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [selectedTaskId, tasks, onReorder])
+  }, [selectedTaskId, tasks, onReorder, onTaskSelect])
 
   /**
    * Get the title of a project note by its ID
@@ -152,12 +215,29 @@ export default function TaskList({
   }
 
   const handleStatusClick = (taskId) => {
+    // Close other dropdowns first
+    setOpenTypeDropdown(null)
+    setOpenDatePicker(null)
+    // Then toggle this one
     setOpenDropdown(openDropdown === taskId ? null : taskId)
   }
 
   const handleStatusChange = (taskId, newStatus) => {
     onStatusChange?.(taskId, newStatus)
     setOpenDropdown(null)
+  }
+
+  const handleTypeClick = (taskId) => {
+    // Close other dropdowns first
+    setOpenDropdown(null)
+    setOpenDatePicker(null)
+    // Then toggle this one
+    setOpenTypeDropdown(openTypeDropdown === taskId ? null : taskId)
+  }
+
+  const handleTypeChange = (taskId, newType) => {
+    onTypeChange?.(taskId, newType)
+    setOpenTypeDropdown(null)
   }
 
   /**
@@ -187,6 +267,203 @@ export default function TaskList({
     }
   }
 
+  // Check if we're in Hacker mode
+  const isHackerMode = document.documentElement.classList.contains('ui-hacker')
+
+  /**
+   * Render table for Hacker mode using CSS borders
+   */
+  const renderHackerTable = () => {
+    return (
+      <table
+        className="hacker-table w-full"
+        style={{
+          fontFamily: 'Monaco, Menlo, Consolas, monospace',
+          fontSize: '13px'
+        }}
+      >
+        <thead>
+          <tr>
+            <th style={{ width: '5%' }}>☐</th>
+            <th style={{ width: '5%' }}>#</th>
+            <th style={{ width: '60%' }}>TASK</th>
+            <th style={{ width: '10%' }}>STATUS</th>
+            <th style={{ width: '10%' }}>TYPE</th>
+            <th style={{ width: '10%' }}>DUE</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((task, index) => {
+            const isSelected = selectedTaskId === task.id
+            const projectName = task.project_id ? getProjectName(task.project_id) : null
+            const dueDate = task.scheduled_date ? formatDateNatural(task.scheduled_date) : '-'
+            const taskType = task.task_type ? task.task_type.replace(/_/g, ' ').toUpperCase() : '-'
+
+            const handleTaskClick = () => {
+              if (isSelected) {
+                onTaskDoubleClick?.(task)
+              } else {
+                onTaskSelect?.(task.id)
+              }
+            }
+
+            return (
+              <tr
+                key={task.id}
+                data-task-id={task.id}
+                data-selected={isSelected ? 'true' : 'false'}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, index)}
+                onClick={handleTaskClick}
+                className={`cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'bg-accent-primary/10'
+                    : 'hover:bg-accent-primary/5'
+                }`}
+              >
+                {/* Checkbox */}
+                <td className="text-center">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleComplete(task.id)
+                    }}
+                    className={`${
+                      task.status === 'DONE'
+                        ? 'text-syntax-green'
+                        : 'text-fg-secondary hover:text-syntax-green'
+                    }`}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                    title={task.status === 'DONE' ? 'Mark incomplete' : 'Mark complete'}
+                  >
+                    {task.status === 'DONE' ? '✓' : '☐'}
+                  </button>
+                </td>
+
+                {/* Priority Number */}
+                <td className="text-fg-tertiary" title={`Priority: ${task.priority}`}>
+                  {task.priority}
+                </td>
+
+                {/* Task */}
+                <td
+                  className={`${
+                    task.status === 'DONE'
+                      ? 'line-through text-fg-tertiary'
+                      : 'text-fg-primary'
+                  }`}
+                  title={task.text + (projectName ? ` [${projectName}]` : '')}
+                >
+                  <span>{task.text}</span>
+                  {projectName && (
+                    <span className="text-fg-tertiary ml-2" style={{ fontSize: '0.9em' }}>
+                      [{projectName}]
+                    </span>
+                  )}
+                </td>
+
+                {/* Status */}
+                <td className="relative" style={{ overflow: 'visible', position: 'relative' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleStatusClick(task.id)
+                    }}
+                    className={`hover:opacity-70 ${getStatusColor(task.status)}`}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                    title="Click to change status"
+                  >
+                    {task.status}
+                  </button>
+                  {openDropdown === task.id && (
+                    <div className="absolute left-0 top-full mt-1 bg-bg-elevated border border-border-secondary shadow-lg py-1 z-50 min-w-[120px]">
+                      {statusOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleStatusChange(task.id, option.value)
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors flex items-center gap-1.5 font-mono ${getStatusColor(option.value)}`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </td>
+
+                {/* Type */}
+                <td className="relative" style={{ overflow: 'visible', position: 'relative' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleTypeClick(task.id)
+                    }}
+                    className="text-fg-secondary hover:opacity-70"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                    title="Click to change type"
+                  >
+                    {taskType}
+                  </button>
+                  {openTypeDropdown === task.id && (
+                    <div className="absolute left-0 top-full mt-1 bg-bg-elevated border border-border-secondary shadow-lg py-1 z-50 min-w-[140px]">
+                      {typeOptions.map((option) => {
+                        const Icon = option.icon
+                        return (
+                          <button
+                            key={option.value || 'null'}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleTypeChange(task.id, option.value)
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors font-mono text-fg-secondary flex items-center gap-2"
+                          >
+                            {Icon && <Icon size={14} />}
+                            {option.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </td>
+
+                {/* Due */}
+                <td className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                    }}
+                    className="text-syntax-purple hover:opacity-70"
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                    title="Click to change due date"
+                  >
+                    {dueDate}
+                  </button>
+                  {openDatePicker === task.id && (
+                    <div ref={datePickerRef}>
+                      <DatePicker
+                        value={task.scheduled_date}
+                        onChange={(date) => {
+                          onScheduleTask?.(task.id, date)
+                          setOpenDatePicker(null)
+                        }}
+                        onClose={() => setOpenDatePicker(null)}
+                      />
+                    </div>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    )
+  }
+
   // Empty state: show helpful message when no tasks
   if (!tasks || tasks.length === 0) {
     return (
@@ -198,50 +475,30 @@ export default function TaskList({
     )
   }
 
+  // Render Hacker mode table if enabled
+  if (isHackerMode) {
+    return renderHackerTable()
+  }
+
   return (
     <div className="space-y-1 text-sm">
       {tasks.map((task, index) => {
         const isSelected = selectedTaskId === task.id
 
-        // Debug logging for first 3 tasks
-        if (index < 3) {
-          console.log(`📋 Task ${index}:`, {
-            taskId: task.id,
-            selectedTaskId,
-            isSelected,
-            taskText: task.text.substring(0, 30)
-          })
-        }
-
         const handleTaskClick = () => {
-          console.log('🖱️  Task clicked:', { taskId: task.id, isSelected })
-
           if (isSelected) {
             // Already selected - open panel
-            console.log('  → Already selected, opening panel')
             onTaskDoubleClick?.(task)
           } else {
             // Not selected - highlight/select it
-            console.log('  → Not selected, highlighting task')
             onTaskSelect?.(task.id)
           }
-        }
-
-        // Debug: Log computed styles for selected task
-        if (isSelected) {
-          console.log('🎨 Selected task styles:', {
-            taskId: task.id,
-            taskText: task.text.substring(0, 30),
-            isSelected,
-            expectedBg: 'bg-accent-primary/20',
-            expectedBorder: 'border-accent-primary/50',
-            accentPrimaryColor: getComputedStyle(document.documentElement).getPropertyValue('--accent-primary')
-          })
         }
 
         return (
           <div
             key={task.id}
+            data-task-id={task.id}
             draggable
             onDragStart={(e) => handleDragStart(e, index)}
             onDragOver={handleDragOver}
@@ -307,11 +564,43 @@ export default function TaskList({
             <span className="flex-1" />
 
             {/* Task Type */}
-            {task.task_type && (
-              <span className="text-fg-secondary text-xs font-medium flex-shrink-0">
-                [{task.task_type.replace(/_/g, ' ')}]
-              </span>
-            )}
+            <div className="relative flex-shrink-0" ref={openTypeDropdown === task.id ? typeDropdownRef : null}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleTypeClick(task.id)
+                }}
+                className="text-fg-secondary text-xs font-medium hover:opacity-70 transition-opacity"
+                title="Click to change type"
+              >
+                [{task.task_type ? task.task_type.replace(/_/g, ' ') : '-'}]
+              </button>
+
+              {/* Type dropdown */}
+              {(() => {
+                const shouldShow = openTypeDropdown === task.id
+                return shouldShow ? (
+                  <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[120px]">
+                    {typeOptions.map((option) => {
+                      const Icon = option.icon
+                      return (
+                        <button
+                          key={option.value || 'null'}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleTypeChange(task.id, option.value)
+                          }}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors text-fg-secondary flex items-center gap-2"
+                        >
+                          {Icon && <Icon size={14} />}
+                          {option.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : null
+              })()}
+            </div>
 
             {/* Badge container - slides status left on hover after delay */}
             <div className="flex items-baseline gap-2 task-badges-container">

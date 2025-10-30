@@ -265,15 +265,15 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
                   UI Mode
                 </h3>
                 <p className="text-xs text-fg-secondary mb-4">
-                  Choose between polished or terminal-style interface
+                  Choose your work mode - each optimized for different tasks
                 </p>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   {availableUIModes.map((mode) => (
                     <button
                       key={mode.id}
                       onClick={() => handleUIModeSelect(mode.id)}
-                      className={`p-4 border-2 text-left transition-all ${
+                      className={`w-full p-4 border-2 rounded-lg text-left transition-all ${
                         selectedUIModeId === mode.id
                           ? 'border-accent-primary bg-accent-primary/10'
                           : 'border-border-primary bg-bg-secondary hover:border-border-focus'
@@ -287,9 +287,17 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
                           <Check size={16} className="text-accent-primary" />
                         )}
                       </div>
-                      <p className="text-xs text-fg-secondary">
+                      <p className="text-xs text-fg-primary mb-1.5">
                         {mode.description}
                       </p>
+                      <p className="text-[11px] text-fg-tertiary italic mb-2">
+                        {mode.useCase}
+                      </p>
+                      <div className="flex items-center gap-2 text-[10px] text-fg-tertiary font-medium">
+                        <span className="px-2 py-0.5 bg-bg-tertiary rounded border border-border-secondary">
+                          {mode.sizing}
+                        </span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -309,13 +317,13 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
                     <button
                       key={font.id}
                       onClick={() => handleFontSelect(font.id)}
-                      className={`w-full p-3 border text-left transition-all ${
+                      className={`w-full p-3 border rounded-lg text-left transition-all ${
                         selectedFontId === font.id
                           ? 'border-accent-primary bg-accent-primary/10'
                           : 'border-border-primary bg-bg-secondary hover:border-border-focus'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Type size={14} className="text-fg-tertiary" />
                           <span className="text-sm font-medium text-fg-primary">
@@ -325,14 +333,17 @@ export default function SettingsModal({ isOpen, onClose, currentThemeId, onTheme
                             <Check size={14} className="text-accent-primary" />
                           )}
                         </div>
-                        {font.hasLigatures && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-accent-primary/20 text-accent-primary font-bold">
-                            LIGATURES
+                        {font.recommendedFor && (
+                          <span className="text-[10px] px-2 py-0.5 bg-syntax-blue/20 text-syntax-blue rounded font-bold uppercase">
+                            {font.recommendedFor === 'standard' ? 'Standard Mode' : 'Hacker Mode'}
                           </span>
                         )}
                       </div>
+                      <p className="text-[11px] text-fg-secondary mb-2">
+                        {font.description}
+                      </p>
                       <div
-                        className="text-sm text-fg-primary mt-2"
+                        className="text-sm text-fg-primary"
                         style={{ fontFamily: font.cssFamily }}
                       >
                         The quick brown fox jumps over 0123456789

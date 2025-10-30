@@ -5,114 +5,37 @@
 
 export const availableFonts = [
   {
-    id: 'jetbrains-mono',
-    name: 'JetBrains Mono',
-    category: 'monospace',
-    description: 'Clean monospace with excellent ligature support',
-    cssFamily: "'JetBrains Mono', monospace",
-    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap',
+    id: 'inter',
+    name: 'Inter',
+    category: 'sans-serif',
+    description: 'Modern sans-serif - ideal for Standard mode',
+    cssFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
     weights: [300, 400, 500, 600, 700],
-    hasLigatures: true
-  },
-  {
-    id: 'fira-code',
-    name: 'Fira Code',
-    category: 'monospace',
-    description: 'Popular monospace with programming ligatures',
-    cssFamily: "'Fira Code', monospace",
-    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600;700&display=swap',
-    weights: [300, 400, 500, 600, 700],
-    hasLigatures: true
-  },
-  {
-    id: 'source-code-pro',
-    name: 'Source Code Pro',
-    category: 'monospace',
-    description: 'Adobe monospace, highly readable',
-    cssFamily: "'Source Code Pro', monospace",
-    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@300;400;500;600;700&display=swap',
-    weights: [300, 400, 500, 600, 700],
-    hasLigatures: false
-  },
-  {
-    id: 'ibm-plex-mono',
-    name: 'IBM Plex Mono',
-    category: 'monospace',
-    description: 'IBM corporate monospace, clean and modern',
-    cssFamily: "'IBM Plex Mono', monospace",
-    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap',
-    weights: [300, 400, 500, 600, 700],
-    hasLigatures: false
-  },
-  {
-    id: 'cascadia-code',
-    name: 'Cascadia Code',
-    category: 'monospace',
-    description: 'Microsoft terminal font with ligatures',
-    cssFamily: "'Cascadia Code', monospace",
-    googleFontsUrl: null, // Not on Google Fonts, will use system fallback
-    weights: [300, 400, 600, 700],
-    hasLigatures: true
+    hasLigatures: false,
+    recommendedFor: 'standard'
   },
   {
     id: 'monaco',
     name: 'Monaco',
     category: 'monospace',
-    description: 'Classic macOS monospace',
-    cssFamily: "'Monaco', 'Consolas', monospace",
+    description: 'Classic system monospace - ideal for Hacker mode',
+    cssFamily: "'Monaco', 'Menlo', 'Consolas', monospace",
     googleFontsUrl: null, // System font
     weights: [400],
-    hasLigatures: false
-  },
-  {
-    id: 'consolas',
-    name: 'Consolas',
-    category: 'monospace',
-    description: 'Classic Windows monospace',
-    cssFamily: "'Consolas', 'Monaco', monospace",
-    googleFontsUrl: null, // System font
-    weights: [400],
-    hasLigatures: false
-  },
-  {
-    id: 'courier-new',
-    name: 'Courier New',
-    category: 'monospace',
-    description: 'Classic typewriter-style monospace',
-    cssFamily: "'Courier New', 'Courier', monospace",
-    googleFontsUrl: null, // System font
-    weights: [400],
-    hasLigatures: false
+    hasLigatures: false,
+    recommendedFor: 'hacker'
   },
   {
     id: 'original-sublime',
     name: 'Original (Sublime)',
     category: 'monospace',
-    description: 'Original Sublime Text font stack',
+    description: 'Classic editor font stack',
     cssFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
     googleFontsUrl: null, // System font stack
     weights: [400],
-    hasLigatures: false
-  },
-  {
-    id: 'inter',
-    name: 'Inter',
-    category: 'sans-serif',
-    description: 'Modern sans-serif for UI',
-    cssFamily: "'Inter', sans-serif",
-    googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
-    weights: [300, 400, 500, 600, 700],
-    hasLigatures: false
-  },
-  {
-    id: 'sf-pro',
-    name: 'SF Pro',
-    category: 'sans-serif',
-    description: 'Apple system font',
-    cssFamily: "'-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', sans-serif",
-    googleFontsUrl: null, // System font
-    weights: [300, 400, 500, 600, 700],
-    hasLigatures: false
+    hasLigatures: false,
+    recommendedFor: null
   }
 ]
 

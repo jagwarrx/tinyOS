@@ -19,12 +19,10 @@ export class RefIdNode extends DecoratorNode {
   __mindmapSvg
 
   static getType() {
-    console.log('🔧 RefIdNode.getType() called, returning: "refid"')
     return 'refid'
   }
 
   static clone(node) {
-    console.log('🔧 RefIdNode.clone() called - itemType:', node.__itemType, 'refId:', node.__refId)
     return new RefIdNode(
       node.__refId,
       node.__itemType,
@@ -39,7 +37,6 @@ export class RefIdNode extends DecoratorNode {
 
   constructor(refId, itemType, title, onClick, key, noteType = null, diagramSvg = null, mindmapSvg = null) {
     super(key)
-    console.log('🔧 RefIdNode constructor - itemType param:', itemType, 'refId:', refId, 'noteType:', noteType)
     this.__refId = refId
     this.__itemType = itemType // 'note' or 'task'
     this.__title = title
@@ -76,7 +73,6 @@ export class RefIdNode extends DecoratorNode {
   }
 
   static importJSON(serializedNode) {
-    console.log('🔧 RefIdNode.importJSON() called - serializedNode:', serializedNode)
     const node = $createRefIdNode(
       serializedNode.refId,
       serializedNode.itemType,
@@ -90,8 +86,7 @@ export class RefIdNode extends DecoratorNode {
   }
 
   exportJSON() {
-    console.log('🔧 RefIdNode.exportJSON() - this.__itemType:', this.__itemType, 'this.__refId:', this.__refId)
-    const json = {
+    return {
       type: 'refid',
       refId: this.__refId,
       itemType: this.__itemType,
@@ -101,8 +96,6 @@ export class RefIdNode extends DecoratorNode {
       mindmapSvg: this.__mindmapSvg,
       version: 1
     }
-    console.log('🔧 RefIdNode.exportJSON() called - returning:', json)
-    return json
   }
 
   getTextContent() {
@@ -233,7 +226,6 @@ function RefIdBadgeComponent({ refId, type, title, noteType, diagramSvg, mindmap
  * Helper function to create a RefIdNode
  */
 export function $createRefIdNode(refId, type, title, onClick, noteType = null, diagramSvg = null, mindmapSvg = null) {
-  console.log('🔧 $createRefIdNode() called - refId:', refId, 'type:', type, 'title:', title, 'noteType:', noteType)
   return new RefIdNode(refId, type, title, onClick, null, noteType, diagramSvg, mindmapSvg)
 }
 

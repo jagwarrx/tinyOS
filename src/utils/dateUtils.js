@@ -175,11 +175,13 @@ export function parseNaturalTime(input) {
   const timeMatch = trimmed.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/)
   let hour = null
   let minute = 0
+  let hasExplicitTime = false
 
   if (timeMatch) {
     hour = parseInt(timeMatch[1])
     minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
     const period = timeMatch[3]
+    hasExplicitTime = true
 
     if (period === 'pm' && hour < 12) hour += 12
     if (period === 'am' && hour === 12) hour = 0
@@ -246,7 +248,8 @@ export function parseNaturalTime(input) {
   }
 
   // If the time has already passed today and no day specified, assume tomorrow
-  if (!trimmed.includes('yesterday') && !trimmed.includes('tomorrow') && !trimmed.match(/monday|tuesday|wednesday|thursday|friday|saturday|sunday/) && targetDate <= now) {
+  // BUT only if an explicit time was provided in the input
+  if (hasExplicitTime && !trimmed.includes('yesterday') && !trimmed.includes('tomorrow') && !trimmed.match(/monday|tuesday|wednesday|thursday|friday|saturday|sunday/) && targetDate <= now) {
     targetDate.setDate(targetDate.getDate() + 1)
   }
 

@@ -34,6 +34,7 @@ export default function NoteEditor({
   onToggleTaskComplete,
   onToggleTaskStar,
   onChangeTaskStatus,
+  onChangeTaskType,
   onScheduleTask,
   onReorderTasks,
   onRefIdNavigate,
@@ -618,7 +619,7 @@ export default function NoteEditor({
         </div>
 
         {/* Title Section */}
-        <div className="p-6 pb-4 border-b border-border-primary">
+        <div className="note-title-section p-6 pb-4 border-b border-border-primary">
           <div className="relative flex items-start gap-3">
             {/* Page icon indicators */}
             {(note.is_home || isSpecialSystemPage(note)) && (
@@ -896,6 +897,7 @@ export default function NoteEditor({
                             onToggleComplete={onToggleTaskComplete}
                             onToggleStar={onToggleTaskStar}
                             onStatusChange={onChangeTaskStatus}
+                            onTypeChange={onChangeTaskType}
                             onScheduleTask={onScheduleTask}
                             onReorder={onReorderTasks}
                             onTaskDoubleClick={onTaskDoubleClick}
@@ -1054,6 +1056,7 @@ export default function NoteEditor({
                               onToggleComplete={onToggleTaskComplete}
                               onToggleStar={onToggleTaskStar}
                               onStatusChange={onChangeTaskStatus}
+                              onTypeChange={onChangeTaskType}
                               onScheduleTask={onScheduleTask}
                               onReorder={onReorderTasks}
                               onTaskDoubleClick={onTaskDoubleClick}
@@ -1090,6 +1093,7 @@ export default function NoteEditor({
                               onToggleComplete={onToggleTaskComplete}
                               onToggleStar={onToggleTaskStar}
                               onStatusChange={onChangeTaskStatus}
+                              onTypeChange={onChangeTaskType}
                               onScheduleTask={onScheduleTask}
                               onReorder={onReorderTasks}
                               onTaskDoubleClick={onTaskDoubleClick}
@@ -1111,6 +1115,7 @@ export default function NoteEditor({
                     onToggleComplete={onToggleTaskComplete}
                     onToggleStar={onToggleTaskStar}
                     onStatusChange={onChangeTaskStatus}
+                    onTypeChange={onChangeTaskType}
                     onScheduleTask={onScheduleTask}
                     onReorder={onReorderTasks}
                     onTaskDoubleClick={onTaskDoubleClick}

@@ -348,6 +348,33 @@ export const themeCollections = [
 3. Your collection should appear with preview
 4. Select theme and verify all UI elements look correct
 
+## Algorithmic Theme Generation
+
+The app includes an algorithmic theme generator (`CustomThemeBuilder.jsx`) that creates complete theme palettes from primary colors using chroma.js.
+
+### How It Works
+
+1. **Input**: Primary color + category (dark/light)
+2. **Process**: Generates harmonious palettes using color theory (triadic, analogous, complementary)
+3. **Output**: Full theme object with all required color tokens
+
+### Using CustomThemeBuilder
+
+1. Open Settings → Theme → "Create Custom Theme" tab
+2. Pick a primary color and category
+3. Preview generated palette in real-time
+4. Save as new theme (stored in database)
+
+### Color Generation Rules
+
+- **Backgrounds**: Derived from desaturated primary color with layered lightness
+- **Accents**: Triadic/analogous colors from primary hue
+- **Semantic**: Standard mappings (red=error, green=success, yellow=warning, blue=info)
+- **Syntax**: Rainbow spread across color wheel
+- **Contrast**: Automatic WCAG-compliant text colors
+
+This allows rapid theme creation without manually defining 40+ color values.
+
 ## Theme Testing Checklist
 
 When adding or modifying themes, verify:
@@ -489,13 +516,15 @@ This allows components to use dark mode variants:
 Potential improvements to the theme system:
 
 - [ ] Theme variants (adjust saturation, brightness)
-- [ ] User-defined custom themes
+- [x] User-defined custom themes (via CustomThemeBuilder)
 - [ ] Theme import/export (JSON)
 - [ ] Color contrast validation
 - [ ] Accessibility mode (high contrast)
 - [ ] Auto dark mode based on system preference
 - [ ] Theme transitions/animations
 - [ ] Per-component theme overrides
+- [ ] Edit/delete custom themes
+- [ ] Share custom themes with other users
 
 ---
 

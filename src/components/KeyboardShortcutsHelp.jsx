@@ -24,6 +24,8 @@ export default function KeyboardShortcutsHelp({ isOpen, onClose }) {
         { keys: ['Tab'], description: 'Focus terminal' },
         { keys: ['L'], description: 'Navigate to Log page' },
         { keys: ['←', '→', '↑', '↓'], description: 'Navigate between notes' },
+        { keys: ['Alt', '←'], description: 'Go back in history' },
+        { keys: ['Alt', '→'], description: 'Go forward in history' },
       ]
     },
     {

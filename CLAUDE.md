@@ -123,6 +123,7 @@ See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structu
   - Adding terminal commands: `commandParser.js` + `App.jsx`
   - Modifying task statuses: `TaskList.jsx`
   - Understanding ref_id detection: `RefIdTransformPlugin.jsx`
+  - Creating custom themes: `CustomThemeBuilder.jsx` + `themeService.js`
 
 **Example token-efficient workflow:**
 ```

@@ -13,10 +13,6 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
   const iframeRef = useRef(null)
   const [diagramData, setDiagramData] = useState(null)
 
-  // Debug: Watch isLoading state changes
-  useEffect(() => {
-    console.log('🔍 isLoading state changed to:', isLoading)
-  }, [isLoading])
 
   useEffect(() => {
     if (!isOpen) return
@@ -29,22 +25,17 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
 
       try {
         const data = JSON.parse(event.data)
-        console.log('📨 Received message from Draw.io:', data.event, data)
 
         // Ignore messages without an event property
         if (!data.event) {
-          console.log('ℹ️ Message without event property, ignoring')
           return
         }
 
       switch (data.event) {
         case 'init':
           // Editor is ready
-          console.log('✅ Draw.io editor initialized')
-
           // Load existing diagram or start with blank canvas
           if (initialXml) {
-            console.log('📤 Loading existing diagram')
             iframeRef.current?.contentWindow.postMessage(
               JSON.stringify({
                 action: 'load',
@@ -54,7 +45,6 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
               'https://embed.diagrams.net'
             )
           } else {
-            console.log('📄 Starting new blank diagram')
             // Send blank diagram XML to start fresh
             const blankDiagram = '<mxfile host="app.diagrams.net"><diagram name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>'
             iframeRef.current?.contentWindow.postMessage(
@@ -68,20 +58,16 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
           }
 
           // Hide loading after a brief delay to ensure editor is ready
-          console.log('⏱️ Setting timeout to hide loading spinner...')
           setTimeout(() => {
-            console.log('✨ Timeout executed, calling setIsLoading(false)')
             setIsLoading(false)
           }, 1000)
           break
 
         case 'load':
-          console.log('✅ Diagram loaded successfully')
           break
 
         case 'save':
           // User clicked Save - extract diagram data
-          console.log('💾 Save event received')
           setDiagramData({
             xml: data.xml,
             svg: null // We'll request SVG separately
@@ -99,14 +85,12 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
 
         case 'export':
           // SVG export complete
-          console.log('📊 Export received (format:', data.format, ')')
           if (data.format === 'svg' && diagramData) {
             // Save both XML and SVG
             const completeData = {
               ...diagramData,
               svg: data.data
             }
-            console.log('✅ Saving diagram with XML and SVG')
             onSave(completeData)
             onClose()
           }
@@ -114,17 +98,15 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
 
         case 'exit':
           // User clicked exit without saving
-          console.log('🚪 Exit without save')
           onClose()
           break
 
         case 'autosave':
           // Auto-save event (we can use this for real-time updates if needed)
-          console.log('💾 Auto-save event')
           break
 
         default:
-          console.log('🤷 Unknown event:', data.event)
+          break
       }
     } catch (error) {
       console.error('❌ Error handling Draw.io message:', error, event.data)
@@ -136,8 +118,6 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
   }, [isOpen, initialXml, onSave, onClose, diagramData])
 
   if (!isOpen) return null
-
-  console.log('🎨 Rendering DiagramEditor - isLoading:', isLoading, 'isOpen:', isOpen)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -187,11 +167,8 @@ export default function DiagramEditor({ isOpen, onClose, initialXml, onSave, dia
           className={`flex-1 border-0 ${isLoading ? 'hidden' : ''}`}
           style={{ display: isLoading ? 'none' : 'block' }}
           onLoad={() => {
-            console.log('📦 iframe loaded, className will be:', isLoading ? 'hidden' : 'visible')
-            console.log('📦 iframe ref:', iframeRef.current ? 'exists' : 'null')
             // Fallback: Hide loading after 2 seconds if postMessage doesn't work
             setTimeout(() => {
-              console.log('⚠️ Fallback check - isLoading:', isLoading)
               setIsLoading(false)
             }, 2000)
           }}
