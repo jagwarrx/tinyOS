@@ -20,7 +20,8 @@ import {
   ChevronLeft,
   Tag as TagIcon,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Flag
 } from 'lucide-react'
 import TagFilter from './TagFilter'
 
@@ -28,9 +29,11 @@ export default function CollapsibleFilterBar({
   selectedTaskType = null,
   selectedStatuses = [],
   selectedTagIds = [],
+  showHighlightedDone = false,
   onTaskTypeChange,
   onStatusChange,
   onTagsChange,
+  onHighlightedDoneChange,
   tasks = []
 }) {
   const [isTaskTypeExpanded, setIsTaskTypeExpanded] = useState(true)
@@ -77,6 +80,11 @@ export default function CollapsibleFilterBar({
   // Count tasks for each status
   const getStatusCount = (status) => {
     return tasks.filter(task => task.status === status).length
+  }
+
+  // Count highlighted done tasks
+  const getHighlightedDoneCount = () => {
+    return tasks.filter(task => task.status === 'DONE' && task.is_highlighted).length
   }
 
   const getStatusColorClasses = (color, isActive) => {
@@ -197,6 +205,26 @@ export default function CollapsibleFilterBar({
         </div>
       </div>
 
+      {/* Highlighted Done Filter Button */}
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Highlights</span>
+
+        <button
+          onClick={() => onHighlightedDoneChange?.(!showHighlightedDone)}
+          className={`flex items-center gap-1 rounded border px-2 py-1 transition-all ${
+            showHighlightedDone
+              ? 'bg-semantic-error/20 text-semantic-error border-semantic-error/30'
+              : 'bg-bg-primary border-border-primary text-fg-tertiary hover:text-semantic-error'
+          }`}
+          title="Show only highlighted done tasks"
+        >
+          <Flag size={12} fill={showHighlightedDone ? 'currentColor' : 'none'} strokeWidth={showHighlightedDone ? 2.5 : 2} />
+          <span className="text-[10px] font-medium">
+            {showHighlightedDone ? `Done (${getHighlightedDoneCount()})` : 'Done'}
+          </span>
+        </button>
+      </div>
+
       {/* Tags Filter Button */}
       <div className="flex items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wider font-semibold text-fg-tertiary">Tags</span>
@@ -222,12 +250,13 @@ export default function CollapsibleFilterBar({
       </div>
 
       {/* Clear Filters Button */}
-      {(selectedTaskType || selectedStatuses.length > 0 || selectedTagIds.length > 0) && (
+      {(selectedTaskType || selectedStatuses.length > 0 || selectedTagIds.length > 0 || showHighlightedDone) && (
         <button
           onClick={() => {
             onTaskTypeChange?.(null)
             onStatusChange?.([])
             onTagsChange?.([])
+            onHighlightedDoneChange?.(false)
           }}
           className="ml-auto text-[10px] text-fg-tertiary hover:text-fg-secondary transition-colors"
         >

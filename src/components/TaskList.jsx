@@ -22,7 +22,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle, FileText, Brain, Zap, Wrench, Users, Compass } from 'lucide-react'
+import { Check, Circle, ChevronDown, Star, Calendar, AlertCircle, FileText, Brain, Zap, Wrench, Users, Compass, Inbox, Flag } from 'lucide-react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
 
@@ -38,12 +38,16 @@ export default function TaskList({
   onStatusChange,
   onTaskDoubleClick,
   onScheduleTask,
-  onTypeChange
+  onTypeChange,
+  onMoveToInbox,
+  onEffortChange,
+  onToggleHighlight
 }) {
   // State for dropdowns and date pickers
   const [openDropdown, setOpenDropdown] = useState(null)
   const [openTypeDropdown, setOpenTypeDropdown] = useState(null)
   const [openDatePicker, setOpenDatePicker] = useState(null)
+  const [hoveredTaskId, setHoveredTaskId] = useState(null)
   const dropdownRef = useRef(null)
   const typeDropdownRef = useRef(null)
   const datePickerRef = useRef(null)
@@ -214,6 +218,20 @@ export default function TaskList({
     return task.scheduled_date === todayISO
   }
 
+  /**
+   * Check if task is minimal (only has title, no other data)
+   */
+  const isMinimalTask = (task) => {
+    return (
+      !task.project_id &&
+      !task.scheduled_date &&
+      (!task.context || task.context.trim() === '') &&
+      !task.task_type &&
+      !task.is_starred &&
+      task.status === 'BACKLOG'
+    )
+  }
+
   const handleStatusClick = (taskId) => {
     // Close other dropdowns first
     setOpenTypeDropdown(null)
@@ -238,6 +256,10 @@ export default function TaskList({
   const handleTypeChange = (taskId, newType) => {
     onTypeChange?.(taskId, newType)
     setOpenTypeDropdown(null)
+  }
+
+  const handleEffortChange = (taskId, newEffort) => {
+    onEffortChange?.(taskId, newEffort)
   }
 
   /**
@@ -274,6 +296,9 @@ export default function TaskList({
    * Render table for Hacker mode using CSS borders
    */
   const renderHackerTable = () => {
+    const isDoneView = viewType === 'Done'
+    const isScheduledView = viewType === 'Scheduled'
+
     return (
       <table
         className="hacker-table w-full"
@@ -285,11 +310,13 @@ export default function TaskList({
         <thead>
           <tr>
             <th style={{ width: '5%' }}>☐</th>
-            <th style={{ width: '5%' }}>#</th>
-            <th style={{ width: '60%' }}>TASK</th>
+            {!isDoneView && <th style={{ width: '5%' }}>#</th>}
+            <th style={{ width: isDoneView ? '55%' : (isScheduledView ? '40%' : '45%') }}>TASK</th>
             <th style={{ width: '10%' }}>STATUS</th>
-            <th style={{ width: '10%' }}>TYPE</th>
-            <th style={{ width: '10%' }}>DUE</th>
+            {!isDoneView && <th style={{ width: isScheduledView ? '15%' : '10%' }}>DUE</th>}
+            <th style={{ width: '10%' }}>TTV</th>
+            <th style={{ width: '15%' }}>TYPE</th>
+            {isDoneView && <th style={{ width: '5%' }}>⚑</th>}
           </tr>
         </thead>
         <tbody>
@@ -317,7 +344,7 @@ export default function TaskList({
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, index)}
                 onClick={handleTaskClick}
-                className={`cursor-pointer transition-colors ${
+                className={`group cursor-pointer transition-colors ${
                   isSelected
                     ? 'bg-accent-primary/10'
                     : 'hover:bg-accent-primary/5'
@@ -343,20 +370,27 @@ export default function TaskList({
                 </td>
 
                 {/* Priority Number */}
-                <td className="text-fg-tertiary" title={`Priority: ${task.priority}`}>
-                  {task.priority}
-                </td>
+                {!isDoneView && (
+                  <td className="text-fg-tertiary" title={`Priority: ${task.priority}`}>
+                    {task.priority}
+                  </td>
+                )}
 
                 {/* Task */}
                 <td
                   className={`${
-                    task.status === 'DONE'
+                    task.status === 'DONE' && !isDoneView
                       ? 'line-through text-fg-tertiary'
                       : 'text-fg-primary'
                   }`}
                   title={task.text + (projectName ? ` [${projectName}]` : '')}
                 >
                   <span>{task.text}</span>
+                  {isMinimalTask(task) && (
+                    <span className="text-fg-tertiary ml-2" style={{ fontSize: '0.85em' }}>
+                      [null]
+                    </span>
+                  )}
                   {projectName && (
                     <span className="text-fg-tertiary ml-2" style={{ fontSize: '0.9em' }}>
                       [{projectName}]
@@ -395,6 +429,59 @@ export default function TaskList({
                   )}
                 </td>
 
+                {/* Due */}
+                {!isDoneView && (
+                  <td className="relative" style={{ overflow: 'visible', position: 'relative' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setOpenDatePicker(openDatePicker === task.id ? null : task.id)
+                      }}
+                      className="text-syntax-purple hover:opacity-70"
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
+                      title="Click to change due date"
+                    >
+                      {dueDate}
+                    </button>
+                    {openDatePicker === task.id && (
+                      <div ref={datePickerRef} style={{ position: 'relative' }}>
+                        <DatePicker
+                          value={task.scheduled_date}
+                          onChange={(date) => {
+                            onScheduleTask?.(task.id, date)
+                            setOpenDatePicker(null)
+                          }}
+                          onClose={() => setOpenDatePicker(null)}
+                        />
+                      </div>
+                    )}
+                  </td>
+                )}
+
+                {/* Time to Value */}
+                <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((level) => {
+                      const isHighlighted = (task.effort || 0) >= level
+                      return (
+                        <div
+                          key={level}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEffortChange(task.id, level)
+                          }}
+                          className={`w-4 h-4 rounded border transition-all cursor-pointer ${
+                            isHighlighted
+                              ? 'bg-syntax-orange border-syntax-orange opacity-100'
+                              : 'bg-transparent border-fg-tertiary hover:border-syntax-orange hover:bg-syntax-orange/20'
+                          }`}
+                          title={`Time to Value: ${level}/5`}
+                        />
+                      )
+                    })}
+                  </div>
+                </td>
+
                 {/* Type */}
                 <td className="relative" style={{ overflow: 'visible', position: 'relative' }}>
                   <button
@@ -430,32 +517,38 @@ export default function TaskList({
                   )}
                 </td>
 
-                {/* Due */}
-                <td className="relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setOpenDatePicker(openDatePicker === task.id ? null : task.id)
-                    }}
-                    className="text-syntax-purple hover:opacity-70"
-                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}
-                    title="Click to change due date"
-                  >
-                    {dueDate}
-                  </button>
-                  {openDatePicker === task.id && (
-                    <div ref={datePickerRef}>
-                      <DatePicker
-                        value={task.scheduled_date}
-                        onChange={(date) => {
-                          onScheduleTask?.(task.id, date)
-                          setOpenDatePicker(null)
-                        }}
-                        onClose={() => setOpenDatePicker(null)}
-                      />
-                    </div>
-                  )}
-                </td>
+                {/* Flag */}
+                {isDoneView && (
+                  <td className="text-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onToggleHighlight?.(task.id, !task.is_highlighted)
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        color: task.is_highlighted ? '#ef4444' : '#6b7280'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!task.is_highlighted) {
+                          e.currentTarget.style.color = '#ef4444'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!task.is_highlighted) {
+                          e.currentTarget.style.color = '#6b7280'
+                        }
+                      }}
+                      title={task.is_highlighted ? 'Remove highlight' : 'Highlight'}
+                    >
+                      <Flag size={14} fill={task.is_highlighted ? 'currentColor' : 'none'} strokeWidth={task.is_highlighted ? 2.5 : 2} />
+                    </button>
+                  </td>
+                )}
               </tr>
             )
           })}
@@ -481,7 +574,7 @@ export default function TaskList({
   }
 
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-1.5">
       {tasks.map((task, index) => {
         const isSelected = selectedTaskId === task.id
 
@@ -504,16 +597,18 @@ export default function TaskList({
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, index)}
             onClick={handleTaskClick}
-            className={`group flex items-center gap-3 py-1 px-2 rounded cursor-pointer transition-all border hover:bg-accent-hover ${
+            onMouseEnter={() => setHoveredTaskId(task.id)}
+            onMouseLeave={() => setHoveredTaskId(null)}
+            className={`group flex items-center gap-3 py-2.5 px-3 pr-14 rounded-lg cursor-pointer transition-all relative ${
               isSelected
-                ? 'bg-accent-hover border-accent-primary'
-                : 'border-transparent'
+                ? 'bg-bg-secondary border border-accent-primary/30 shadow-sm'
+                : 'hover:bg-bg-secondary/50 border border-transparent'
             }`}
             title={isSelected ? "Click to open details" : "Click to select"}
           >
           {/* Number */}
-          <span className="text-fg-tertiary select-none w-8 flex-shrink-0">
-            {index + 1}.
+          <span className="text-fg-tertiary select-none text-xs w-6 flex-shrink-0 font-mono">
+            {index + 1}
           </span>
 
           {/* Checkbox */}
@@ -524,25 +619,35 @@ export default function TaskList({
             }}
             className="flex-shrink-0"
           >
-            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+            <div className={`w-4.5 h-4.5 rounded border-2 flex items-center justify-center transition-all ${
               task.status === 'DONE'
-                ? 'bg-syntax-green border-syntax-green'
-                : 'border-border-primary hover:border-syntax-green'
+                ? 'bg-semantic-success border-semantic-success'
+                : 'border-border-secondary hover:border-semantic-success hover:bg-semantic-success/5'
             }`}>
-              {task.status === 'DONE' && <Check size={10} className="text-fg-inverse" strokeWidth={3} />}
+              {task.status === 'DONE' && <Check size={11} className="text-white" strokeWidth={3} />}
             </div>
           </button>
 
-          {/* Task text, project, and status */}
-          <div className="flex-1 min-w-0 flex items-baseline gap-2">
+          {/* Task text and metadata */}
+          <div className="flex-1 min-w-0 flex items-center gap-2.5">
             {/* Task text */}
-            <span className={`${
+            <span className={`text-sm font-medium ${
               task.status === 'DONE'
                 ? 'line-through text-fg-tertiary'
                 : 'text-fg-primary'
             }`}>
               {task.text}
             </span>
+
+            {/* Null indicator for minimal tasks */}
+            {isMinimalTask(task) && (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded font-mono text-fg-tertiary bg-bg-tertiary border border-border-primary flex-shrink-0"
+                title="Minimal task - only has title, no other data"
+              >
+                null
+              </span>
+            )}
 
             {/* Notes indicator */}
             {task.context && task.context.trim() && (
@@ -555,16 +660,16 @@ export default function TaskList({
 
             {/* Project - hide when already viewing a project page */}
             {task.project_id && viewType !== 'project' && (
-              <span className="text-fg-tertiary text-xs">
+              <span className="text-fg-tertiary text-xs flex-shrink-0">
                 [{getProjectName(task.project_id)}]
               </span>
             )}
+          </div>
 
-            {/* Spacer to push badges to the right */}
-            <span className="flex-1" />
-
+          {/* Right section: Task Type + Badges */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Task Type */}
-            <div className="relative flex-shrink-0" ref={openTypeDropdown === task.id ? typeDropdownRef : null}>
+            <div className="relative" ref={openTypeDropdown === task.id ? typeDropdownRef : null}>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -577,33 +682,30 @@ export default function TaskList({
               </button>
 
               {/* Type dropdown */}
-              {(() => {
-                const shouldShow = openTypeDropdown === task.id
-                return shouldShow ? (
-                  <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[120px]">
-                    {typeOptions.map((option) => {
-                      const Icon = option.icon
-                      return (
-                        <button
-                          key={option.value || 'null'}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleTypeChange(task.id, option.value)
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors text-fg-secondary flex items-center gap-2"
-                        >
-                          {Icon && <Icon size={14} />}
-                          {option.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : null
-              })()}
+              {openTypeDropdown === task.id && (
+                <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[120px]">
+                  {typeOptions.map((option) => {
+                    const Icon = option.icon
+                    return (
+                      <button
+                        key={option.value || 'null'}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleTypeChange(task.id, option.value)
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs hover:bg-bg-tertiary transition-colors text-fg-secondary flex items-center gap-2"
+                      >
+                        {Icon && <Icon size={14} />}
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Badge container - slides status left on hover after delay */}
-            <div className="flex items-baseline gap-2 task-badges-container">
+            {/* Badge container */}
+            <div className="flex items-center gap-2">
               {/* Scheduled date display - always visible */}
               {task.scheduled_date && (
                 <div className="relative flex-shrink-0" ref={openDatePicker === task.id ? datePickerRef : null}>
@@ -676,10 +778,22 @@ export default function TaskList({
                 />
               </button>
 
-              {/* Status - clickable, animated position */}
-              <div className={`relative flex-shrink-0 transition-all duration-300 status-badge ${
-                viewType === 'Today' ? 'today-status' : ''
-              }`} ref={openDropdown === task.id ? dropdownRef : null}>
+              {/* Move to Inbox button - only show if task has a project and not already in Inbox view */}
+              {task.project_id && viewType !== 'Inbox' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMoveToInbox?.(task.id)
+                  }}
+                  className="flex-shrink-0 text-fg-tertiary hover:text-accent-primary transition-all duration-200 opacity-0 group-hover:opacity-100"
+                  title="Move to Inbox"
+                >
+                  <Inbox size={14} />
+                </button>
+              )}
+
+              {/* Status - clickable */}
+              <div className="relative" ref={openDropdown === task.id ? dropdownRef : null}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -709,6 +823,26 @@ export default function TaskList({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* Flag button - positioned absolutely on far right */}
+          <div className={`absolute right-2 top-1/2 -translate-y-1/2 transition-opacity ${
+            task.is_highlighted ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleHighlight?.(task.id, !task.is_highlighted)
+              }}
+              className={`p-1 rounded transition-colors ${
+                task.is_highlighted
+                  ? 'text-semantic-error bg-semantic-error/10'
+                  : 'text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10'
+              }`}
+              title={task.is_highlighted ? 'Remove highlight' : 'Highlight'}
+            >
+              <Flag size={14} fill={task.is_highlighted ? 'currentColor' : 'none'} />
+            </button>
           </div>
         </div>
       )

@@ -24,14 +24,15 @@ export default function KeyboardShortcutsHelp({ isOpen, onClose }) {
         { keys: ['Tab'], description: 'Focus terminal' },
         { keys: ['L'], description: 'Navigate to Log page' },
         { keys: ['←', '→', '↑', '↓'], description: 'Navigate between notes' },
-        { keys: ['Alt', '←'], description: 'Go back in history' },
-        { keys: ['Alt', '→'], description: 'Go forward in history' },
+        { keys: ['Alt/Option', '←'], description: 'Go back in history' },
+        { keys: ['Alt/Option', '→'], description: 'Go forward in history' },
       ]
     },
     {
       category: 'Tasks',
       items: [
         { keys: ['Space'], description: 'Quick task entry (on Tasks/Today pages)' },
+        { keys: ['Click'], description: 'Click status/type/due to edit inline' },
         { keys: ['↑', '↓'], description: 'Select previous/next task' },
         { keys: ['Shift', '↑/↓'], description: 'Reorder tasks' },
         { keys: ['→'], description: 'Open task detail panel' },

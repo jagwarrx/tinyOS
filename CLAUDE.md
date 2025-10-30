@@ -4,6 +4,8 @@
 
 ## Overview
 
+The purpose of this app is to make me more effective, strategic and focused. 
+
 A knowledge and task management application combining rich-text note-taking with powerful task management. Built on Lexical editor (Meta), featuring bidirectional note linking, reference IDs for cross-linking, task scheduling, projects, hierarchical tagging, and a built-in terminal for quick commands.
 
 **Tech Stack:** React 18, Lexical, Supabase (PostgreSQL), Tailwind CSS, Vite, Lucide React
@@ -20,8 +22,9 @@ A knowledge and task management application combining rich-text note-taking with
 - Separate database table (not in note content)
 - Statuses: BACKLOG, PLANNED, DOING, BLOCKED, OVERDUE, DONE, CANCELLED
 - Scheduling with natural language dates ("Today", "Tomorrow", "Mon")
-- Project organization, starring, types (null, 'next', 'waiting', 'someday')
+- Project organization, starring, types: Deep Work, Quick Wins, Grunt Work, People Time, Planning
 - Hierarchical tagging with slash-separated paths
+- **Inline editing**: Click status/type/due cells in task list for dropdown editors
 
 ### 3. Special Pages
 - **HOME**: Main entry point
@@ -73,6 +76,7 @@ See `CLAUDE-EXTENSIVE.md` for complete command reference.
 - **Activity Logging**: Comprehensive tracking with smart grouping and filters
 - **Music Player**: Floating Spotify/YouTube player
 - **Kanban Board**: Drag-and-drop task cards
+- **Navigation History**: Browser-like back/forward (Option+Left/Right), last 20 pages in localStorage
 - **Keyboard Shortcuts**: Press `?` for help modal
 
 ## Architecture
@@ -80,7 +84,7 @@ See `CLAUDE-EXTENSIVE.md` for complete command reference.
 **Central Hub:** App.jsx manages all state and command routing
 **Data Layer:** services/ (notes, tasks, tags, claude, activity, settings, theme, music)
 **Editor:** lexical/ (RefId nodes and transform plugins)
-**Utilities:** utils/ (commandParser, dateUtils, tagUtils, workspaceStorage)
+**Utilities:** utils/ (commandParser, dateUtils, tagUtils, workspaceStorage, navigationHistory)
 
 See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structure.
 
@@ -89,9 +93,11 @@ See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structu
 - **Optimistic Updates**: UI updates first, DB second, rollback on error
 - **Auto-save**: Debounced saves for notes
 - **Task Order**: Priority field (0 = highest)
+- **Task Types**: deep_work, quick_wins, grunt_work, people_time, planning (stored as snake_case in DB)
 - **OVERDUE Detection**: Automatic on task fetch (past scheduled_date)
 - **Ref ID Generation**: PostgreSQL function `generate_reference_id()`
 - **URL Routing**: `/<ref_id>` format with history.pushState
+- **Navigation History**: Managed by `navigationHistory.js`, stores last 20 pages in localStorage
 - **Special Notes**: Identified by `note_type` or `list_metadata`
 - **Theme System**: Algorithmic palette generation (chroma.js) from primary colors; all components use CSS variables (`--color-*`); semantic colors for actions (success/error/warning/info)
 
@@ -121,9 +127,10 @@ See `CLAUDE-EXTENSIVE.md` for detailed component specifications and file structu
 - Reference file locations instead of re-reading (e.g., "See src/App.jsx:45")
 - Check this file first for common tasks:
   - Adding terminal commands: `commandParser.js` + `App.jsx`
-  - Modifying task statuses: `TaskList.jsx`
+  - Modifying task list UI (inline dropdowns): `TaskList.jsx`
   - Understanding ref_id detection: `RefIdTransformPlugin.jsx`
   - Creating custom themes: `CustomThemeBuilder.jsx` + `themeService.js`
+  - Navigation history: `navigationHistory.js`
 
 **Example token-efficient workflow:**
 ```

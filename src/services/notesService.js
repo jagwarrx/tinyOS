@@ -71,14 +71,12 @@ export class NotesService {
   }
 
   static async delete(id) {
-    // Clean up all references first
-    await this.cleanupReferences(id)
-    
+    // Let database handle cleanup via ON DELETE SET NULL constraints
     const { error } = await supabase
       .from('notes')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw new Error(`Failed to delete note: ${error.message}`)
   }
 

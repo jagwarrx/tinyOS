@@ -242,3 +242,21 @@ export async function fetchTodaysReminders() {
   if (error) throw error;
   return data || [];
 }
+
+/**
+ * Toggle the highlight status of a log entry
+ * @param {string} logId - UUID of the log entry
+ * @param {boolean} isHighlighted - New highlight status
+ * @returns {Promise<Object>} Updated log entry
+ */
+export async function toggleHighlight(logId, isHighlighted) {
+  const { data, error } = await supabase
+    .from('activity_log')
+    .update({ is_highlighted: isHighlighted })
+    .eq('id', logId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}

@@ -20,6 +20,7 @@ export default function TagFilteredView({
   onDeleteTask,
   onToggleComplete,
   onToggleStar,
+  onToggleHighlight,
   allNotes,
   selectedTask
 }) {
@@ -123,6 +124,7 @@ export default function TagFilteredView({
                 onDeleteTask={onDeleteTask}
                 onToggleComplete={onToggleComplete}
                 onToggleStar={onToggleStar}
+                onToggleHighlight={onToggleHighlight}
                 allNotes={allNotes}
               />
             )}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2, Check, GlassWater, Bell, ChevronRight, ChevronLeft, Sun, Sunrise, CalendarRange, Archive, Zap, Pencil, X, ChevronDown, Tag } from 'lucide-react'
+import { Clock, FileText, CheckSquare, FolderKanban, Timer as TimerIcon, Star, Calendar, Trash2, Check, GlassWater, Bell, ChevronRight, ChevronLeft, Sun, Sunrise, CalendarRange, Archive, Zap, Pencil, X, ChevronDown, Tag, Flag } from 'lucide-react'
 import * as activityLogService from '../services/activityLogService'
 import RefIdBadge from './RefIdBadge'
 
@@ -27,6 +27,7 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
   const [hoveredLogId, setHoveredLogId] = useState(null)
   const [expandedGroups, setExpandedGroups] = useState(new Set())
   const [expandedLogs, setExpandedLogs] = useState(new Set())
+  const [collapsedDates, setCollapsedDates] = useState(new Set())
 
   useEffect(() => {
     fetchLogs()
@@ -63,13 +64,22 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
 
   /**
    * Check if a log matches the time filter
+   * Properly handles UTC timestamps by comparing local dates
    */
   const matchesTimeFilter = (log) => {
     if (timeFilter === 'all') return true
 
+    // Parse the UTC timestamp to local time
     const logDate = new Date(log.timestamp)
     const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+    // Create date-only comparison (strip time component)
+    const getLocalDateOnly = (date) => {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    }
+
+    const logDateOnly = getLocalDateOnly(logDate)
+    const today = getLocalDateOnly(now)
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
 
@@ -79,12 +89,11 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
 
     switch (timeFilter) {
       case 'today':
-        return logDate >= today
+        return logDateOnly.getTime() === today.getTime()
       case 'yesterday':
-        const endOfYesterday = new Date(today)
-        return logDate >= yesterday && logDate < endOfYesterday
+        return logDateOnly.getTime() === yesterday.getTime()
       case 'week':
-        return logDate >= startOfWeek
+        return logDateOnly >= startOfWeek
       default:
         return true
     }
@@ -145,14 +154,20 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
 
   /**
    * Get count of logs for each time filter
+   * Properly handles UTC timestamps by comparing local dates
    */
   const getTimeFilterCount = (filter) => {
-    const originalTimeFilter = timeFilter
-    // Temporarily check count for this filter
     return logs.filter(log => {
       const logDate = new Date(log.timestamp)
       const now = new Date()
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+      // Create date-only comparison
+      const getLocalDateOnly = (date) => {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+      }
+
+      const logDateOnly = getLocalDateOnly(logDate)
+      const today = getLocalDateOnly(now)
       const yesterday = new Date(today)
       yesterday.setDate(yesterday.getDate() - 1)
       const startOfWeek = new Date(today)
@@ -160,12 +175,11 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
 
       switch (filter) {
         case 'today':
-          return logDate >= today
+          return logDateOnly.getTime() === today.getTime()
         case 'yesterday':
-          const endOfYesterday = new Date(today)
-          return logDate >= yesterday && logDate < endOfYesterday
+          return logDateOnly.getTime() === yesterday.getTime()
         case 'week':
-          return logDate >= startOfWeek
+          return logDateOnly >= startOfWeek
         case 'all':
           return true
         default:
@@ -315,6 +329,66 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
   }
 
   /**
+   * Toggle collapse of a date section
+   */
+  const toggleDateCollapse = (dateKey) => {
+    setCollapsedDates(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey)
+      } else {
+        newSet.add(dateKey)
+      }
+      return newSet
+    })
+  }
+
+  /**
+   * Toggle highlight status of a log entry
+   */
+  const toggleHighlight = async (logId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus
+      await activityLogService.toggleHighlight(logId, newStatus)
+
+      // Update local state
+      setLogs(logs.map(log =>
+        log.id === logId ? { ...log, is_highlighted: newStatus } : log
+      ))
+    } catch (error) {
+      console.error('Error toggling highlight:', error)
+    }
+  }
+
+  /**
+   * Filter tags to show only the most specific (child) tags
+   * If both #meta and #meta/feature exist, only show #meta/feature
+   */
+  const filterToMostSpecificTags = (tags) => {
+    if (!tags || tags.length === 0) return []
+
+    // Sort by path length (longest first = most specific)
+    const sortedTags = [...tags].sort((a, b) =>
+      b.full_path.split('/').length - a.full_path.split('/').length
+    )
+
+    const result = []
+
+    for (const tag of sortedTags) {
+      // Check if this tag is a parent of any already selected tag
+      const isParentOfSelected = result.some(selectedTag =>
+        selectedTag.full_path.startsWith(tag.full_path + '/')
+      )
+
+      if (!isParentOfSelected) {
+        result.push(tag)
+      }
+    }
+
+    return result
+  }
+
+  /**
    * Group logs by date for better organization
    * Returns: { 'Today': [...], 'Yesterday': [...], 'Jan 25': [...] }
    */
@@ -355,17 +429,24 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
 
   /**
    * Get a human-readable date key for grouping
+   * Properly handles UTC timestamps by comparing local dates only
    */
   const getDateKey = (logDate, today, yesterday) => {
-    const isSameDay = (d1, d2) => {
-      return d1.getFullYear() === d2.getFullYear() &&
-             d1.getMonth() === d2.getMonth() &&
-             d1.getDate() === d2.getDate()
+    // Create date-only strings for comparison (no time component)
+    const getLocalDateString = (date) => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
     }
 
-    if (isSameDay(logDate, today)) {
+    const logDateStr = getLocalDateString(logDate)
+    const todayStr = getLocalDateString(today)
+    const yesterdayStr = getLocalDateString(yesterday)
+
+    if (logDateStr === todayStr) {
       return 'Today'
-    } else if (isSameDay(logDate, yesterday)) {
+    } else if (logDateStr === yesterdayStr) {
       return 'Yesterday'
     } else {
       // Format: "Jan 25" or "Dec 31, 2024" (include year if not current year)
@@ -612,11 +693,6 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
     <div className="h-full overflow-y-auto px-4 py-2">
       {/* Fixed-width container - completely independent of filter bar content */}
       <div className="log-page-container mx-auto">
-          <h1 className="text-2xl font-semibold text-fg-primary mb-3 flex items-center gap-2">
-            <Clock className="w-6 h-6" />
-            Activity Log
-          </h1>
-
           {/* Collapsible Filter Bar - contained within fixed width */}
           <div className="mb-3 overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-3 py-2 bg-bg-secondary border border-border-primary rounded-lg">
@@ -891,16 +967,41 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
         </div>
 
         {/* Log entries grouped by date */}
-        {Object.keys(groupedLogs).map(dateKey => (
+        {Object.keys(groupedLogs).map(dateKey => {
+          const isCollapsed = collapsedDates.has(dateKey)
+          const dateEntries = groupedLogs[dateKey]
+          const highlightedEntries = dateEntries.filter(entry =>
+            entry.type === 'group'
+              ? entry.logs.some(log => log.is_highlighted)
+              : entry.is_highlighted
+          )
+          const displayEntries = isCollapsed ? highlightedEntries : dateEntries
+          const highlightCount = highlightedEntries.length
+
+          return (
           <div key={dateKey} className="mb-4">
-            {/* Date header */}
-            <div className="sticky top-0 bg-bg-primary/95 backdrop-blur-sm py-1 mb-1.5 border-b border-border-secondary">
-              <h2 className="text-lg font-medium text-fg-primary">{dateKey}</h2>
+            {/* Date header - clickable */}
+            <div
+              className="sticky top-0 bg-bg-primary/95 backdrop-blur-sm py-1 mb-1.5 border-b border-border-secondary cursor-pointer hover:bg-bg-secondary/30 transition-colors group"
+              onClick={() => toggleDateCollapse(dateKey)}
+            >
+              <div className="flex items-center gap-2">
+                <ChevronRight
+                  size={18}
+                  className={`text-fg-tertiary transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                />
+                <h2 className="text-lg font-medium text-fg-primary">{dateKey}</h2>
+                {isCollapsed && highlightCount > 0 && (
+                  <span className="text-sm text-fg-tertiary">
+                    ({highlightCount} highlight{highlightCount !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Log entries for this date */}
             <div className="space-y-0.5">
-              {groupedLogs[dateKey].map((entry, index) => {
+              {displayEntries.map((entry, index) => {
                 // Handle grouped note edits
                 if (entry.type === 'group') {
                   const isExpanded = expandedGroups.has(entry.id)
@@ -962,7 +1063,9 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                           {entry.logs.map(log => (
                             <div
                               key={log.id}
-                              className="flex items-start gap-4 px-2 py-1.5 rounded hover:bg-bg-secondary/50 transition-colors group relative"
+                              className={`flex items-start gap-4 px-2 py-1.5 pr-24 rounded hover:bg-bg-secondary/50 transition-colors group relative ${
+                                log.is_highlighted ? 'border-l-2 border-semantic-error bg-semantic-error/5' : ''
+                              }`}
                               onMouseEnter={() => setHoveredLogId(log.id)}
                               onMouseLeave={() => setHoveredLogId(null)}
                             >
@@ -977,7 +1080,7 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                               </div>
 
                               {/* Content */}
-                              <div className="flex-1 min-w-0 pr-20">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-4 flex-wrap">
                                   <span className="text-sm text-fg-secondary">
                                     {formatActionText(log)}
@@ -997,9 +1100,28 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                                 </div>
                               </div>
 
-                              {/* Delete action */}
-                              {hoveredLogId === log.id && (
-                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-bg-secondary/90 rounded px-1 py-0.5">
+                              {/* Flag/Delete actions */}
+                              <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 transition-opacity bg-bg-secondary/90 rounded px-1 py-0.5 ${
+                                log.is_highlighted ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                              }`}>
+                                {/* Flag button - always visible when highlighted */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleHighlight(log.id, log.is_highlighted)
+                                  }}
+                                  className={`p-1 rounded transition-colors ${
+                                    log.is_highlighted
+                                      ? 'text-semantic-error bg-semantic-error/10'
+                                      : 'text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10'
+                                  }`}
+                                  title={log.is_highlighted ? 'Remove highlight' : 'Highlight'}
+                                >
+                                  <Flag size={12} fill={log.is_highlighted ? 'currentColor' : 'none'} />
+                                </button>
+
+                                {/* Delete button - show on hover */}
+                                {hoveredLogId === log.id && (
                                   <button
                                     onClick={() => deleteLog(log.id)}
                                     className="p-1 text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10 rounded transition-colors"
@@ -1007,8 +1129,8 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                                   >
                                     <Trash2 size={12} />
                                   </button>
-                                </div>
-                              )}
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1022,7 +1144,9 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                 return (
                   <div
                     key={log.id}
-                    className="flex items-start gap-4 px-2 py-1.5 rounded hover:bg-bg-secondary/50 transition-colors group relative"
+                    className={`flex items-start gap-4 px-2 py-1.5 pr-24 rounded hover:bg-bg-secondary/50 transition-colors group relative ${
+                      log.is_highlighted ? 'border-l-2 border-semantic-error bg-semantic-error/5' : ''
+                    }`}
                     onMouseEnter={() => setHoveredLogId(log.id)}
                     onMouseLeave={() => setHoveredLogId(null)}
                   >
@@ -1039,7 +1163,7 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                   )}
 
                   {/* Content */}
-                  <div className="flex-1 min-w-0 pr-20">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-4 flex-wrap">
                       {/* Inline editing for text logs */}
                       {editingLogId === log.id ? (
@@ -1089,19 +1213,19 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                                   {expandedLogs.has(log.id) ? 'Show less' : 'Show more'}
                                 </button>
                               )}
-                              {/* Display tags if present */}
+                              {/* Display tags inline if present - only most specific child tags */}
                               {log.details?.tags && log.details.tags.length > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                  {log.details.tags.map((tag, idx) => (
-                                    <div
+                                <span className="inline-flex items-center gap-1.5 ml-2 flex-wrap">
+                                  {filterToMostSpecificTags(log.details.tags).map((tag, idx) => (
+                                    <span
                                       key={idx}
                                       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-syntax-purple/10 text-syntax-purple border border-syntax-purple/30"
                                     >
                                       <Tag size={10} />
                                       <span className="font-mono">{tag.full_path}</span>
-                                    </div>
+                                    </span>
                                   ))}
-                                </div>
+                                </span>
                               )}
                             </div>
                           ) : (
@@ -1154,11 +1278,29 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                     </div>
                   </div>
 
-                  {/* Edit/Delete actions (show on hover) - positioned absolutely on far right */}
-                  {hoveredLogId === log.id && editingLogId !== log.id && (
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-bg-secondary/90 rounded px-1 py-0.5">
-                      {/* Edit button (for text logs and reminders) */}
-                      {(log.action_type === 'log_entry' || log.action_type === 'reminder_created') && (
+                  {/* Edit/Delete/Flag actions - positioned absolutely on far right */}
+                  {editingLogId !== log.id && (
+                    <div className={`absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 transition-opacity bg-bg-secondary/90 rounded px-1 py-0.5 ${
+                      log.is_highlighted ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}>
+                      {/* Flag button - always visible when highlighted */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleHighlight(log.id, log.is_highlighted)
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          log.is_highlighted
+                            ? 'text-semantic-error bg-semantic-error/10'
+                            : 'text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10'
+                        }`}
+                        title={log.is_highlighted ? 'Remove highlight' : 'Highlight'}
+                      >
+                        <Flag size={12} fill={log.is_highlighted ? 'currentColor' : 'none'} />
+                      </button>
+
+                      {/* Edit button (for text logs and reminders) - show on hover */}
+                      {hoveredLogId === log.id && (log.action_type === 'log_entry' || log.action_type === 'reminder_created') && (
                         <button
                           onClick={() => startEditing(log)}
                           className="p-1 text-fg-tertiary hover:text-accent-primary hover:bg-accent-primary/10 rounded transition-colors"
@@ -1168,14 +1310,16 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
                         </button>
                       )}
 
-                      {/* Delete button */}
-                      <button
-                        onClick={() => deleteLog(log.id)}
-                        className="p-1 text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10 rounded transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      {/* Delete button - show on hover */}
+                      {hoveredLogId === log.id && (
+                        <button
+                          onClick={() => deleteLog(log.id)}
+                          className="p-1 text-fg-tertiary hover:text-semantic-error hover:bg-semantic-error/10 rounded transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
                     </div>
                   )}
                   </div>
@@ -1183,7 +1327,8 @@ export default function LogPage({ onRefIdNavigate, logUpdateTrigger }) {
               })}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

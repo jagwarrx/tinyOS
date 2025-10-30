@@ -13,7 +13,7 @@
  * - Shift+clicking a task reference badge
  */
 
-import { X, Circle, Clock, CheckCircle2, XCircle, AlertCircle, Calendar, ChevronDown, Focus, FileText } from 'lucide-react'
+import { X, Circle, Clock, CheckCircle2, XCircle, AlertCircle, Calendar, ChevronDown, Focus, FileText, Brain, Zap, Wrench, Users, Compass } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import DatePicker from './DatePicker'
 import { formatDateNatural } from '../utils/dateUtils'
@@ -57,6 +57,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
   }, [task])
 
   if (!task) return null
+
+  // Check if we're in Hacker mode
+  const isHackerMode = document.documentElement.classList.contains('ui-hacker')
 
   const handleSave = async () => {
     if (onSave) {
@@ -217,11 +220,11 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
   ]
 
   const taskTypeOptions = [
-    { value: 'DEEP_WORK', label: 'Deep Work', description: 'the real building' },
-    { value: 'QUICK_WINS', label: 'Quick Wins', description: 'momentum makers' },
-    { value: 'GRUNT_WORK', label: 'Grunt Work', description: 'has to get done' },
-    { value: 'PEOPLE_TIME', label: 'People Time', description: 'meetings, comms' },
-    { value: 'PLANNING', label: 'Planning', description: 'planning, thinking' }
+    { value: 'DEEP_WORK', label: 'Deep Work', description: 'the real building', icon: Brain },
+    { value: 'QUICK_WINS', label: 'Quick Wins', description: 'momentum makers', icon: Zap },
+    { value: 'GRUNT_WORK', label: 'Grunt Work', description: 'has to get done', icon: Wrench },
+    { value: 'PEOPLE_TIME', label: 'People Time', description: 'meetings, comms', icon: Users },
+    { value: 'PLANNING', label: 'Planning', description: 'planning, thinking', icon: Compass }
   ]
 
   const getRelativeTime = (dateString) => {
@@ -257,13 +260,26 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
   }
 
   return (
-    <div className="w-full h-full bg-bg-secondary border border-border-primary rounded shadow-lg flex flex-col overflow-hidden">
+    <div
+      className={`w-full h-full bg-bg-secondary border flex flex-col overflow-hidden ${
+        isHackerMode
+          ? 'border-2 border-fg-tertiary'
+          : 'border-border-primary rounded shadow-lg'
+      }`}
+      style={isHackerMode ? { fontFamily: 'Monaco, Menlo, Consolas, monospace', fontSize: '12px' } : {}}
+    >
       {/* Header - Task Title */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border-primary flex-shrink-0">
+      <div className={`flex items-center justify-between border-b flex-shrink-0 ${
+        isHackerMode
+          ? 'px-2 py-1.5 border-2 border-fg-tertiary'
+          : 'px-5 py-4 border-border-primary'
+      }`}>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {/* Task Number Badge */}
           {taskNumber && (
-            <span className="flex-shrink-0 flex items-center justify-center min-w-[1.75rem] h-7 px-2 bg-bg-tertiary text-fg-primary text-xs font-bold rounded">
+            <span className={`flex-shrink-0 flex items-center justify-center min-w-[1.75rem] px-2 text-fg-primary font-bold ${
+              isHackerMode ? 'text-xs bg-transparent border border-fg-tertiary h-6' : 'text-xs bg-bg-tertiary h-7 rounded'
+            }`}>
               #{taskNumber}
             </span>
           )}
@@ -273,7 +289,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
             value={editedTask.text || ''}
             onChange={(e) => setEditedTask({ ...editedTask, text: e.target.value })}
             onBlur={handleSave}
-            className="flex-1 min-w-0 text-base font-medium text-fg-primary bg-transparent border-none focus:outline-none"
+            className={`flex-1 min-w-0 font-medium text-fg-primary bg-transparent border-none focus:outline-none ${
+              isHackerMode ? 'text-sm' : 'text-base'
+            }`}
             placeholder="Task description..."
           />
           {task.project_id && allNotes && (() => {
@@ -281,7 +299,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
             return project ? (
               <span
                 onDoubleClick={() => onProjectClick?.(project)}
-                className="flex-shrink-0 text-xs text-accent-primary bg-accent-primary/10 px-2 py-1 rounded cursor-pointer hover:bg-accent-primary/20 transition-colors"
+                className={`flex-shrink-0 text-xs text-accent-primary bg-accent-primary/10 px-2 py-1 cursor-pointer hover:bg-accent-primary/20 transition-colors ${
+                  isHackerMode ? '' : 'rounded'
+                }`}
                 title="Double-click to navigate to project"
               >
                 [{project.title}]
@@ -289,42 +309,58 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
             ) : null
           })()}
           {task.ref_id && (
-            <span className="font-mono text-xs text-fg-tertiary bg-bg-secondary px-2 py-1 rounded flex-shrink-0">
+            <span className={`font-mono text-xs text-fg-tertiary bg-bg-secondary px-2 py-1 flex-shrink-0 ${
+              isHackerMode ? '' : 'rounded'
+            }`}>
               {task.ref_id}
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-bg-tertiary transition-colors ml-2 flex-shrink-0"
+          className={`p-1 hover:bg-bg-tertiary transition-colors ml-2 flex-shrink-0 ${
+            isHackerMode ? '' : 'rounded'
+          }`}
           title="Close"
         >
-          <X size={16} className="text-fg-secondary" />
+          <X size={isHackerMode ? 14 : 16} className="text-fg-secondary" />
         </button>
       </div>
 
       {/* Content - Scrollable full height */}
-      <div className="flex-1 px-3 py-2 space-y-3 overflow-y-auto flex flex-col min-h-0">
+      <div className={`flex-1 space-y-5 overflow-y-auto flex flex-col min-h-0 ${
+        isHackerMode ? 'px-2 py-1.5' : 'px-5 py-5'
+      }`}>
         {/* SECTION 1: CONTEXT */}
-        <div className="flex-shrink-0 pb-3 border-b border-border-primary">
+        <div className={`flex-shrink-0 pb-3 border-b ${
+          isHackerMode ? 'border-2 border-fg-tertiary' : 'border-border-primary'
+        }`}>
           <button
             onClick={() => setIsContextExpanded(!isContextExpanded)}
-            className="w-full flex items-center justify-between mb-2 hover:bg-bg-tertiary/50 rounded px-2 py-1 transition-colors"
+            className={`w-full flex items-center justify-between mb-3 hover:bg-bg-tertiary/50 px-3 py-2 transition-colors ${
+              isHackerMode ? '' : 'rounded'
+            }`}
           >
-            <div className="text-xs font-semibold text-fg-primary uppercase tracking-wide">Context</div>
+            <div className={`font-semibold text-fg-primary uppercase tracking-wide ${
+              isHackerMode ? 'text-xs letter-spacing-wide' : 'text-sm'
+            }`}>
+              {isHackerMode ? '[CONTEXT]' : 'Context'}
+            </div>
             <ChevronDown
-              size={14}
+              size={isHackerMode ? 12 : 14}
               className={`text-fg-tertiary transition-transform ${isContextExpanded ? '' : '-rotate-90'}`}
             />
           </button>
 
           {isContextExpanded && (
-          <div className="space-y-2">
+          <div className={`space-y-4 ${isHackerMode ? 'space-y-1.5 px-4 pt-2' : 'px-0 pt-4'}`}>
           {/* Status and Scheduled Date - Side by Side */}
-          <div className="flex gap-4">
+          <div className={`flex ${isHackerMode ? 'gap-3' : 'gap-4'}`}>
             {/* Status Icons */}
             <div className="flex-1">
-              <label className="block text-xs font-medium text-fg-secondary mb-1">
+              <label className={`block font-medium text-fg-secondary mb-2 ${
+                isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+              }`}>
                 Status
               </label>
               <div className="flex items-center gap-3">
@@ -345,8 +381,8 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                     }`}
                     title={label}
                   >
-                    <Icon size={20} strokeWidth={editedTask.status === value ? 2.5 : 2} />
-                    <span className="text-[9px] font-medium">{label}</span>
+                    <Icon size={isHackerMode ? 16 : 20} strokeWidth={editedTask.status === value ? 2.5 : 2} />
+                    <span className={isHackerMode ? 'text-[8px] font-bold uppercase' : 'text-[9px] font-medium'}>{label}</span>
                   </button>
                 ))}
               </div>
@@ -354,16 +390,20 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
 
             {/* Scheduled Date */}
             <div className="flex-1 relative">
-              <label className="block text-xs font-medium text-fg-secondary mb-1">
+              <label className={`block font-medium text-fg-secondary mb-1 ${
+                isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+              }`}>
                 Scheduled Date
               </label>
               <button
                 onClick={() => setShowDatePicker(!showDatePicker)}
-                className="w-full flex items-center justify-between px-2 py-1.5 bg-bg-secondary border border-border-primary rounded text-sm text-fg-primary hover:border-border-focus transition-colors"
+                className={`w-full flex items-center justify-between px-2 py-1.5 bg-bg-secondary border text-sm text-fg-primary hover:border-border-focus transition-colors ${
+                  isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded'
+                }`}
               >
                 <div className="flex items-center gap-2">
-                  <Calendar size={14} className="text-fg-tertiary" />
-                  <span className="text-xs">
+                  <Calendar size={isHackerMode ? 12 : 14} className="text-fg-tertiary" />
+                  <span className={isHackerMode ? 'text-[11px]' : 'text-xs'}>
                     {editedTask.scheduled_date ? formatDateNatural(editedTask.scheduled_date) : 'Not scheduled'}
                   </span>
                 </div>
@@ -411,7 +451,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
 
           {/* Tags */}
           <div>
-            <label className="block text-xs font-medium text-fg-secondary mb-1">
+            <label className={`block font-medium text-fg-secondary mb-1 ${
+              isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+            }`}>
               Tags
             </label>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -439,7 +481,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
 
           {/* Context Note */}
           <div className="flex-1 min-h-0 flex flex-col">
-            <label className="block text-xs font-medium text-fg-primary mb-1">
+            <label className={`block font-medium text-fg-primary mb-1 ${
+              isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+            }`}>
               Context Note
             </label>
             <textarea
@@ -448,7 +492,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
               onInput={(e) => handleTextareaInput(e, 'context')}
               onKeyDown={(e) => handleTextareaKeyDown(e, 'context')}
               onBlur={handleSave}
-              className="w-full bg-bg-secondary border border-border-primary rounded px-2 py-1.5 text-xs text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed min-h-[100px]"
+              className={`w-full bg-bg-secondary border px-3 py-2.5 text-xs text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed min-h-[150px] ${
+                isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded'
+              }`}
               placeholder="What's this task about?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
@@ -459,28 +505,38 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
         </div>
 
         {/* SECTION 2: PRIORITY */}
-        <div className="flex-shrink-0 pb-3 border-b border-border-primary">
+        <div className={`flex-shrink-0 pb-3 border-b ${
+          isHackerMode ? 'border-2 border-fg-tertiary' : 'border-border-primary'
+        }`}>
           <button
             onClick={() => setIsPriorityExpanded(!isPriorityExpanded)}
-            className="w-full flex items-center justify-between mb-2 hover:bg-bg-tertiary/50 rounded px-2 py-1 transition-colors"
+            className={`w-full flex items-center justify-between mb-3 hover:bg-bg-tertiary/50 px-3 py-2 transition-colors ${
+              isHackerMode ? '' : 'rounded'
+            }`}
           >
-            <div className="text-xs font-semibold text-fg-primary uppercase tracking-wide">Priority</div>
+            <div className={`font-semibold text-fg-primary uppercase tracking-wide ${
+              isHackerMode ? 'text-xs letter-spacing-wide' : 'text-sm'
+            }`}>
+              {isHackerMode ? '[PRIORITY]' : 'Priority'}
+            </div>
             <ChevronDown
-              size={14}
+              size={isHackerMode ? 12 : 14}
               className={`text-fg-tertiary transition-transform ${isPriorityExpanded ? '' : '-rotate-90'}`}
             />
           </button>
 
           {isPriorityExpanded && (
-          <div className={`flex gap-3 ${showPriorityFormula ? '' : ''}`}>
+          <div className={`flex ${isHackerMode ? 'gap-3 px-4 pt-2' : 'gap-4 px-0 pt-4'} ${showPriorityFormula ? '' : ''}`}>
             {/* Left Column: Work Type and Task Type */}
-            <div className={`space-y-2 ${showPriorityFormula ? 'flex-1' : 'w-full'}`}>
+            <div className={`space-y-4 ${showPriorityFormula ? 'flex-1' : 'w-full'}`}>
               {/* Work Type Selector */}
               <div>
-                <label className="block text-xs font-medium text-fg-secondary mb-1">
-                  Work Type
+                <label className={`block font-medium text-fg-secondary mb-2 ${
+                  isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+                }`}>
+                  Work Type {editedTask.work_type && `(${editedTask.work_type})`}
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button
                     onClick={async () => {
                       const updatedTask = { ...editedTask, work_type: 'reactive' }
@@ -489,10 +545,12 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                         await onSave(updatedTask)
                       }
                     }}
-                    className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                    className={`flex-1 px-4 py-2.5 text-sm font-medium transition-all text-white border-2 ${
+                      isHackerMode ? '' : 'rounded'
+                    } ${
                       editedTask.work_type === 'reactive'
-                        ? 'bg-syntax-orange text-fg-inverse'
-                        : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+                        ? 'bg-syntax-orange border-syntax-orange'
+                        : 'bg-bg-tertiary border-bg-tertiary hover:bg-bg-secondary hover:border-bg-secondary'
                     }`}
                     title="Responding to external demands, urgent items, firefighting"
                   >
@@ -506,14 +564,16 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                         await onSave(updatedTask)
                       }
                     }}
-                    className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                    className={`flex-1 px-4 py-2.5 text-sm font-medium transition-all text-white border-2 ${
+                      isHackerMode ? '' : 'rounded'
+                    } ${
                       editedTask.work_type === 'strategic'
-                        ? 'bg-syntax-purple text-fg-inverse'
-                        : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+                        ? 'bg-syntax-purple border-syntax-purple'
+                        : 'bg-bg-tertiary border-bg-tertiary hover:bg-bg-secondary hover:border-bg-secondary'
                     }`}
                     title="Proactive, goal-oriented work, long-term planning"
                   >
-                    Planning
+                    Strategic
                   </button>
                   {editedTask.work_type && (
                     <button
@@ -524,7 +584,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                           await onSave(updatedTask)
                         }
                       }}
-                      className="px-2 py-1.5 rounded text-xs font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors"
+                      className={`px-4 py-2.5 text-sm font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors ${
+                        isHackerMode ? '' : 'rounded'
+                      }`}
                       title="Clear work type"
                     >
                       ×
@@ -535,30 +597,64 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
 
               {/* Task Type Selector */}
               <div>
-                <label className="block text-xs font-medium text-fg-secondary mb-1">
+                <label className={`block font-medium text-fg-secondary mb-2 ${
+                  isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+                }`}>
                   Task Type
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {taskTypeOptions.map(({ value, label, description }) => (
-                    <button
-                      key={value}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, task_type: value }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`px-2 py-1 rounded text-xs font-medium transition-all ${
-                        editedTask.task_type === value
-                          ? 'bg-accent-primary text-fg-inverse'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
-                      }`}
-                      title={description}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-3">
+                  {/* First row: Deep Work, Quick Wins, Grunt Work */}
+                  <div className="flex flex-wrap gap-3">
+                    {taskTypeOptions.slice(0, 3).map(({ value, label, description, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={async () => {
+                          const updatedTask = { ...editedTask, task_type: value }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${
+                          isHackerMode ? '' : 'rounded'
+                        } ${
+                          editedTask.task_type === value
+                            ? 'bg-accent-primary text-fg-inverse'
+                            : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+                        }`}
+                        title={description}
+                      >
+                        {Icon && <Icon size={16} />}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Second row: People Time, Planning */}
+                  <div className="flex flex-wrap gap-3">
+                    {taskTypeOptions.slice(3, 5).map(({ value, label, description, icon: Icon }) => (
+                      <button
+                        key={value}
+                        onClick={async () => {
+                          const updatedTask = { ...editedTask, task_type: value }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`px-4 py-2 text-sm font-medium transition-all flex items-center gap-2 ${
+                          isHackerMode ? '' : 'rounded'
+                        } ${
+                          editedTask.task_type === value
+                            ? 'bg-accent-primary text-fg-inverse'
+                            : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-secondary'
+                        }`}
+                        title={description}
+                      >
+                        {Icon && <Icon size={16} />}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                   {editedTask.task_type && (
                     <button
                       onClick={async () => {
@@ -568,7 +664,9 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                           await onSave(updatedTask)
                         }
                       }}
-                      className="px-2 py-1 rounded text-xs font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors"
+                      className={`px-4 py-2 text-sm font-medium bg-bg-tertiary text-fg-tertiary hover:text-semantic-error transition-colors ${
+                        isHackerMode ? '' : 'rounded'
+                      }`}
                       title="Clear task type"
                     >
                       Clear
@@ -581,12 +679,16 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
             {/* Right Column: Task Score (only if enabled) */}
             {showPriorityFormula && (
             <div className="flex-1">
-              <label className="block text-xs font-medium text-fg-secondary mb-1">
+              <label className={`block font-medium text-fg-secondary mb-2 ${
+                isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+              }`}>
                 Task Score
               </label>
               <button
                 onClick={() => setShowPriorityPanel(!showPriorityPanel)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 bg-bg-secondary border border-border-primary rounded hover:bg-bg-tertiary transition-colors"
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 bg-bg-secondary border hover:bg-bg-tertiary transition-colors ${
+                  isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded'
+                }`}
               >
                 <span className="text-sm font-semibold text-accent-primary">
                   {(() => {
@@ -599,38 +701,44 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                   })()}
                 </span>
                 <ChevronDown
-                  size={14}
+                  size={isHackerMode ? 12 : 14}
                   className={`text-fg-tertiary transition-transform ${showPriorityPanel ? 'rotate-180' : ''}`}
                 />
               </button>
 
               {showPriorityPanel && (
                 <div className="mt-2">
-                  <div className="bg-bg-secondary border border-border-primary rounded-lg p-3">
+                  <div className={`bg-bg-secondary border p-3 ${
+                    isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded-lg'
+                  }`}>
             {/* Top Row: Numerator */}
             <div className="flex items-center justify-center gap-2 mb-3">
               {/* Value */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-xs font-medium text-fg-secondary">Value</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, value: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.value || 0) >= level
-                          ? 'bg-syntax-green border-syntax-green'
-                          : 'border-fg-tertiary hover:border-syntax-green'
-                      }`}
-                      title={`Value: ${level}/5`}
-                    />
-                  ))}
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((level) => {
+                    const isHighlighted = (editedTask.value || 0) >= level
+                    return (
+                      <div
+                        key={level}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const updatedTask = { ...editedTask, value: level }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`w-4 h-4 rounded border-2 transition-all cursor-pointer ${
+                          isHighlighted
+                            ? 'bg-syntax-green border-syntax-green opacity-100'
+                            : 'bg-transparent border-fg-tertiary hover:border-syntax-green hover:bg-syntax-green/20'
+                        }`}
+                        title={`Value: ${level}/5`}
+                      />
+                    )
+                  })}
                 </div>
               </div>
 
@@ -639,52 +747,60 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
               {/* Pressure */}
               <div className="flex flex-col items-center gap-1">
                 <span className="text-xs font-medium text-fg-secondary">Pressure</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, urgency: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.urgency || 0) >= level
-                          ? 'bg-syntax-red border-syntax-red'
-                          : 'border-fg-tertiary hover:border-syntax-red'
-                      }`}
-                      title={`Pressure: ${level}/5`}
-                    />
-                  ))}
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((level) => {
+                    const isHighlighted = (editedTask.urgency || 0) >= level
+                    return (
+                      <div
+                        key={level}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const updatedTask = { ...editedTask, urgency: level }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`w-4 h-4 rounded border-2 transition-all cursor-pointer ${
+                          isHighlighted
+                            ? 'bg-syntax-red border-syntax-red opacity-100'
+                            : 'bg-transparent border-fg-tertiary hover:border-syntax-red hover:bg-syntax-red/20'
+                        }`}
+                        title={`Pressure: ${level}/5`}
+                      />
+                    )
+                  })}
                 </div>
               </div>
 
               <span className="text-fg-tertiary text-lg mb-4">×</span>
 
-              {/* Confidence */}
+              {/* Momentum */}
               <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-medium text-fg-secondary">Confidence</span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, momentum: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.momentum || 0) >= level
-                          ? 'bg-syntax-purple border-syntax-purple'
-                          : 'border-fg-tertiary hover:border-syntax-purple'
-                      }`}
-                      title={`Confidence: ${level}/5`}
-                    />
-                  ))}
+                <span className="text-xs font-medium text-fg-secondary">Momentum</span>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((level) => {
+                    const isHighlighted = (editedTask.momentum || 0) >= level
+                    return (
+                      <div
+                        key={level}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const updatedTask = { ...editedTask, momentum: level }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`w-4 h-4 rounded border-2 transition-all cursor-pointer ${
+                          isHighlighted
+                            ? 'bg-syntax-purple border-syntax-purple opacity-100'
+                            : 'bg-transparent border-fg-tertiary hover:border-syntax-purple hover:bg-syntax-purple/20'
+                        }`}
+                        title={`Momentum: ${level}/5`}
+                      />
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -694,31 +810,35 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
 
             {/* Bottom Row: Denominator */}
             <div className="flex items-center justify-center gap-2 mb-3">
-              {/* Time Cost with Square Root Symbol */}
+              {/* Time to Value with Square Root Symbol */}
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-1">
                   <span className="text-lg text-fg-tertiary">√</span>
-                  <span className="text-xs font-medium text-fg-secondary">Time Cost</span>
+                  <span className="text-xs font-medium text-fg-secondary">Time to Value</span>
                 </div>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <button
-                      key={level}
-                      onClick={async () => {
-                        const updatedTask = { ...editedTask, effort: level }
-                        setEditedTask(updatedTask)
-                        if (onSave) {
-                          await onSave(updatedTask)
-                        }
-                      }}
-                      className={`w-2.5 h-2.5 rounded-full border-2 transition-all ${
-                        (editedTask.effort || 0) >= level
-                          ? 'bg-syntax-blue border-syntax-blue'
-                          : 'border-fg-tertiary hover:border-syntax-blue'
-                      }`}
-                      title={`Time Cost: ${level}/5`}
-                    />
-                  ))}
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((level) => {
+                    const isHighlighted = (editedTask.effort || 0) >= level
+                    return (
+                      <div
+                        key={level}
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const updatedTask = { ...editedTask, effort: level }
+                          setEditedTask(updatedTask)
+                          if (onSave) {
+                            await onSave(updatedTask)
+                          }
+                        }}
+                        className={`w-4 h-4 rounded border-2 transition-all cursor-pointer ${
+                          isHighlighted
+                            ? 'bg-syntax-orange border-syntax-orange opacity-100'
+                            : 'bg-transparent border-fg-tertiary hover:border-syntax-orange hover:bg-syntax-orange/20'
+                        }`}
+                        title={`Time to Value: ${level}/5`}
+                      />
+                    )
+                  })}
                 </div>
               </div>
 
@@ -731,10 +851,10 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
                   {(() => {
                     const value = editedTask.value || 0
                     const pressure = editedTask.urgency || 0
-                    const confidence = editedTask.momentum || 0
+                    const momentum = editedTask.momentum || 0
                     const timeCost = editedTask.effort || 1
-                    // Formula: (Value × 1.2) × (Pressure × 1.6) × (Confidence × 0.8) / √Time Cost
-                    const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (confidence * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
+                    // Formula: (Value × 1.2) × (Pressure × 1.6) × (Momentum × 0.8) / √Time to Value
+                    const score = timeCost > 0 ? (((value * 1.2) * (pressure * 1.6) * (momentum * 0.8)) / Math.sqrt(timeCost)).toFixed(1) : 0
                     return score
                   })()}
                 </div>
@@ -750,30 +870,47 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
         </div>
 
         {/* SECTION 3: WORK NOTES */}
-        <div className="flex-shrink-0">
+        <div className={`flex-shrink-0 pb-3 border-b ${
+          isHackerMode ? 'border-2 border-fg-tertiary' : 'border-border-primary'
+        }`}>
           <button
             onClick={() => setIsWorkNotesExpanded(!isWorkNotesExpanded)}
-            className="w-full flex items-center justify-between mb-2 hover:bg-bg-tertiary/50 rounded px-2 py-1 transition-colors"
+            className={`w-full flex items-center justify-between mb-3 hover:bg-bg-tertiary/50 px-3 py-2 transition-colors ${
+              isHackerMode ? '' : 'rounded'
+            }`}
           >
-            <div className="text-xs font-semibold text-fg-primary uppercase tracking-wide">Work Notes</div>
+            <div className={`font-semibold text-fg-primary uppercase tracking-wide ${
+              isHackerMode ? 'text-xs letter-spacing-wide' : 'text-sm'
+            }`}>
+              {isHackerMode ? '[WORK NOTES]' : 'Work Notes'}
+            </div>
             <ChevronDown
-              size={14}
+              size={isHackerMode ? 12 : 14}
               className={`text-fg-tertiary transition-transform ${isWorkNotesExpanded ? '' : '-rotate-90'}`}
             />
           </button>
 
           {isWorkNotesExpanded && (
-          <textarea
-            value={editedTask.work_notes || ''}
-            onChange={(e) => setEditedTask({ ...editedTask, work_notes: e.target.value })}
-            onInput={(e) => handleTextareaInput(e, 'work_notes')}
-            onKeyDown={(e) => handleTextareaKeyDown(e, 'work_notes')}
-            onBlur={handleSave}
-            className="w-full bg-bg-secondary border border-border-primary rounded px-2 py-1.5 text-xs text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed min-h-[80px]"
-            placeholder="How's it going? Any blockers?
+          <div className={isHackerMode ? 'px-4 pt-2' : 'px-0 pt-4'}>
+            <label className={`block font-medium text-fg-primary mb-2 ${
+              isHackerMode ? 'text-[10px] uppercase tracking-wider' : 'text-xs'
+            }`}>
+              Notes
+            </label>
+            <textarea
+              value={editedTask.work_notes || ''}
+              onChange={(e) => setEditedTask({ ...editedTask, work_notes: e.target.value })}
+              onInput={(e) => handleTextareaInput(e, 'work_notes')}
+              onKeyDown={(e) => handleTextareaKeyDown(e, 'work_notes')}
+              onBlur={handleSave}
+              className={`w-full bg-bg-secondary border px-3 py-2.5 text-xs text-fg-primary focus:outline-none focus:border-border-focus focus:bg-bg-primary resize-none font-mono leading-relaxed min-h-[120px] ${
+                isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded'
+              }`}
+              placeholder="How's it going? Any blockers?
 - Type - for bullets (auto-converts to •)
 - Tab to indent, Shift+Tab to outdent"
-          />
+            />
+          </div>
           )}
         </div>
 
@@ -782,9 +919,11 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
           {onEnterWorkspace && task.status !== 'DONE' && task.status !== 'CANCELLED' && (
             <button
               onClick={() => onEnterWorkspace(task)}
-              className="flex-1 px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-accent-primary to-syntax-purple hover:from-accent-secondary hover:to-syntax-purple/80 text-white rounded transition-all flex items-center justify-center gap-2 shadow-md"
+              className={`flex-1 px-4 py-2.5 text-sm font-semibold bg-gradient-to-r from-accent-primary to-syntax-purple hover:from-accent-secondary hover:to-syntax-purple/80 text-white transition-all flex items-center justify-center gap-2 ${
+                isHackerMode ? 'border border-accent-primary' : 'rounded shadow-md'
+              }`}
             >
-              <Focus size={18} />
+              <Focus size={isHackerMode ? 16 : 18} />
               Enter Workspace
             </button>
           )}
@@ -792,10 +931,14 @@ export default function TaskDetail({ task, taskNumber, onClose, onSave, showPrio
           {/* Metadata Icon with Tooltip */}
           {(task.created_at || task.updated_at) && (
             <div className="relative group flex-shrink-0">
-              <button className="p-2 bg-bg-tertiary border border-border-primary rounded hover:bg-bg-secondary transition-colors">
-                <FileText size={16} className="text-fg-tertiary" />
+              <button className={`p-2 bg-bg-tertiary border hover:bg-bg-secondary transition-colors ${
+                isHackerMode ? 'border-fg-tertiary' : 'border-border-primary rounded'
+              }`}>
+                <FileText size={isHackerMode ? 14 : 16} className="text-fg-tertiary" />
               </button>
-              <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50 bg-bg-elevated border border-border-primary rounded shadow-lg p-2 whitespace-nowrap">
+              <div className={`absolute right-0 bottom-full mb-2 hidden group-hover:block z-50 bg-bg-elevated border p-2 whitespace-nowrap ${
+                isHackerMode ? 'border-2 border-fg-tertiary' : 'border-border-primary rounded shadow-lg'
+              }`}>
                 {task.created_at && (
                   <div className="text-xs text-fg-secondary">
                     <span className="font-medium">Created:</span> {formatFullDate(task.created_at)}

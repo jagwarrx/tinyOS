@@ -87,21 +87,28 @@ export default function InboxList({
     }
   }
 
-  // Empty state
+  // Empty state - only show if there are truly no notes (tasks are shown separately in NoteEditor)
   if (!sortedItems || sortedItems.length === 0) {
     return (
       <div className="p-8 text-center text-fg-tertiary">
         <FileText size={40} className="mx-auto mb-3 opacity-40" />
-        <p className="text-sm">No inbox items yet</p>
+        <p className="text-sm">No inbox notes yet</p>
         <p className="text-xs mt-2">Use /inbox "title" to capture quick notes</p>
       </div>
     )
   }
 
   return (
-    <div className="p-6">
+    <div className="inbox-list-container p-6">
+      {/* Section header for inbox notes */}
+      {sortedItems.length > 0 && (
+        <h3 className="inbox-header text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
+          Inbox Notes ({sortedItems.length})
+        </h3>
+      )}
+
       {/* List of inbox items */}
-      <div className="space-y-2">
+      <div className="inbox-items-list space-y-2">
         {sortedItems.map((item) => {
           const noteCount = countNotesInIsland(item.id)
 
@@ -109,7 +116,7 @@ export default function InboxList({
             <div
               key={item.id}
               onClick={() => onItemClick(item)}
-              className="bg-bg-elevated border border-border-primary rounded-lg p-4 hover:shadow-md hover:border-border-focus transition-all cursor-pointer group"
+              className="inbox-item bg-bg-elevated border border-border-primary rounded-lg p-4 hover:shadow-md hover:border-border-focus transition-all cursor-pointer group"
             >
               {/* Item title with note count */}
               <div className="flex items-baseline gap-2 mb-2">
@@ -117,15 +124,15 @@ export default function InboxList({
                   {item.title || 'Untitled'}
                 </h3>
                 {noteCount > 1 && (
-                  <span className="flex items-center gap-1 text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/30 px-2 py-0.5 rounded">
+                  <span className="inbox-note-count flex items-center gap-1 text-xs text-accent-primary bg-accent-primary/10 border border-accent-primary/30 px-2 py-0.5 rounded font-bold">
                     <Network size={11} />
-                    {noteCount} notes
+                    {noteCount}
                   </span>
                 )}
               </div>
 
               {/* Creation date */}
-              <div className="flex items-center gap-2 text-xs text-fg-secondary">
+              <div className="inbox-metadata flex items-center gap-2 text-xs text-fg-secondary">
                 <Calendar size={12} />
                 <span>{formatDate(item.created_at)}</span>
               </div>

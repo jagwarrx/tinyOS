@@ -244,6 +244,26 @@ export function parseCommand(input) {
     }
   }
 
+  // Item command: /item "title" :note "multi-line text" (alias for inbox)
+  const itemPattern = /^\/item\s+(.+?)(?:\s+:note)?$/i
+  const itemMatch = withoutOptions.match(itemPattern)
+
+  if (itemMatch) {
+    let itemTitle = itemMatch[1].trim()
+    // Strip surrounding quotes if present
+    if (itemTitle.startsWith('"') && itemTitle.endsWith('"')) {
+      itemTitle = itemTitle.slice(1, -1)
+    }
+
+    return {
+      type: 'INBOX',
+      payload: {
+        title: itemTitle,
+        note: noteText
+      }
+    }
+  }
+
   // Project command: /project "Project Name" or /project ProjectName
   const projectPattern = /^\/project\s+(.+)$/i
   const projectMatch = trimmed.match(projectPattern)
@@ -259,6 +279,21 @@ export function parseCommand(input) {
       type: 'PROJECT',
       payload: {
         name: projectName
+      }
+    }
+  }
+
+  // Category command: /category <admin|work|personal> (sets category for current project)
+  const categoryPattern = /^\/category\s+(admin|work|personal)$/i
+  const categoryMatch = trimmed.match(categoryPattern)
+
+  if (categoryMatch) {
+    const category = categoryMatch[1].toLowerCase()
+
+    return {
+      type: 'CATEGORY',
+      payload: {
+        category
       }
     }
   }
@@ -301,9 +336,9 @@ export function parseCommand(input) {
     }
   }
 
-  // Add task command: add task "text" to|in [today|week|tasks] [:today] [:note "text"]
+  // Add task command: add task "text" to|in [today|scheduled|tasks] [:today] [:note "text"]
   // Note pattern already extracted above, use same withoutOptions
-  const addTaskPattern = /^add\s+task\s+"([^"]*)"\s+(?:to|in)\s+(today|week|tasks)(?:\s+:today)?$/i
+  const addTaskPattern = /^add\s+task\s+"([^"]*)"\s+(?:to|in)\s+(today|scheduled|tasks)(?:\s+:today)?$/i
   const addTaskMatch = withoutOptions.match(addTaskPattern)
 
   if (addTaskMatch) {

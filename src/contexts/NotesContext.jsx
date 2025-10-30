@@ -25,7 +25,8 @@ const notesReducer = (state, action) => {
         ...state,
         tasksNote: action.payload.tasksNote,
         todayNote: action.payload.todayNote,
-        weekNote: action.payload.weekNote,
+        scheduledNote: action.payload.scheduledNote,
+        doneNote: action.payload.doneNote,
         projectsNote: action.payload.projectsNote,
         inboxNote: action.payload.inboxNote,
         somedayNote: action.payload.somedayNote,
@@ -76,7 +77,8 @@ export function NotesProvider({ children }) {
     homeNote: null,
     tasksNote: null,
     todayNote: null,
-    weekNote: null,
+    scheduledNote: null,
+    doneNote: null,
     projectsNote: null,
     inboxNote: null,
     somedayNote: null,
@@ -100,7 +102,8 @@ export function NotesProvider({ children }) {
       // Set special notes
       const tasks = notes.find(n => n.title === 'Tasks' && n.note_type === 'task_list')
       const today = notes.find(n => n.title === 'Today' && n.list_metadata?.type === 'today')
-      const week = notes.find(n => n.title === 'Week' && n.list_metadata?.type === 'week')
+      const scheduled = notes.find(n => n.title === 'Scheduled' && n.list_metadata?.type === 'scheduled')
+      const done = notes.find(n => n.title === 'Done' && n.list_metadata?.type === 'done')
       const projects = notes.find(n => n.title === 'Projects' && n.note_type === 'project_list')
       const inbox = notes.find(n => n.title === 'Inbox')
       const someday = notes.find(n => n.title === 'Someday' && n.list_metadata?.type === 'someday')
@@ -111,7 +114,8 @@ export function NotesProvider({ children }) {
         payload: {
           tasksNote: tasks,
           todayNote: today,
-          weekNote: week,
+          scheduledNote: scheduled,
+          doneNote: done,
           projectsNote: projects,
           inboxNote: inbox,
           somedayNote: someday,
@@ -215,18 +219,20 @@ export function NotesProvider({ children }) {
   const deleteNote = useCallback(async (noteId) => {
     try {
       const note = state.notes.find(n => n.id === noteId)
-      
+
       if (note?.is_home) {
         throw new Error('Cannot delete HOME note')
       }
 
-      await NotesService.delete(noteId)
+      // Optimistic update - remove from UI immediately
       dispatch({ type: 'DELETE_NOTE', payload: noteId })
-      
-      // Refresh to get updated links
-      await fetchNotes()
+
+      // Delete from database
+      await NotesService.delete(noteId)
     } catch (error) {
       console.error('Error deleting note:', error.message)
+      // Rollback on error
+      await fetchNotes()
       throw error
     }
   }, [state.notes, fetchNotes])
@@ -348,11 +354,17 @@ export function NotesProvider({ children }) {
     }
   }, [state.todayNote])
 
-  const goToWeek = useCallback(() => {
-    if (state.weekNote) {
-      dispatch({ type: 'SET_SELECTED', payload: state.weekNote })
+  const goToScheduled = useCallback(() => {
+    if (state.scheduledNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.scheduledNote })
     }
-  }, [state.weekNote])
+  }, [state.scheduledNote])
+
+  const goToDone = useCallback(() => {
+    if (state.doneNote) {
+      dispatch({ type: 'SET_SELECTED', payload: state.doneNote })
+    }
+  }, [state.doneNote])
 
   const goToProjects = useCallback(() => {
     if (state.projectsNote) {
@@ -427,7 +439,8 @@ export function NotesProvider({ children }) {
     goToHome,
     goToTasks,
     goToToday,
-    goToWeek,
+    goToScheduled,
+    goToDone,
     goToProjects,
     goToInbox,
     goToSomeday,

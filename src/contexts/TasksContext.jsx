@@ -136,8 +136,11 @@ export function TasksProvider({ children }) {
     try {
       const task = state.allTasks.find(t => t.id === taskId)
 
-      await TasksService.delete(taskId)
+      // Optimistic update - remove from UI immediately
       dispatch({ type: 'DELETE_TASK', payload: taskId })
+
+      // Delete from database
+      await TasksService.delete(taskId)
 
       // Log task deletion
       if (task) {
@@ -145,9 +148,11 @@ export function TasksProvider({ children }) {
       }
     } catch (error) {
       console.error('Error deleting task:', error.message)
+      // Rollback on error
+      await fetchAllTasks()
       throw error
     }
-  }, [state.allTasks])
+  }, [state.allTasks, fetchAllTasks])
 
   // Toggle task completion
   const toggleComplete = useCallback(async (taskId) => {
@@ -184,6 +189,22 @@ export function TasksProvider({ children }) {
       throw error
     }
   }, [state.allTasks, updateTask])
+
+  // Toggle task highlight
+  const toggleHighlight = useCallback(async (taskId, isHighlighted) => {
+    try {
+      // Optimistic update - update UI immediately
+      dispatch({ type: 'UPDATE_TASK', payload: { id: taskId, is_highlighted: isHighlighted } })
+
+      // Then update database
+      await TasksService.toggleHighlight(taskId, isHighlighted)
+    } catch (error) {
+      console.error('Error toggling task highlight:', error.message)
+      // Rollback on error
+      await fetchAllTasks()
+      throw error
+    }
+  }, [fetchAllTasks])
 
   // Schedule a task
   const scheduleTask = useCallback(async (taskId, scheduledDate) => {
@@ -291,6 +312,7 @@ export function TasksProvider({ children }) {
     deleteTask,
     toggleComplete,
     toggleStar,
+    toggleHighlight,
     scheduleTask,
     changeStatus,
     setCurrentTasks,

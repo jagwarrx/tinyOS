@@ -6,7 +6,7 @@ import InboxList from './InboxList'
 import LogPage from './LogPage'
 import CollapsibleFilterBar from './CollapsibleFilterBar'
 import KanbanBoard from './KanbanBoard'
-import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText, LayoutList, LayoutGrid, Pencil, FileText, Map, Network } from 'lucide-react'
+import { Home, Star, ListTodo, Inbox, FolderKanban, ScrollText, LayoutList, LayoutGrid, Pencil, FileText, Map, Network, Trash2, ChevronDown, MoreHorizontal, X } from 'lucide-react'
 import { formatTodayLong } from '../utils/dateUtils'
 import { NotesService } from '../services/notesService'
 
@@ -19,8 +19,10 @@ export default function NoteEditor({
   onTaskSelect,
   onSave,
   onDelete,
+  onDeleteTask,
   onSetAsHome,
   onToggleStar,
+  onToggleTaskHighlight,
   onSetUp,
   onRemoveUp,
   onSetDown,
@@ -35,22 +37,35 @@ export default function NoteEditor({
   onToggleTaskStar,
   onChangeTaskStatus,
   onChangeTaskType,
+  onChangeTaskEffort,
+  onMoveTaskToInbox,
+  onMoveTaskToTasks,
   onScheduleTask,
   onReorderTasks,
   onRefIdNavigate,
   onTaskDoubleClick,
   onProjectClick,
+  onUpdateProject,
+  onOpenInSecondary,
   statusFilter,
   taskTypeFilter,
   tagFilter,
+  scheduledDateFilter,
+  showScheduledInTasks,
   onStatusFilterChange,
   onTaskTypeFilterChange,
   onTagFilterChange,
+  onScheduledDateFilterChange,
+  onShowScheduledInTasksChange,
   todaysReminders,
   onToggleReminderComplete,
   logUpdateTrigger,
   onEditDiagram,
-  onEditMindmap
+  onEditMindmap,
+  onConvertInboxItem,
+  onRemoveFromInbox,
+  onCreateInboxItem,
+  onCreateProjectAsset
 }) {
   const [title, setTitle] = useState('')
   const [showContextMenu, setShowContextMenu] = useState(false)
@@ -66,6 +81,13 @@ export default function NoteEditor({
   const [projectViewMode, setProjectViewMode] = useState('list') // 'list' or 'kanban'
   const [projectTab, setProjectTab] = useState('tasks') // 'tasks', 'notes', 'assets'
   const [projectAssets, setProjectAssets] = useState([]) // Assets (mindmaps, diagrams, docs) linked to project
+  const [inboxFilter, setInboxFilter] = useState('all') // 'all', 'tasks', 'notes', 'captured', 'diagrams', 'mindmaps'
+  const [convertDropdownOpen, setConvertDropdownOpen] = useState(null) // Track which item's conversion dropdown is open
+  const [createDropdownOpen, setCreateDropdownOpen] = useState(false) // Track if create new dropdown is open
+  const [createAssetDropdownOpen, setCreateAssetDropdownOpen] = useState(false) // Track if create asset dropdown is open
+  const convertDropdownRef = useRef(null)
+  const createDropdownRef = useRef(null)
+  const createAssetDropdownRef = useRef(null)
   const editorRef = useRef(null)
   const autoSaveTimerRef = useRef(null)
   const contextMenuRef = useRef(null)
@@ -143,16 +165,25 @@ export default function NoteEditor({
       if (contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
         setShowContextMenu(false)
       }
+      if (convertDropdownRef.current && !convertDropdownRef.current.contains(event.target)) {
+        setConvertDropdownOpen(null)
+      }
+      if (createDropdownRef.current && !createDropdownRef.current.contains(event.target)) {
+        setCreateDropdownOpen(false)
+      }
+      if (createAssetDropdownRef.current && !createAssetDropdownRef.current.contains(event.target)) {
+        setCreateAssetDropdownOpen(false)
+      }
     }
 
-    if (showContextMenu) {
+    if (showContextMenu || convertDropdownOpen || createDropdownOpen || createAssetDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showContextMenu])
+  }, [showContextMenu, convertDropdownOpen, createDropdownOpen, createAssetDropdownOpen])
 
   // Handle resizing of done section
   useEffect(() => {
@@ -532,6 +563,7 @@ export default function NoteEditor({
                 onTaskSelect={onTaskSelect}
                 onToggleComplete={onToggleTaskComplete}
                 onToggleStar={onToggleTaskStar}
+                onToggleHighlight={onToggleTaskHighlight}
                 onStatusChange={onChangeTaskStatus}
                 onScheduleTask={onScheduleTask}
                 onTaskDoubleClick={onTaskDoubleClick}
@@ -550,158 +582,152 @@ export default function NoteEditor({
   return (
     <div className="h-full flex flex-col">
       {/* Card Container */}
-      <div className={`note-card-container flex-1 flex flex-col bg-bg-primary rounded-2xl shadow-lg border border-border-primary overflow-hidden ${getAnimationClass()}`}>
+      <div className={`note-card-container flex-1 flex flex-col bg-bg-primary ${note.note_type === 'project_list' ? '' : 'border-b border-border-primary'} overflow-hidden ${getAnimationClass()} relative`}>
 
-        {/* Navigation Breadcrumb Panel */}
-        <div className="breadcrumb-nav px-6 py-3 bg-bg-secondary border-b border-border-primary">
-          <div className="flex items-center justify-center gap-3 text-sm flex-wrap">
-            {/* Up Link */}
-            {note.up_id ? (
-              <button
-                onClick={() => onNavigate(note.up_id)}
-                className="text-fg-secondary hover:text-fg-primary transition-colors"
-                title="Navigate up (↑)"
-              >
-                ↑ {getNoteTitleById(note.up_id)}
-              </button>
-            ) : (
-              <span className="text-fg-tertiary text-xs">up ()</span>
-            )}
-
-            <span className="text-border-primary">|</span>
-
+        {/* Navigation Breadcrumb Panel - Simplified */}
+        {note.note_type !== 'project_list' && (note.up_id || note.down_id || note.left_id || note.right_id) && (
+        <div className="breadcrumb-nav px-8 py-2 bg-bg-primary border-b border-border-primary/50">
+          <div className="flex items-center gap-4 text-xs">
             {/* Left Link */}
-            {note.left_id ? (
+            {note.left_id && (
               <button
                 onClick={() => onNavigate(note.left_id)}
-                className="text-fg-secondary hover:text-fg-primary transition-colors"
+                className="flex items-center gap-1 text-fg-tertiary hover:text-accent-primary transition-colors"
                 title="Navigate left (←)"
               >
-                ← {getNoteTitleById(note.left_id)}
+                <span>←</span>
+                <span className="max-w-[120px] truncate">{getNoteTitleById(note.left_id)}</span>
               </button>
-            ) : (
-              <span className="text-fg-tertiary text-xs">left ()</span>
             )}
 
-            {/* Current Note */}
-            <span className="font-semibold text-fg-primary px-3 py-1 bg-bg-elevated rounded border border-border-focus">
-              {title || 'Untitled'}
-            </span>
-
-            {/* Right Link */}
-            {note.right_id ? (
+            {/* Up Link */}
+            {note.up_id && (
               <button
-                onClick={() => onNavigate(note.right_id)}
-                className="text-fg-secondary hover:text-fg-primary transition-colors"
-                title="Navigate right (→)"
+                onClick={() => onNavigate(note.up_id)}
+                className="flex items-center gap-1 text-fg-tertiary hover:text-accent-primary transition-colors"
+                title="Navigate up (↑)"
               >
-                {getNoteTitleById(note.right_id)} →
+                <span>↑</span>
+                <span className="max-w-[120px] truncate">{getNoteTitleById(note.up_id)}</span>
               </button>
-            ) : (
-              <span className="text-fg-tertiary text-xs">right ()</span>
             )}
-
-            <span className="text-border-primary">|</span>
 
             {/* Down Link */}
-            {note.down_id ? (
+            {note.down_id && (
               <button
                 onClick={() => onNavigate(note.down_id)}
-                className="text-fg-secondary hover:text-fg-primary transition-colors"
+                className="flex items-center gap-1 text-fg-tertiary hover:text-accent-primary transition-colors"
                 title="Navigate down (↓)"
               >
-                ↓ {getNoteTitleById(note.down_id)}
+                <span>↓</span>
+                <span className="max-w-[120px] truncate">{getNoteTitleById(note.down_id)}</span>
               </button>
-            ) : (
-              <span className="text-fg-tertiary text-xs">down ()</span>
+            )}
+
+            {/* Right Link */}
+            {note.right_id && (
+              <button
+                onClick={() => onNavigate(note.right_id)}
+                className="flex items-center gap-1 text-fg-tertiary hover:text-accent-primary transition-colors"
+                title="Navigate right (→)"
+              >
+                <span className="max-w-[120px] truncate">{getNoteTitleById(note.right_id)}</span>
+                <span>→</span>
+              </button>
             )}
           </div>
         </div>
+        )}
 
-        {/* Title Section */}
-        <div className="note-title-section p-6 pb-4 border-b border-border-primary">
-          <div className="relative flex items-start gap-3">
-            {/* Page icon indicators */}
-            {(note.is_home || isSpecialSystemPage(note)) && (
-              <div className="mt-2">
-                {note.is_home && !isSpecialSystemPage(note) && (
-                  <Home size={20} className="text-fg-tertiary" />
+        {/* Title Section - Clean and Minimal */}
+        <div className="note-title-section px-8 pt-8 pb-6 relative">
+          {/* Star button - Clean, minimal */}
+          <button
+            onClick={() => onToggleStar(note.id)}
+            className="absolute top-8 right-8 p-1.5 rounded-lg transition-all flex-shrink-0 hover:bg-bg-secondary/50"
+            title={note.is_starred ? 'Unstar (hide from sidebar)' : 'Star (show in sidebar)'}
+          >
+            <Star
+              size={18}
+              className={note.is_starred ? 'fill-label-yellow text-label-yellow' : 'text-fg-tertiary'}
+            />
+          </button>
+
+          <div className="flex items-baseline gap-4 pr-12">
+            {/* Title - primary focus */}
+            <div className="flex-1">
+              <div className="flex items-baseline gap-3">
+                <input
+                  type="text"
+                  value={title}
+                  onChange={handleTitleChange}
+                  onContextMenu={handleTitleContextMenu}
+                  placeholder="Untitled"
+                  readOnly={isSpecialSystemPage(note)}
+                  className={`text-4xl font-bold outline-none bg-transparent text-fg-primary ${
+                    isSpecialSystemPage(note) ? 'cursor-default' : ''
+                  }`}
+                  style={{
+                    width: 'auto',
+                    minWidth: '200px'
+                  }}
+                />
+
+                {/* Date next to Today title */}
+                {note.title === 'Today' && (
+                  <span className="text-xl text-fg-tertiary font-normal">
+                    {formatTodayLong()}
+                  </span>
                 )}
-                {note.note_type === 'task_list' && (
-                  <ListTodo size={20} className="text-fg-tertiary" />
+
+                {/* Project ID badge for project notes */}
+                {note.note_type === 'project' && note.ref_id && (
+                  <span className="px-2.5 py-1 text-xs font-mono rounded-md bg-syntax-blue/10 text-syntax-blue border border-syntax-blue/30">
+                    {note.ref_id}
+                  </span>
+                )}
+              </div>
+
+              {/* Note type indicator - subtle */}
+              <div className="flex items-center gap-2 mt-2 text-xs text-fg-tertiary">
+                {note.is_home && (
+                  <span className="flex items-center gap-1">
+                    <Home size={12} />
+                    <span>Home</span>
+                  </span>
                 )}
                 {note.note_type === 'inbox_list' && (
-                  <Inbox size={20} className="text-fg-tertiary" />
+                  <span className="flex items-center gap-1">
+                    <Inbox size={12} />
+                    <span>Inbox</span>
+                  </span>
+                )}
+                {note.note_type === 'task_list' && (
+                  <span className="flex items-center gap-1">
+                    <ListTodo size={12} />
+                    <span>Tasks</span>
+                  </span>
                 )}
                 {note.note_type === 'project_list' && (
-                  <FolderKanban size={20} className="text-fg-tertiary" />
+                  <span className="flex items-center gap-1">
+                    <FolderKanban size={12} />
+                    <span>Projects</span>
+                  </span>
+                )}
+                {note.note_type === 'project' && (
+                  <span className="flex items-center gap-1">
+                    <FolderKanban size={12} />
+                    <span>Project</span>
+                  </span>
                 )}
                 {note.note_type === 'log_list' && (
-                  <ScrollText size={20} className="text-fg-tertiary" />
+                  <span className="flex items-center gap-1">
+                    <ScrollText size={12} />
+                    <span>Activity Log</span>
+                  </span>
                 )}
               </div>
-            )}
-
-            <div className="flex-1 flex items-baseline gap-3">
-              <input
-                type="text"
-                value={title}
-                onChange={handleTitleChange}
-                onContextMenu={handleTitleContextMenu}
-                placeholder="Untitled"
-                readOnly={isSpecialSystemPage(note)}
-                className={`text-3xl font-semibold outline-none bg-transparent ${
-                  isSpecialSystemPage(note) ? 'cursor-default' : ''
-                }`}
-                style={{
-                  width: 'auto',
-                  minWidth: '100px',
-                  color: 'var(--color-editor-text, var(--color-fg-primary))'
-                }}
-              />
-
-              {/* Date next to Today title */}
-              {note.title === 'Today' && (
-                <span className="text-lg text-fg-secondary font-normal whitespace-nowrap" style={{ fontFamily: 'Inter, sans-serif' }}>
-                  {formatTodayLong()}
-                </span>
-              )}
-
-              {/* Project ID badge for project notes */}
-              {note.note_type === 'project' && note.ref_id && (
-                <span className="px-2 py-1 text-xs font-mono rounded whitespace-nowrap" style={{
-                  backgroundColor: 'var(--color-label-blue, #0079bf)',
-                  color: 'white',
-                  border: '1px solid var(--color-label-blue, #0079bf)'
-                }}>
-                  {note.ref_id}
-                </span>
-              )}
             </div>
-
-            {/* Saved badge - subtle and unobtrusive */}
-            {showSavedBadge && (
-              <div className="mt-2 px-2 py-0.5 bg-bg-tertiary rounded text-[10px] font-medium text-fg-tertiary opacity-0 animate-saved-badge">
-                Saved
-              </div>
-            )}
-
-            {/* Star button */}
-            <button
-              onClick={() => onToggleStar(note.id)}
-              className="mt-2 p-2 hover:bg-bg-tertiary rounded transition-colors flex-shrink-0"
-              title={note.is_starred ? 'Unstar (hide from sidebar)' : 'Star (show in sidebar)'}
-            >
-              <Star
-                size={20}
-                style={note.is_starred ? {
-                  fill: 'var(--color-label-yellow, #f2d600)',
-                  color: 'var(--color-label-yellow, #f2d600)'
-                } : {
-                  color: 'var(--color-card-text-secondary, var(--color-fg-tertiary))'
-                }}
-              />
-            </button>
           </div>
         </div>
 
@@ -714,16 +740,429 @@ export default function NoteEditor({
                 projects={allNotes.filter(n => n.note_type === 'project')}
                 allTasks={allTasks}
                 onProjectClick={onProjectClick}
+                onUpdateProject={onUpdateProject}
               />
             </div>
           ) : note.note_type === 'inbox_list' ? (
-            /* Inbox List View */
-            <div className="flex-1 overflow-y-auto">
-              <InboxList
-                inboxNote={note}
-                allNotes={allNotes}
-                onItemClick={onProjectClick}
-              />
+            /* Inbox List View - All Unprocessed Items with Filter */
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {(() => {
+                // Filter inbox tasks:
+                // 1. Explicitly linked to inbox via context field (moved to inbox)
+                // 2. OR unprocessed tasks (no project, no schedule, BACKLOG status, no context)
+                const inboxTasks = allTasks ? allTasks.filter(t =>
+                  t.context === note.id ||  // Explicitly moved to inbox
+                  (!t.project_id && !t.scheduled_date && t.status === 'BACKLOG' && !t.context) // Unprocessed
+                ) : []
+
+                // Filter unprocessed notes (no project, no links, not special pages, not explicitly captured)
+                const unprocessedNotes = allNotes.filter(n =>
+                  !n.project_id &&
+                  !n.up_id && !n.down_id && !n.right_id &&
+                  n.left_id !== note.id &&
+                  !n.note_type &&
+                  !n.is_home &&
+                  n.id !== note.id
+                )
+
+                // Filter unprocessed diagrams (no project AND has diagram data)
+                const unprocessedDiagrams = allNotes.filter(n =>
+                  n.note_type === 'diagram' &&
+                  !n.project_id &&
+                  n.diagram_svg  // Only show if diagram has actual data
+                )
+
+                // Filter unprocessed mindmaps (no project AND has mindmap data)
+                const unprocessedMindmaps = allNotes.filter(n =>
+                  n.note_type === 'mindmap' &&
+                  !n.project_id &&
+                  n.mindmap_svg  // Only show if mindmap has actual data
+                )
+
+                // Get explicitly captured items (created via /inbox command)
+                const capturedItems = allNotes.filter(n => n.left_id === note.id)
+
+                const hasInboxItems = inboxTasks.length > 0 || unprocessedNotes.length > 0 ||
+                                      unprocessedDiagrams.length > 0 || unprocessedMindmaps.length > 0 ||
+                                      capturedItems.length > 0
+
+                // Create unified list with metadata
+                const allInboxItems = [
+                  ...inboxTasks.map(t => ({ type: 'task', data: t, id: t.id, title: t.text, created_at: t.created_at })),
+                  ...capturedItems.map(n => ({ type: 'captured', data: n, id: n.id, title: n.title, created_at: n.created_at })),
+                  ...unprocessedNotes.map(n => ({ type: 'note', data: n, id: n.id, title: n.title, created_at: n.created_at })),
+                  ...unprocessedDiagrams.map(n => ({ type: 'diagram', data: n, id: n.id, title: n.title, created_at: n.created_at })),
+                  ...unprocessedMindmaps.map(n => ({ type: 'mindmap', data: n, id: n.id, title: n.title, created_at: n.created_at }))
+                ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+                // Filter based on selected filter
+                const filteredItems = inboxFilter === 'all'
+                  ? allInboxItems
+                  : allInboxItems.filter(item => item.type === inboxFilter)
+
+                if (!hasInboxItems) {
+                  return (
+                    <div className="p-8 text-center text-fg-tertiary">
+                      <Inbox size={48} className="mx-auto mb-4 opacity-40" />
+                      <p className="text-lg mb-2">Inbox is empty</p>
+                      <p className="text-sm">All items have been processed!</p>
+                      <p className="text-xs mt-4 max-w-md mx-auto">
+                        New tasks, notes, diagrams, and mindmaps created without a project will appear here.
+                      </p>
+                    </div>
+                  )
+                }
+
+                return (
+                  <>
+                    {/* Create New Button - Floating */}
+                    <div className="absolute top-6 right-6 z-10" ref={createDropdownRef}>
+                      <button
+                        onClick={() => setCreateDropdownOpen(!createDropdownOpen)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-white rounded text-xs font-medium hover:bg-accent-hover transition-colors shadow-lg"
+                      >
+                        <span>+ Create New</span>
+                        <ChevronDown size={12} />
+                      </button>
+
+                        {/* Create dropdown */}
+                        {createDropdownOpen && (
+                          <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[140px]">
+                            <button
+                              onClick={() => {
+                                onCreateInboxItem?.('task')
+                                setCreateDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                            >
+                              <ListTodo size={14} className="text-syntax-blue" />
+                              Task
+                            </button>
+                            <button
+                              onClick={() => {
+                                onCreateInboxItem?.('note')
+                                setCreateDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                            >
+                              <FileText size={14} className="text-fg-secondary" />
+                              Note
+                            </button>
+                            <button
+                              onClick={() => {
+                                onCreateInboxItem?.('log')
+                                setCreateDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                            >
+                              <ScrollText size={14} className="text-syntax-purple" />
+                              Log Entry
+                            </button>
+                            <button
+                              onClick={() => {
+                                onCreateInboxItem?.('diagram')
+                                setCreateDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                            >
+                              <Network size={14} className="text-accent-primary" />
+                              Diagram
+                            </button>
+                            <button
+                              onClick={() => {
+                                onCreateInboxItem?.('mindmap')
+                                setCreateDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                            >
+                              <Map size={14} className="text-accent-secondary" />
+                              Mindmap
+                            </button>
+                          </div>
+                        )}
+                    </div>
+
+                    {/* Filter Bar */}
+                    <div className="px-6 py-4 border-b border-border-primary bg-bg-secondary">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => setInboxFilter('all')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                            inboxFilter === 'all'
+                              ? 'bg-accent-primary text-white'
+                              : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                          }`}
+                        >
+                          <Inbox size={14} />
+                          All ({allInboxItems.length})
+                        </button>
+                        {capturedItems.length > 0 && (
+                          <button
+                            onClick={() => setInboxFilter('captured')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                              inboxFilter === 'captured'
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            }`}
+                          >
+                            <FileText size={14} />
+                            Captured ({capturedItems.length})
+                          </button>
+                        )}
+                        {inboxTasks.length > 0 && (
+                          <button
+                            onClick={() => setInboxFilter('task')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                              inboxFilter === 'task'
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            }`}
+                          >
+                            <ListTodo size={14} />
+                            Tasks ({inboxTasks.length})
+                          </button>
+                        )}
+                        {unprocessedDiagrams.length > 0 && (
+                          <button
+                            onClick={() => setInboxFilter('diagram')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                              inboxFilter === 'diagram'
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            }`}
+                          >
+                            <Network size={14} />
+                            Diagrams ({unprocessedDiagrams.length})
+                          </button>
+                        )}
+                        {unprocessedMindmaps.length > 0 && (
+                          <button
+                            onClick={() => setInboxFilter('mindmap')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                              inboxFilter === 'mindmap'
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            }`}
+                          >
+                            <Map size={14} />
+                            Mindmaps ({unprocessedMindmaps.length})
+                          </button>
+                        )}
+                        {unprocessedNotes.length > 0 && (
+                          <button
+                            onClick={() => setInboxFilter('note')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                              inboxFilter === 'note'
+                                ? 'bg-accent-primary text-white'
+                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            }`}
+                          >
+                            <FileText size={14} />
+                            Notes ({unprocessedNotes.length})
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Unified List */}
+                    <div className="flex-1 overflow-y-auto p-6 pt-8">
+                      {filteredItems.length === 0 ? (
+                        <div className="text-center text-fg-tertiary py-12">
+                          <p className="text-sm">No items in this category</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {filteredItems.map((item) => {
+                            // Get icon and color based on type
+                            const getItemIcon = () => {
+                              switch (item.type) {
+                                case 'task':
+                                  return <ListTodo size={16} className="text-syntax-blue" />
+                                case 'captured':
+                                  return <FileText size={16} className="text-syntax-purple" />
+                                case 'note':
+                                  return <FileText size={16} className="text-fg-tertiary" />
+                                case 'diagram':
+                                  return <Network size={16} className="text-accent-primary" />
+                                case 'mindmap':
+                                  return <Map size={16} className="text-accent-secondary" />
+                                default:
+                                  return <FileText size={16} className="text-fg-tertiary" />
+                              }
+                            }
+
+                            // Handle click based on type
+                            const handleClick = (e) => {
+                              // Shift+Click: open in secondary panel
+                              if (e.shiftKey) {
+                                if (item.type === 'task') {
+                                  // For tasks, open task detail panel
+                                  onTaskDoubleClick?.(item.data)
+                                } else {
+                                  // For notes/diagrams/mindmaps, open in secondary panel
+                                  onOpenInSecondary?.(item.data)
+                                }
+                              } else {
+                                // Normal click: navigate/open
+                                if (item.type === 'task') {
+                                  onTaskDoubleClick?.(item.data)
+                                } else {
+                                  onNavigate(item.id)
+                                }
+                              }
+                            }
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="bg-bg-elevated border border-border-primary rounded-lg p-4 hover:shadow-md hover:border-border-focus transition-all cursor-pointer group relative"
+                              >
+                                <div className="flex items-center gap-3" onClick={handleClick}>
+                                  <div className="flex-shrink-0">
+                                    {getItemIcon()}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-sm font-medium text-fg-primary group-hover:text-accent-primary transition-colors truncate">
+                                      {item.title || 'Untitled'}
+                                    </h3>
+                                  </div>
+
+                                  {/* Convert to dropdown - only for captured items */}
+                                  {item.type === 'captured' && (
+                                    <div className="relative flex-shrink-0" ref={convertDropdownOpen === item.id ? convertDropdownRef : null}>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setConvertDropdownOpen(convertDropdownOpen === item.id ? null : item.id)
+                                        }}
+                                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-accent-primary/10 rounded flex items-center gap-1"
+                                        title="Convert to..."
+                                      >
+                                        <MoreHorizontal size={16} className="text-accent-primary" />
+                                        <ChevronDown size={12} className="text-accent-primary" />
+                                      </button>
+
+                                      {/* Conversion dropdown */}
+                                      {convertDropdownOpen === item.id && (
+                                        <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[140px]">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onConvertInboxItem?.(item.id, 'task')
+                                              setConvertDropdownOpen(null)
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                                          >
+                                            <ListTodo size={14} className="text-syntax-blue" />
+                                            Task
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onConvertInboxItem?.(item.id, 'note')
+                                              setConvertDropdownOpen(null)
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                                          >
+                                            <FileText size={14} className="text-fg-secondary" />
+                                            Note
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onConvertInboxItem?.(item.id, 'log')
+                                              setConvertDropdownOpen(null)
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                                          >
+                                            <ScrollText size={14} className="text-syntax-purple" />
+                                            Log
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onConvertInboxItem?.(item.id, 'diagram')
+                                              setConvertDropdownOpen(null)
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                                          >
+                                            <Network size={14} className="text-accent-primary" />
+                                            Diagram
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              onConvertInboxItem?.(item.id, 'mindmap')
+                                              setConvertDropdownOpen(null)
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                                          >
+                                            <Map size={14} className="text-accent-secondary" />
+                                            Mindmap
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Remove from inbox button - only for captured items */}
+                                  {item.type === 'captured' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        onRemoveFromInbox?.(item.id)
+                                      }}
+                                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-bg-tertiary rounded"
+                                      title="Remove from inbox"
+                                    >
+                                      <X size={16} className="text-fg-secondary" />
+                                    </button>
+                                  )}
+
+                                  {/* Move to Tasks button - only for inbox tasks */}
+                                  {item.type === 'task' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        onMoveTaskToTasks?.(item.id)
+                                      }}
+                                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-accent-primary/10 rounded"
+                                      title="Move to Tasks"
+                                    >
+                                      <ListTodo size={16} className="text-accent-primary" />
+                                    </button>
+                                  )}
+
+                                  {/* Delete button - appears on hover */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const confirmMsg = item.type === 'task'
+                                        ? `Delete task "${item.title || 'Untitled'}"?`
+                                        : `Delete ${item.type} "${item.title || 'Untitled'}"?`
+                                      if (window.confirm(confirmMsg)) {
+                                        if (item.type === 'task') {
+                                          onDeleteTask?.(item.id)
+                                        } else {
+                                          onDelete?.(item.id)
+                                        }
+                                      }
+                                    }}
+                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-semantic-error/10 rounded"
+                                    title="Delete"
+                                  >
+                                    <Trash2 size={16} className="text-semantic-error" />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           ) : note.note_type === 'log_list' ? (
             /* Activity Log View */
@@ -765,7 +1204,54 @@ export default function NoteEditor({
               {/* Tab Content */}
               {projectTab === 'assets' ? (
                 /* Assets Tab - Linked Notes/Mindmaps/Diagrams */
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto relative">
+                  {/* Create Asset Button - Floating */}
+                  <div className="absolute top-6 right-6 z-10" ref={createAssetDropdownRef}>
+                    <button
+                      onClick={() => setCreateAssetDropdownOpen(!createAssetDropdownOpen)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-accent-primary text-white rounded text-xs font-medium hover:bg-accent-hover transition-colors shadow-lg"
+                    >
+                      <span>+ Add Asset</span>
+                      <ChevronDown size={12} />
+                    </button>
+
+                    {/* Create asset dropdown */}
+                    {createAssetDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1 bg-bg-elevated border border-border-secondary rounded shadow-lg py-1 z-50 min-w-[140px]">
+                        <button
+                          onClick={() => {
+                            onCreateProjectAsset?.('note')
+                            setCreateAssetDropdownOpen(false)
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                        >
+                          <FileText size={14} className="text-fg-secondary" />
+                          Note
+                        </button>
+                        <button
+                          onClick={() => {
+                            onCreateProjectAsset?.('mindmap')
+                            setCreateAssetDropdownOpen(false)
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                        >
+                          <Map size={14} className="text-accent-secondary" />
+                          Mindmap
+                        </button>
+                        <button
+                          onClick={() => {
+                            onCreateProjectAsset?.('diagram')
+                            setCreateAssetDropdownOpen(false)
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-bg-tertiary transition-colors flex items-center gap-2"
+                        >
+                          <Network size={14} className="text-accent-primary" />
+                          Diagram
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="p-6">
                     {projectAssets.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -896,8 +1382,11 @@ export default function NoteEditor({
                             onTaskSelect={onTaskSelect}
                             onToggleComplete={onToggleTaskComplete}
                             onToggleStar={onToggleTaskStar}
+                            onToggleHighlight={onToggleTaskHighlight}
                             onStatusChange={onChangeTaskStatus}
                             onTypeChange={onChangeTaskType}
+                            onEffortChange={onChangeTaskEffort}
+                            onMoveToInbox={onMoveTaskToInbox}
                             onScheduleTask={onScheduleTask}
                             onReorder={onReorderTasks}
                             onTaskDoubleClick={onTaskDoubleClick}
@@ -916,7 +1405,7 @@ export default function NoteEditor({
             </div>
           ) : note.note_type === 'task_list' ? (
             <>
-              {/* Collapsible Filter Bar - only show for Tasks, Today, and Week pages */}
+              {/* Collapsible Filter Bar - only show for Tasks, Today, and Scheduled pages */}
               {note.title !== 'Someday/Maybe' && (
                 <CollapsibleFilterBar
                   selectedTaskType={taskTypeFilter}
@@ -927,6 +1416,76 @@ export default function NoteEditor({
                   onTagsChange={onTagFilterChange}
                   tasks={currentTasks || []}
                 />
+              )}
+
+              {/* Scheduled View Date Range Filter */}
+              {note.title === 'Scheduled' && (
+                <div className="px-6 py-3 border-b border-border-primary bg-bg-secondary">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onScheduledDateFilterChange?.('all')}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                        scheduledDateFilter === 'all'
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      }`}
+                    >
+                      All Upcoming
+                    </button>
+                    <button
+                      onClick={() => onScheduledDateFilterChange?.('tomorrow')}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                        scheduledDateFilter === 'tomorrow'
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      }`}
+                    >
+                      Tomorrow
+                    </button>
+                    <button
+                      onClick={() => onScheduledDateFilterChange?.('this_week')}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                        scheduledDateFilter === 'this_week'
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      }`}
+                    >
+                      This Week
+                    </button>
+                    <button
+                      onClick={() => onScheduledDateFilterChange?.('this_month')}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                        scheduledDateFilter === 'this_month'
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      }`}
+                    >
+                      This Month
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tasks View: Toggle Scheduled Tasks */}
+              {note.title === 'Tasks' && (
+                <div className="px-6 py-3 border-b border-border-primary bg-bg-secondary">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-fg-secondary">Show Scheduled:</span>
+                    <button
+                      onClick={() => onShowScheduledInTasksChange?.(!showScheduledInTasks)}
+                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                        showScheduledInTasks
+                          ? 'bg-accent-primary text-white'
+                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      }`}
+                    >
+                      {showScheduledInTasks ? 'Yes' : 'No'}
+                    </button>
+                    <span className="text-xs text-fg-tertiary">
+                      {showScheduledInTasks ? 'Showing all tasks' : 'Hiding tasks with scheduled dates'}
+                    </span>
+                  </div>
+                </div>
               )}
 
               {/* Task List Content */}
@@ -1057,6 +1616,8 @@ export default function NoteEditor({
                               onToggleStar={onToggleTaskStar}
                               onStatusChange={onChangeTaskStatus}
                               onTypeChange={onChangeTaskType}
+                              onEffortChange={onChangeTaskEffort}
+                              onMoveToInbox={onMoveTaskToInbox}
                               onScheduleTask={onScheduleTask}
                               onReorder={onReorderTasks}
                               onTaskDoubleClick={onTaskDoubleClick}
@@ -1087,13 +1648,16 @@ export default function NoteEditor({
                             <TaskList
                               tasks={(currentTasks || []).filter(t => t.status === 'DONE')}
                               allNotes={allNotes}
-                              viewType={note.title}
+                              viewType="Done"
                               selectedTaskId={selectedTaskId}
                               onTaskSelect={onTaskSelect}
                               onToggleComplete={onToggleTaskComplete}
                               onToggleStar={onToggleTaskStar}
+                              onToggleHighlight={onToggleTaskHighlight}
                               onStatusChange={onChangeTaskStatus}
                               onTypeChange={onChangeTaskType}
+                              onEffortChange={onChangeTaskEffort}
+                              onMoveToInbox={onMoveTaskToInbox}
                               onScheduleTask={onScheduleTask}
                               onReorder={onReorderTasks}
                               onTaskDoubleClick={onTaskDoubleClick}
@@ -1116,6 +1680,8 @@ export default function NoteEditor({
                     onToggleStar={onToggleTaskStar}
                     onStatusChange={onChangeTaskStatus}
                     onTypeChange={onChangeTaskType}
+                    onEffortChange={onChangeTaskEffort}
+                    onMoveToInbox={onMoveTaskToInbox}
                     onScheduleTask={onScheduleTask}
                     onReorder={onReorderTasks}
                     onTaskDoubleClick={onTaskDoubleClick}
@@ -1173,7 +1739,13 @@ export default function NoteEditor({
                 )}
 
                 {/* Notes Section */}
-                <div className="mt-6 border-t border-border-primary pt-6">
+                <div
+                  className="mt-6 border-t border-border-primary pt-6"
+                  style={{
+                    backgroundColor: 'var(--color-editor-bg)',
+                    color: 'var(--color-editor-text)'
+                  }}
+                >
                   <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
                     Notes
                   </h3>
@@ -1237,7 +1809,13 @@ export default function NoteEditor({
                 )}
 
                 {/* Notes Section */}
-                <div className="mt-6 border-t border-border-primary pt-6">
+                <div
+                  className="mt-6 border-t border-border-primary pt-6"
+                  style={{
+                    backgroundColor: 'var(--color-editor-bg)',
+                    color: 'var(--color-editor-text)'
+                  }}
+                >
                   <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
                     Notes
                   </h3>
@@ -1251,16 +1829,31 @@ export default function NoteEditor({
               </div>
             </div>
           ) : (
-            <div className="editor-container flex-1 p-6 overflow-y-auto">
-              <Editor
-                ref={editorRef}
-                initialContent={note.content}
-                onContentChange={triggerAutoSave}
-                onRefIdNavigate={onRefIdNavigate}
-              />
+            <div
+              className="editor-container flex-1 px-12 py-8 overflow-y-auto"
+              style={{
+                backgroundColor: 'var(--color-editor-bg)',
+                color: 'var(--color-editor-text)'
+              }}
+            >
+              <div className="max-w-4xl">
+                <Editor
+                  ref={editorRef}
+                  initialContent={note.content}
+                  onContentChange={triggerAutoSave}
+                  onRefIdNavigate={onRefIdNavigate}
+                />
+              </div>
             </div>
           )}
         </div>
+
+        {/* Saved badge - positioned in bottom right corner */}
+        {showSavedBadge && (
+          <div className="absolute bottom-6 right-8 px-2.5 py-1 bg-semantic-success/10 text-semantic-success rounded-md text-xs font-medium opacity-0 animate-saved-badge shadow-sm z-50 border border-semantic-success/20">
+            Saved
+          </div>
+        )}
       </div>
 
       {/* Context Menu */}

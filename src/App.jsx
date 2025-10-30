@@ -6,7 +6,7 @@
  * 
  * Key Features:
  * - Notes CRUD operations with Supabase backend
- * - Task management system (Tasks, Today, Week)
+ * - Task management system (Tasks, Today, Scheduled)
  * - Optimistic UI updates for instant feedback
  * - Terminal command processing
  * - Bidirectional note linking (up/down/left/right)
@@ -17,7 +17,7 @@
  * - notes: All notes from database
  * - selectedNote: Currently viewed note
  * - homeNote: Special HOME note reference
- * - tasksNote, todayNote, weekNote: Special task list notes
+ * - tasksNote, todayNote, scheduledNote: Special task list notes
  * - theme: Current theme ('light' or 'dark')
  * - sidebarOpen: Sidebar visibility (mobile)
  * 
@@ -25,7 +25,7 @@
  * - HOME: Main entry point (is_home: true)
  * - Tasks: Master list of all tasks
  * - Today: Filtered list (starred tasks only)
- * - Week: Filtered list (uncompleted tasks)
+ * - Scheduled: Filtered list (upcoming scheduled tasks)
  * 
  * Database Schema:
  * notes table columns:
@@ -86,7 +86,8 @@ function App() {
     inboxNote,
     tasksNote,
     todayNote,
-    weekNote,
+    scheduledNote,
+    doneNote,
     somedayNote,
     logNote,
     selectNote,
@@ -94,7 +95,8 @@ function App() {
     goToHome,
     goToTasks,
     goToToday,
-    goToWeek,
+    goToScheduled,
+    goToDone,
     goToProjects,
     goToInbox,
     goToSomeday,
@@ -108,6 +110,7 @@ function App() {
     createNote: createNoteFromContext,
     createDraftLinkedNote: createDraftLinkedNoteFromContext,
     navigateToNote,
+    fetchNotes,
     loading: notesLoading
   } = useNotes()
 
@@ -127,6 +130,7 @@ function App() {
     setCurrentTasks,
     toggleComplete,
     toggleStar: toggleTaskStar,
+    toggleHighlight: toggleTaskHighlight,
     scheduleTask,
     changeStatus,
     updateTask,
@@ -180,6 +184,12 @@ function App() {
   const [filteredNotes, setFilteredNotes] = useState([])
   const [filteredTasks, setFilteredTasks] = useState([])
   const [filteredProjects, setFilteredProjects] = useState([])
+
+  // Scheduled view date range filter
+  const [scheduledDateFilter, setScheduledDateFilter] = useState('all') // 'all', 'tomorrow', 'this_week', 'this_month'
+
+  // Tasks view: toggle to show/hide scheduled tasks
+  const [showScheduledInTasks, setShowScheduledInTasks] = useState(false) // false = hide scheduled tasks
 
   // Diagram editor state
   const [isDiagramEditorOpen, setIsDiagramEditorOpen] = useState(false)
@@ -307,13 +317,23 @@ function App() {
         return
       }
 
-      // Space: Prepopulate terminal with "/task " on Today or Tasks pages
+      // Space: Prepopulate terminal with contextual commands
+      // Skip Projects page and individual projects
       if (e.key === ' ' && isNotEditing) {
+        // Don't handle space on Projects list or within projects
+        if (selectedNote?.note_type === 'project_list' || selectedNote?.note_type === 'project') {
+          return
+        }
+
         if (selectedNote?.title === 'Today' || selectedNote?.title === 'Tasks') {
           e.preventDefault()
           terminalRef.current?.setInputValue('/task ')
+          return
+        } else if (selectedNote?.title === 'Inbox') {
+          e.preventDefault()
+          terminalRef.current?.setInputValue('/item ')
+          return
         }
-        return
       }
 
       // L key: Navigate to Log page
@@ -634,6 +654,47 @@ function App() {
         .update({ right_id: data.id })
         .eq('id', projectsNote.id)
 
+      // Create default context note for the project
+      const contextNoteData = {
+        title: `project_${data.ref_id}_context`,
+        content: JSON.stringify({
+          root: {
+            children: [
+              {
+                children: [],
+                direction: null,
+                format: '',
+                indent: 0,
+                type: 'paragraph',
+                version: 1,
+              },
+            ],
+            direction: null,
+            format: '',
+            indent: 0,
+            type: 'root',
+            version: 1,
+          },
+        }),
+        project_id: data.id,
+        is_starred: false,
+        is_home: false,
+        up_id: null,
+        down_id: null,
+        left_id: null,
+        right_id: null,
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error: contextError } = await supabase
+        .from('notes')
+        .insert([contextNoteData])
+
+      if (contextError) {
+        console.error('Error creating context note:', contextError.message)
+        // Don't throw - project creation succeeded, context note is optional
+      }
+
       await fetchNotes()
       await fetchAllTasks() // Refresh tasks for project statistics
 
@@ -910,6 +971,37 @@ function App() {
   }
 
   /**
+   * Update project fields (e.g. project_category)
+   * Called when updating project metadata in ProjectsList
+   */
+  const handleUpdateProject = async (projectId, updates) => {
+    try {
+      // Find the project note
+      const project = notes.find(n => n.id === projectId)
+      if (!project) {
+        console.error('Project not found:', projectId)
+        return
+      }
+
+      // Merge updates with existing project data
+      await saveNoteToContext(projectId, {
+        ...project,
+        ...updates
+      })
+    } catch (error) {
+      console.error('Error updating project:', error)
+    }
+  }
+
+  /**
+   * Handle opening items in secondary panel
+   * @param {object} item - The item to open (note, task, diagram, mindmap)
+   */
+  const handleOpenInSecondary = (item) => {
+    setSecondaryNote(item)
+  }
+
+  /**
    * Navigate to a note or task by its reference ID
    * Called when clicking on ref_id badges in the editor
    * @param {string} refId - The reference ID to navigate to
@@ -993,18 +1085,36 @@ function App() {
       if (updatedTask.task_type !== undefined) {
         updates.task_type = updatedTask.task_type
       }
+      if (updatedTask.work_type !== undefined) {
+        updates.work_type = updatedTask.work_type
+      }
+      if (updatedTask.value !== undefined) {
+        updates.value = updatedTask.value
+      }
+      if (updatedTask.urgency !== undefined) {
+        updates.urgency = updatedTask.urgency
+      }
+      if (updatedTask.effort !== undefined) {
+        updates.effort = updatedTask.effort
+      }
+      if (updatedTask.momentum !== undefined) {
+        updates.momentum = updatedTask.momentum
+      }
 
-      const { error } = await supabase
+      const { data: savedTask, error } = await supabase
         .from('tasks')
         .update(updates)
         .eq('id', updatedTask.id)
+        .select()
+        .single()
 
       if (error) {
         console.error('Supabase error details:', error)
         throw error
       }
 
-      const updatedTaskWithTimestamp = { ...updatedTask, updated_at: new Date().toISOString() }
+      // Use the actual data returned from the database
+      const updatedTaskWithTimestamp = savedTask || { ...updatedTask, updated_at: new Date().toISOString() }
 
       // Update local state
       setCurrentTasks(currentTasks.map(t =>
@@ -1111,7 +1221,7 @@ function App() {
           }
 
           // Include starred or scheduled tasks (excluding cancelled and someday)
-          return (task.starred || task.scheduled_date === today) &&
+          return (task.is_starred || task.scheduled_date === today) &&
             task.status !== 'CANCELLED' &&
             task.scheduled_date !== 'SOMEDAY'
         })
@@ -1124,29 +1234,56 @@ function App() {
           console.error('Error fetching reminders:', error)
           setTodaysReminders([])
         }
-      } else if (noteTitle === 'Week') {
-        // Week: show active tasks (not done, not cancelled, not someday)
-        // Include: tasks scheduled this week OR tasks with no date OR tasks marked as THIS_WEEK
+      } else if (noteTitle === 'Scheduled') {
+        // Scheduled: show active tasks that have scheduled dates (not done, not cancelled, not someday)
+        // Filter out tasks without dates (null) and special keywords
         const today = new Date()
-        const dayOfWeek = today.getDay()
-        const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-        const monday = new Date(today)
-        monday.setDate(today.getDate() + daysToMonday)
-        const sunday = new Date(monday)
-        sunday.setDate(monday.getDate() + 6)
+        const todayISO = today.toISOString().split('T')[0]
 
-        const mondayISO = monday.toISOString().split('T')[0]
-        const sundayISO = sunday.toISOString().split('T')[0]
-
+        // Base filter: active tasks with scheduled dates
         updatedTasks = updatedTasks.filter(task =>
           task.status !== 'DONE' &&
           task.status !== 'CANCELLED' &&
           task.scheduled_date !== 'SOMEDAY' &&
-          (
-            (task.scheduled_date && task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO) ||
-            task.scheduled_date === 'THIS_WEEK' ||
-            task.scheduled_date === null
+          task.scheduled_date !== 'THIS_WEEK' &&
+          task.scheduled_date !== null &&
+          task.scheduled_date >= todayISO
+        )
+
+        // Apply date range filter
+        if (scheduledDateFilter === 'tomorrow') {
+          const tomorrow = new Date(today)
+          tomorrow.setDate(today.getDate() + 1)
+          const tomorrowISO = tomorrow.toISOString().split('T')[0]
+          updatedTasks = updatedTasks.filter(task => task.scheduled_date === tomorrowISO)
+        } else if (scheduledDateFilter === 'this_week') {
+          const dayOfWeek = today.getDay()
+          const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+          const monday = new Date(today)
+          monday.setDate(today.getDate() + daysToMonday)
+          const sunday = new Date(monday)
+          sunday.setDate(monday.getDate() + 6)
+          const mondayISO = monday.toISOString().split('T')[0]
+          const sundayISO = sunday.toISOString().split('T')[0]
+          updatedTasks = updatedTasks.filter(task =>
+            task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO
           )
+        } else if (scheduledDateFilter === 'this_month') {
+          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+          const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+          const firstDayISO = firstDay.toISOString().split('T')[0]
+          const lastDayISO = lastDay.toISOString().split('T')[0]
+          updatedTasks = updatedTasks.filter(task =>
+            task.scheduled_date >= firstDayISO && task.scheduled_date <= lastDayISO
+          )
+        }
+        // 'all' filter shows everything (no additional filtering)
+      } else if (noteTitle === 'Done') {
+        // Done: show only completed tasks, ordered by completion date (most recent first)
+        updatedTasks = updatedTasks.filter(task => task.status === 'DONE')
+        // Sort by updated_at descending (most recently completed first)
+        updatedTasks = updatedTasks.sort((a, b) =>
+          new Date(b.updated_at) - new Date(a.updated_at)
         )
       } else if (noteTitle === 'Tasks') {
         // Tasks: show all active tasks (not done, not cancelled, not someday)
@@ -1155,6 +1292,13 @@ function App() {
           task.status !== 'CANCELLED' &&
           task.scheduled_date !== 'SOMEDAY'
         )
+
+        // If showScheduledInTasks is false, exclude tasks with scheduled dates
+        if (!showScheduledInTasks) {
+          updatedTasks = updatedTasks.filter(task =>
+            !task.scheduled_date || task.scheduled_date === 'THIS_WEEK'
+          )
+        }
       } else if (noteTitle === 'Someday/Maybe') {
         // Someday/Maybe: show only tasks scheduled as SOMEDAY
         updatedTasks = updatedTasks.filter(task =>
@@ -1249,30 +1393,56 @@ function App() {
                 const taskUpdatedDate = task.updated_at.split('T')[0]
                 if (taskUpdatedDate === today) return true
               }
-              return (task.starred || task.scheduled_date === today) &&
+              return (task.is_starred || task.scheduled_date === today) &&
                 task.status !== 'CANCELLED' &&
                 task.scheduled_date !== 'SOMEDAY'
             })
-          } else if (secondaryNote.title === 'Week') {
+          } else if (secondaryNote.title === 'Scheduled') {
             const today = new Date()
-            const dayOfWeek = today.getDay()
-            const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-            const monday = new Date(today)
-            monday.setDate(today.getDate() + daysToMonday)
-            const sunday = new Date(monday)
-            sunday.setDate(monday.getDate() + 6)
-            const mondayISO = monday.toISOString().split('T')[0]
-            const sundayISO = sunday.toISOString().split('T')[0]
+            const todayISO = today.toISOString().split('T')[0]
 
+            // Base filter: active tasks with scheduled dates
             updatedTasks = updatedTasks.filter(task =>
               task.status !== 'DONE' &&
               task.status !== 'CANCELLED' &&
               task.scheduled_date !== 'SOMEDAY' &&
-              (
-                (task.scheduled_date && task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO) ||
-                task.scheduled_date === 'THIS_WEEK' ||
-                task.scheduled_date === null
+              task.scheduled_date !== 'THIS_WEEK' &&
+              task.scheduled_date !== null &&
+              task.scheduled_date >= todayISO
+            )
+
+            // Apply date range filter (same as primary view)
+            if (scheduledDateFilter === 'tomorrow') {
+              const tomorrow = new Date(today)
+              tomorrow.setDate(today.getDate() + 1)
+              const tomorrowISO = tomorrow.toISOString().split('T')[0]
+              updatedTasks = updatedTasks.filter(task => task.scheduled_date === tomorrowISO)
+            } else if (scheduledDateFilter === 'this_week') {
+              const dayOfWeek = today.getDay()
+              const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+              const monday = new Date(today)
+              monday.setDate(today.getDate() + daysToMonday)
+              const sunday = new Date(monday)
+              sunday.setDate(monday.getDate() + 6)
+              const mondayISO = monday.toISOString().split('T')[0]
+              const sundayISO = sunday.toISOString().split('T')[0]
+              updatedTasks = updatedTasks.filter(task =>
+                task.scheduled_date >= mondayISO && task.scheduled_date <= sundayISO
               )
+            } else if (scheduledDateFilter === 'this_month') {
+              const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+              const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+              const firstDayISO = firstDay.toISOString().split('T')[0]
+              const lastDayISO = lastDay.toISOString().split('T')[0]
+              updatedTasks = updatedTasks.filter(task =>
+                task.scheduled_date >= firstDayISO && task.scheduled_date <= lastDayISO
+              )
+            }
+          } else if (secondaryNote.title === 'Done') {
+            // Done: show only completed tasks, ordered by completion date
+            updatedTasks = updatedTasks.filter(task => task.status === 'DONE')
+            updatedTasks = updatedTasks.sort((a, b) =>
+              new Date(b.updated_at) - new Date(a.updated_at)
             )
           } else if (secondaryNote.title === 'Tasks') {
             updatedTasks = updatedTasks.filter(task =>
@@ -1280,6 +1450,13 @@ function App() {
               task.status !== 'CANCELLED' &&
               task.scheduled_date !== 'SOMEDAY'
             )
+
+            // If showScheduledInTasks is false, exclude tasks with scheduled dates
+            if (!showScheduledInTasks) {
+              updatedTasks = updatedTasks.filter(task =>
+                !task.scheduled_date || task.scheduled_date === 'THIS_WEEK'
+              )
+            }
           } else if (secondaryNote.title === 'Someday/Maybe') {
             updatedTasks = updatedTasks.filter(task =>
               task.scheduled_date === 'SOMEDAY' &&
@@ -1377,7 +1554,7 @@ function App() {
         text,
         status: options.scheduleToday ? 'PLANNED' : 'BACKLOG', // PLANNED if scheduled for today
         priority: maxPriority + 1,
-        starred: targetNote?.title === 'Today' || options.scheduleToday, // Auto-star if adding to Today OR if scheduled for today
+        is_starred: targetNote?.title === 'Today' || options.scheduleToday, // Auto-star if adding to Today OR if scheduled for today
         scheduled_date: options.scheduleToday ? today : null, // Set today's date if requested
         context: options.note || null, // Add context/note if provided
         project_id: options.projectId || null, // Add to project if projectId provided
@@ -1438,7 +1615,7 @@ function App() {
    * 
    * Supported Commands:
    * - help: Show help text
-   * - add task "text" to [today|week|tasks]: Add new task
+   * - add task "text" to [today|scheduled|tasks]: Add new task
    * - goto [target]: Navigate to note
    * - complete task N: Mark task complete (not yet implemented)
    * - star task N: Star task (not yet implemented)
@@ -1458,7 +1635,7 @@ TASK MANAGEMENT:
   /task "text" :note "details"    Add task with context notes
   /task "text #tag/path"          Add task with hierarchical tag (e.g., #work/qbotica)
   add task "text" to/in today     Add task to Today list
-  add task "text" to/in week      Add task to Week list
+  add task "text" to/in scheduled Add task to Scheduled list
   add task "text" to/in tasks     Add task to Tasks list
 
 COMBINE OPTIONS:
@@ -1475,7 +1652,8 @@ INBOX:
 
 NAVIGATION:
   goto today                      Navigate to Today
-  goto week                       Navigate to Week
+  goto scheduled                  Navigate to Scheduled
+  goto done                       Navigate to Done
   goto tasks                      Navigate to Tasks
   goto inbox                      Navigate to Inbox
   goto log                        Navigate to Log
@@ -1540,8 +1718,8 @@ Type /help anytime to see this message.`
           // Handle regular task list targets
           if (target === 'today' && todayNote) {
             targetNote = todayNote
-          } else if (target === 'week' && weekNote) {
-            targetNote = weekNote
+          } else if (target === 'scheduled' && scheduledNote) {
+            targetNote = scheduledNote
           } else if (target === 'tasks' && tasksNote) {
             targetNote = tasksNote
           }
@@ -1550,7 +1728,7 @@ Type /help anytime to see this message.`
             await addTask(text, targetNote, { scheduleToday, note, tag })
 
             // Build natural response message
-            // Capitalize page name (today -> Today, tasks -> Tasks, week -> Week)
+            // Capitalize page name (today -> Today, tasks -> Tasks, scheduled -> Scheduled)
             const pageName = target.charAt(0).toUpperCase() + target.slice(1)
             let message = `Task added to ${pageName}`
             if (scheduleToday) message += ' for Today'
@@ -1578,8 +1756,10 @@ Type /help anytime to see this message.`
           // Search directly in notes array for special pages
           if (target.toLowerCase() === 'today') {
             foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Today')
-          } else if (target.toLowerCase() === 'week') {
-            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Week')
+          } else if (target.toLowerCase() === 'scheduled') {
+            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Scheduled')
+          } else if (target.toLowerCase() === 'done') {
+            foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Done')
           } else if (target.toLowerCase() === 'tasks') {
             foundNote = notes.find(n => n.note_type === 'task_list' && n.title === 'Tasks')
           } else if (target.toLowerCase() === 'inbox') {
@@ -1636,6 +1816,19 @@ Type /help anytime to see this message.`
             return `✓ Project "${name}" created and opened`
           } catch (error) {
             return `✗ Error creating project: ${error.message}`
+          }
+        }
+
+        case 'CATEGORY': {
+          const { category } = command.payload
+          try {
+            if (!selectedNote || selectedNote.note_type !== 'project') {
+              return `✗ You must be viewing a project to set its category`
+            }
+            await handleUpdateProject(selectedNote.id, { project_category: category })
+            return `✓ Project category set to "${category}"`
+          } catch (error) {
+            return `✗ Error setting category: ${error.message}`
           }
         }
 
@@ -2022,6 +2215,221 @@ Type /help anytime to see this message.`
     return await updateTask(taskId, { task_type: newType })
   }
 
+  const changeTaskEffort = async (taskId, newEffort) => {
+    return await updateTask(taskId, { effort: newEffort })
+  }
+
+  const moveTaskToInbox = async (taskId) => {
+    // Find the inbox note
+    const inboxNote = notes.find(n => n.note_type === 'inbox_list')
+    if (!inboxNote) {
+      console.error('Inbox note not found')
+      return
+    }
+
+    // Set context to inbox, clear project and schedule, reset to BACKLOG
+    return await updateTask(taskId, {
+      context: inboxNote.id,
+      project_id: null,
+      scheduled_date: null,
+      status: 'BACKLOG'
+    })
+  }
+
+  const moveTaskToTasks = async (taskId) => {
+    // Clear context (remove from inbox), change status to PLANNED (processed)
+    return await updateTask(taskId, {
+      context: null,
+      status: 'PLANNED'
+    })
+  }
+
+  const convertInboxItem = async (noteId, targetType) => {
+    // Get the note to convert
+    const note = notes.find(n => n.id === noteId)
+    if (!note) {
+      console.error('Note not found for conversion')
+      return
+    }
+
+    // Get inbox note for context
+    const inboxNote = notes.find(n => n.note_type === 'inbox_list')
+    if (!inboxNote) {
+      console.error('Inbox note not found')
+      return
+    }
+
+    switch (targetType) {
+      case 'task':
+        // Create a task with the note's title, keep in inbox
+        const task = await createTask({
+          text: note.title || 'Untitled Task',
+          status: 'BACKLOG',
+          context: inboxNote.id // Keep in inbox
+        })
+        // Delete the original note
+        await deleteNoteFromContext(noteId)
+        // Open task in side view
+        if (task) {
+          selectTask(task)
+        }
+        break
+
+      case 'note':
+        // Just unlink from inbox (remove left_id)
+        await saveNoteToContext(noteId, {
+          ...note,
+          left_id: null
+        })
+        // Open in side view
+        handleOpenInSecondary(note)
+        break
+
+      case 'log':
+        // Open terminal with /log command prefilled with the note's title
+        if (terminalRef.current) {
+          terminalRef.current.focus()
+          terminalRef.current.setInputValue(`/log ${note.title || ''}`)
+        }
+        // Delete the original note
+        await deleteNoteFromContext(noteId)
+        break
+
+      case 'diagram':
+        // Convert to diagram type, keep in inbox
+        await saveNoteToContext(noteId, {
+          ...note,
+          note_type: 'diagram'
+        })
+        // Open in side view
+        handleOpenInSecondary(note)
+        break
+
+      case 'mindmap':
+        // Convert to mindmap type, keep in inbox
+        await saveNoteToContext(noteId, {
+          ...note,
+          note_type: 'mindmap'
+        })
+        // Open in side view
+        handleOpenInSecondary(note)
+        break
+
+      default:
+        console.error('Unknown target type:', targetType)
+    }
+  }
+
+  const removeFromInbox = async (noteId) => {
+    // Get the note
+    const note = notes.find(n => n.id === noteId)
+    if (!note) {
+      console.error('Note not found')
+      return
+    }
+
+    // Remove from inbox by clearing left_id
+    await saveNoteToContext(noteId, {
+      ...note,
+      left_id: null
+    })
+  }
+
+  const createInboxItemFromDropdown = async (itemType) => {
+    // Get inbox note
+    const inboxNote = notes.find(n => n.note_type === 'inbox_list')
+    if (!inboxNote) {
+      console.error('Inbox note not found')
+      return
+    }
+
+    switch (itemType) {
+      case 'task':
+        // Create a new task in inbox
+        const task = await createTask({
+          text: 'New task',
+          status: 'BACKLOG',
+          context: inboxNote.id
+        })
+        if (task) {
+          selectTask(task)
+        }
+        break
+
+      case 'note':
+        // Create a new note linked to inbox
+        const note = await createNoteFromContext({
+          title: '',
+          left_id: inboxNote.id
+        })
+        if (note) {
+          handleOpenInSecondary(note)
+        }
+        break
+
+      case 'log':
+        // Open terminal with /log command
+        if (terminalRef.current) {
+          terminalRef.current.focus()
+          terminalRef.current.setInputValue('/log ')
+        }
+        break
+
+      case 'diagram':
+        // Create a new diagram in inbox
+        const diagramNote = await createNoteFromContext({
+          title: 'New Diagram',
+          note_type: 'diagram',
+          left_id: inboxNote.id
+        })
+        if (diagramNote) {
+          handleOpenInSecondary(diagramNote)
+        }
+        break
+
+      case 'mindmap':
+        // Create a new mindmap in inbox
+        const mindmapNote = await createNoteFromContext({
+          title: 'New Mindmap',
+          note_type: 'mindmap',
+          left_id: inboxNote.id
+        })
+        if (mindmapNote) {
+          handleOpenInSecondary(mindmapNote)
+        }
+        break
+
+      default:
+        console.error('Unknown item type:', itemType)
+    }
+  }
+
+  const createProjectAssetFromDropdown = (assetType) => {
+    // Prepopulate terminal with command to create asset
+    // The terminal will automatically link to the current project
+    if (!terminalRef.current) return
+
+    switch (assetType) {
+      case 'note':
+        terminalRef.current.focus()
+        terminalRef.current.setInputValue('/note ')
+        break
+
+      case 'mindmap':
+        terminalRef.current.focus()
+        terminalRef.current.setInputValue('/mindmap ')
+        break
+
+      case 'diagram':
+        terminalRef.current.focus()
+        terminalRef.current.setInputValue('/diagram ')
+        break
+
+      default:
+        console.error('Unknown asset type:', assetType)
+    }
+  }
+
   const reorderTasks = async (fromIndex, toIndex) => {
     return await reorderTasksFromContext(fromIndex, toIndex)
   }
@@ -2281,6 +2689,58 @@ Type /help anytime to see this message.`
         />
       )}
 
+      {/* Left Navigation Icons - Shows on hover */}
+      <div className="fixed left-0 top-1/2 -translate-y-1/2 z-40 group">
+        {/* Hover trigger area - invisible bar on the left edge */}
+        <div className="absolute top-0 bottom-0 left-0 w-8 cursor-pointer"></div>
+
+        {/* Navigation panel - slides in from left */}
+        <div className="flex flex-col gap-2 bg-bg-elevated border border-border-primary rounded-r-lg py-3 px-2 shadow-lg -translate-x-full opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-200 ease-out">
+          <button
+            onClick={goToHomeWrapper}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Home"
+          >
+            <Home size={18} className="text-fg-secondary" />
+          </button>
+          <button
+            onClick={goToInboxWrapper}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Inbox"
+          >
+            <Inbox size={18} className="text-fg-secondary" />
+          </button>
+          <button
+            onClick={goToTasksWrapper}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Tasks"
+          >
+            <ListTodo size={18} className="text-fg-secondary" />
+          </button>
+          <button
+            onClick={goToProjectsWrapper}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Projects"
+          >
+            <FolderKanban size={18} className="text-fg-secondary" />
+          </button>
+          <button
+            onClick={goToLogWrapper}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Log"
+          >
+            <ScrollText size={18} className="text-fg-secondary" />
+          </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 hover:bg-bg-tertiary rounded transition-colors"
+            title="Settings"
+          >
+            <Settings size={18} className="text-fg-secondary" />
+          </button>
+        </div>
+      </div>
+
       {/* Main content area - takes remaining space above terminal */}
       <div className="flex-1 flex overflow-hidden">
         {/* Tag Filtered View */}
@@ -2302,6 +2762,7 @@ Type /help anytime to see this message.`
               onDeleteTask={deleteTask}
               onToggleComplete={toggleComplete}
               onToggleStar={toggleTaskStar}
+              onToggleHighlight={toggleTaskHighlight}
               allNotes={notes}
               selectedTask={selectedTask}
             />
@@ -2336,6 +2797,7 @@ Type /help anytime to see this message.`
               }}
               onSave={saveNote}
               onDelete={deleteNote}
+              onDeleteTask={deleteTask}
               onSetAsHome={setAsHome}
               onToggleStar={toggleStar}
               onSetUp={setUpLink}
@@ -2350,8 +2812,12 @@ Type /help anytime to see this message.`
               onCreateDraftLinked={createDraftLinkedNote}
               onToggleTaskComplete={toggleTaskComplete}
               onToggleTaskStar={toggleTaskStar}
+              onToggleTaskHighlight={toggleTaskHighlight}
               onChangeTaskStatus={changeTaskStatus}
               onChangeTaskType={changeTaskType}
+              onChangeTaskEffort={changeTaskEffort}
+              onMoveTaskToInbox={moveTaskToInbox}
+              onMoveTaskToTasks={moveTaskToTasks}
               onScheduleTask={scheduleTask}
               onReorderTasks={reorderTasks}
               onRefIdNavigate={navigateToRefId}
@@ -2362,12 +2828,18 @@ Type /help anytime to see this message.`
                 selectTask(task)
               }}
               onProjectClick={handleProjectClick}
+              onUpdateProject={handleUpdateProject}
+              onOpenInSecondary={handleOpenInSecondary}
               statusFilter={statusFilter}
               taskTypeFilter={taskTypeFilter}
               tagFilter={tagFilter}
+              scheduledDateFilter={scheduledDateFilter}
+              showScheduledInTasks={showScheduledInTasks}
               onStatusFilterChange={setStatusFilter}
               onTaskTypeFilterChange={setTaskTypeFilter}
               onTagFilterChange={setTagFilter}
+              onScheduledDateFilterChange={setScheduledDateFilter}
+              onShowScheduledInTasksChange={setShowScheduledInTasks}
               todaysReminders={todaysReminders}
               onToggleReminderComplete={async (reminderId) => {
                 try {
@@ -2382,6 +2854,10 @@ Type /help anytime to see this message.`
               logUpdateTrigger={logUpdateTrigger}
               onEditDiagram={handleEditDiagram}
               onEditMindmap={handleEditMindmap}
+              onConvertInboxItem={convertInboxItem}
+              onRemoveFromInbox={removeFromInbox}
+              onCreateInboxItem={createInboxItemFromDropdown}
+              onCreateProjectAsset={createProjectAssetFromDropdown}
             />
           </div>
 
@@ -2410,6 +2886,7 @@ Type /help anytime to see this message.`
                   await deleteNote(noteId)
                   setSecondaryNote(null)
                 }}
+                onDeleteTask={deleteTask}
                 onSetAsHome={setAsHome}
                 onToggleStar={toggleStar}
                 onSetUp={setUpLink}
@@ -2442,6 +2919,9 @@ Type /help anytime to see this message.`
                 onToggleTaskStar={toggleTaskStar}
                 onChangeTaskStatus={changeTaskStatus}
                 onChangeTaskType={changeTaskType}
+                onChangeTaskEffort={changeTaskEffort}
+                onMoveTaskToInbox={moveTaskToInbox}
+                onMoveTaskToTasks={moveTaskToTasks}
                 onScheduleTask={scheduleTask}
                 onReorderTasks={reorderTasks}
                 onRefIdNavigate={async (refId, type) => {
@@ -2485,6 +2965,8 @@ Type /help anytime to see this message.`
                   selectTask(task)
                 }}
                 onProjectClick={handleProjectClick}
+                onUpdateProject={handleUpdateProject}
+                onOpenInSecondary={handleOpenInSecondary}
                 selectedTaskId={selectedTaskId}
                 onTaskSelect={(taskId) => {
                   setTaskIdFromContext(taskId)
@@ -2493,12 +2975,20 @@ Type /help anytime to see this message.`
                 statusFilter={statusFilter}
                 taskTypeFilter={taskTypeFilter}
                 tagFilter={tagFilter}
+                scheduledDateFilter={scheduledDateFilter}
+                showScheduledInTasks={showScheduledInTasks}
                 onStatusFilterChange={setStatusFilter}
                 onTaskTypeFilterChange={setTaskTypeFilter}
                 onTagFilterChange={setTagFilter}
+                onScheduledDateFilterChange={setScheduledDateFilter}
+                onShowScheduledInTasksChange={setShowScheduledInTasks}
                 logUpdateTrigger={logUpdateTrigger}
                 onEditDiagram={handleEditDiagram}
                 onEditMindmap={handleEditMindmap}
+                onConvertInboxItem={convertInboxItem}
+                onRemoveFromInbox={removeFromInbox}
+                onCreateInboxItem={createInboxItemFromDropdown}
+                onCreateProjectAsset={createProjectAssetFromDropdown}
               />
             </div>
           )}

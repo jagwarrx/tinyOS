@@ -291,59 +291,11 @@ const Terminal = forwardRef(({ onCommand, navigationActions }, ref) => {
   return (
     <div className="h-48 bg-bg-secondary border-t border-border-primary flex flex-col">
       {/* Header */}
-      <div className="h-10 bg-bg-tertiary border-b border-border-primary flex items-center justify-between px-4 group relative">
+      <div className="h-10 bg-bg-tertiary border-b border-border-primary flex items-center justify-between px-4">
         <div className="flex items-center gap-2 text-fg-secondary text-sm">
           <TerminalIcon size={16} />
           <span>Terminal</span>
         </div>
-
-        {/* Navigation Icons - Center of Terminal Bar */}
-        {navigationActions && (
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={navigationActions.goToInbox}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Inbox"
-            >
-              <Inbox size={16} className="text-fg-secondary" />
-            </button>
-            <button
-              onClick={navigationActions.goToTasks}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Tasks"
-            >
-              <ListTodo size={16} className="text-fg-secondary" />
-            </button>
-            <button
-              onClick={navigationActions.goToProjects}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Projects"
-            >
-              <FolderKanban size={16} className="text-fg-secondary" />
-            </button>
-            <button
-              onClick={navigationActions.goToHome}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Home"
-            >
-              <Home size={16} className="text-fg-secondary" />
-            </button>
-            <button
-              onClick={navigationActions.goToLog}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Log"
-            >
-              <ScrollText size={16} className="text-fg-secondary" />
-            </button>
-            <button
-              onClick={navigationActions.openSettings}
-              className="p-2 hover:bg-bg-secondary rounded transition-colors"
-              title="Settings"
-            >
-              <Settings size={16} className="text-fg-secondary" />
-            </button>
-          </div>
-        )}
 
         <button
           onClick={() => setIsCollapsed(true)}
@@ -357,40 +309,54 @@ const Terminal = forwardRef(({ onCommand, navigationActions }, ref) => {
       <div ref={outputRef} className="flex-1 overflow-y-auto p-4 font-mono text-sm text-fg-primary">
         {/* Output history */}
         {output.map((item, idx) => (
-          <div key={idx} className={item.type === 'command' ? 'mb-1 text-fg-tertiary' : 'mb-3 text-fg-primary'}>
+          <div key={idx} className={item.type === 'command' ? 'mb-1' : 'mb-3'}>
             {item.type === 'command' ? (
-              <>
-                <span className="text-syntax-green">→</span> {String(item.text)}
-              </>
+              <div className="flex items-center gap-2">
+                <span className="text-syntax-green">→</span>
+                <span className="text-fg-tertiary">{String(item.text)}</span>
+              </div>
             ) : (
-              <div className="ml-4 whitespace-pre-wrap">{String(item.text)}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-syntax-green invisible">→</span>
+                <div className="flex-1 whitespace-pre-wrap text-fg-primary">{String(item.text)}</div>
+              </div>
             )}
           </div>
         ))}
 
         {/* Loading indicator - Claude-style wave animation */}
         {isLoading && (
-          <div className="ml-4 mb-3 flex items-center gap-2">
-            <div className="flex gap-1 items-end">
-              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '200ms' }}></span>
-              <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '400ms' }}></span>
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-syntax-green invisible">→</span>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 items-end">
+                <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '200ms' }}></span>
+                <span className="w-2 h-2 bg-accent-primary rounded-full animate-loading-wave" style={{ animationDelay: '400ms' }}></span>
+              </div>
+              <span className="text-fg-tertiary text-xs animate-pulse">Thinking...</span>
             </div>
-            <span className="text-fg-tertiary text-xs animate-pulse">Thinking...</span>
           </div>
         )}
 
         {/* Input line */}
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <span className="text-syntax-green">→</span>
-          <div className="flex-1 relative">
+          <span className="text-syntax-green flex-shrink-0 leading-6">→</span>
+          <div className="flex-1 relative flex items-center" style={{ height: '1.5rem' }}>
             {/* Syntax highlighted overlay - ON TOP */}
             <div
               ref={overlayRef}
-              className="absolute inset-0 pointer-events-none whitespace-pre font-mono text-sm"
+              className="absolute top-0 left-0 pointer-events-none whitespace-pre font-mono"
               style={{
                 color: 'var(--color-fg-primary)',
-                zIndex: 10
+                fontSize: '0.875rem',
+                lineHeight: '1.5rem',
+                height: '1.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                zIndex: 10,
+                fontFamily: 'JetBrains Mono, Fira Code, Monaco, Consolas, Menlo, monospace',
+                letterSpacing: '0.01em'
               }}
             >
               {input ? highlightSyntax(input) : (
@@ -404,11 +370,21 @@ const Terminal = forwardRef(({ onCommand, navigationActions }, ref) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full bg-transparent outline-none font-mono text-sm"
+              className="w-full bg-transparent outline-none"
               style={{
                 color: 'transparent',
                 caretColor: 'var(--color-fg-primary)',
-                zIndex: 1
+                fontSize: '0.875rem',
+                lineHeight: '1.5rem',
+                height: '1.5rem',
+                fontFamily: 'JetBrains Mono, Fira Code, Monaco, Consolas, Menlo, monospace',
+                letterSpacing: '0.01em',
+                zIndex: 1,
+                padding: 0,
+                margin: 0,
+                border: 'none',
+                display: 'block',
+                verticalAlign: 'baseline'
               }}
               placeholder=""
               autoFocus
