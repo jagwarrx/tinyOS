@@ -1,9 +1,46 @@
-/* Import JetBrains Mono font */
+/* Import fonts */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================
+   DESIGN TOKENS - Refined Terminal Design System
+   ============================================ */
+
+:root {
+  /* Typography Scale - Refined */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', 'Menlo', monospace;
+
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --text-4xl: 32px;
+
+  /* Spacing Scale - Consistent 4px base */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 16px;
+  --radius-full: 9999px;
+}
 
 /* Custom placeholder color for inputs - Trello theme support */
 input::placeholder,
@@ -12,15 +49,25 @@ textarea::placeholder {
   opacity: 0.7;
 }
 
-/* Global Developer/Terminal-style Typography */
+/* Global Typography System */
 @layer base {
   body {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Source Code Pro', 'IBM Plex Mono', 'Monaco', 'Consolas', 'Menlo', monospace;
+    font-family: var(--font-mono);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    letter-spacing: 0.01em; /* Slightly wider for monospace readability */
-    font-feature-settings: 'liga' 1, 'calt' 1; /* Enable ligatures for Fira Code */
+    letter-spacing: 0.01em;
+    font-feature-settings: 'liga' 1, 'calt' 1;
+  }
+
+  /* Sans-serif for UI elements (headers, labels, buttons) */
+  h1, h2, h3, h4, h5, h6,
+  .font-sans,
+  button:not(.font-mono),
+  .page-header,
+  .section-header {
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em; /* Tighter for sans-serif */
   }
 
   /* Terminal-style font weights */
@@ -39,44 +86,55 @@ textarea::placeholder {
 /* Theme System CSS Variables */
 /* These are dynamically set by the theme system */
 
-/* Dark Theme (default) */
+/* Dark Theme (default) - Refined */
 :root {
-  /* Background colors */
-  --color-bg-primary: #2c2e34;
-  --color-bg-secondary: #23252b;
-  --color-bg-tertiary: #1d1f24;
-  --color-bg-elevated: #33353b;
+  /* Background colors - Slightly deeper blacks */
+  --color-bg-primary: #1a1b1e;
+  --color-bg-secondary: #25262b;
+  --color-bg-tertiary: #2c2e34;
+  --color-bg-elevated: #25262b;
 
   /* Foreground/text colors */
   --color-fg-primary: #e2e2e3;
   --color-fg-secondary: #a7a9b0;
   --color-fg-tertiary: #7f8490;
-  --color-fg-inverse: #2c2e34;
+  --color-fg-inverse: #1a1b1e;
 
-  /* Border colors */
-  --color-border-primary: #3f4149;
+  /* Border colors - More subtle */
+  --color-border-subtle: #2d2e33;
+  --color-border-primary: #3a3b40;
   --color-border-secondary: #2f3139;
   --color-border-focus: #b39df3;
 
   /* Semantic colors */
-  --color-semantic-error: #fc5d7c;
-  --color-semantic-warning: #e7c664;
-  --color-semantic-success: #9ed072;
-  --color-semantic-info: #76cce0;
+  --color-semantic-error: #f87171;
+  --color-semantic-warning: #fbbf24;
+  --color-semantic-success: #4ade80;
+  --color-semantic-info: #60a5fa;
 
   /* Accent colors */
   --color-accent-primary: #b39df3;
+  --color-accent-primary-muted: rgba(179, 157, 243, 0.15);
+  --color-accent-primary-border: rgba(179, 157, 243, 0.3);
   --color-accent-secondary: #76cce0;
   --color-accent-hover: #c4b0f7;
   --color-accent-active: #9d83ef;
 
+  /* Status colors - More vibrant for scannability */
+  --color-status-doing: #60a5fa;
+  --color-status-planned: #a78bfa;
+  --color-status-blocked: #fbbf24;
+  --color-status-done: #4ade80;
+  --color-status-overdue: #f87171;
+  --color-status-backlog: #7f8490;
+
   /* Editor colors */
   --color-editor-text: #e2e2e3;
-  --color-editor-bg: #2c2e34;
+  --color-editor-bg: #1a1b1e;
   --color-editor-bold: #e7c664;
   --color-editor-code: #76cce0;
   --color-editor-highlight: #e7c664;
-  --color-editor-highlight-text: #2c2e34;
+  --color-editor-highlight-text: #1a1b1e;
 
   /* Syntax colors */
   --color-syntax-red: #fc5d7c;
@@ -347,6 +405,154 @@ textarea::placeholder {
 /* Smooth transitions for theme switching */
 * {
   transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ============================================
+   REFINED COMPONENT STYLES
+   ============================================ */
+
+/* Page Header Component */
+.page-header {
+  padding: var(--space-6) 0 var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-5);
+}
+
+.page-header h1 {
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-fg-primary);
+  font-family: var(--font-sans);
+}
+
+/* Ref ID Badge - Things3 Pill Style */
+.ref-id-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--color-accent-primary-muted);
+  border: 1px solid var(--color-accent-primary-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  color: var(--color-accent-primary);
+}
+
+/* Filter Pills */
+.filter-pill {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: all 0.15s ease;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  border: 1px solid var(--color-border-primary);
+  background: transparent;
+  color: var(--color-fg-secondary);
+}
+
+.filter-pill:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-accent-primary);
+  color: var(--color-fg-primary);
+}
+
+.filter-pill.active {
+  background: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+  color: white;
+}
+
+/* Table Component - Refined */
+.refined-table {
+  width: 85%;
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+.refined-table th {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-fg-secondary);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 2px solid var(--color-border-primary);
+  font-family: var(--font-sans);
+}
+
+.refined-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: var(--text-base);
+  font-family: var(--font-mono);
+}
+
+.refined-table tbody tr {
+  height: 40px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.refined-table tbody tr:hover {
+  background: var(--color-bg-secondary);
+  border-left: 3px solid var(--color-accent-primary);
+}
+
+.refined-table tbody tr[data-selected="true"] {
+  background: var(--color-bg-tertiary);
+  border-left: 3px solid var(--color-accent-primary);
+}
+
+/* Section Headers */
+.section-header {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-fg-secondary);
+  margin-bottom: var(--space-4);
+  font-family: var(--font-sans);
+}
+
+/* Content Container - Centered */
+.content-container {
+  max-width: 85%;
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+/* Note Container - Narrower for reading */
+.note-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-10);
+}
+
+/* Button Refinements */
+button.btn-primary {
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-family: var(--font-sans);
+  transition: all 0.15s ease;
+}
+
+button.btn-primary:hover {
+  transform: scale(1.02);
+}
+
+/* Hover Accent Border (left side) */
+.hover-accent:hover {
+  border-left: 3px solid var(--color-accent-primary);
+  padding-left: calc(var(--space-3) - 3px);
+  background: var(--color-bg-secondary);
 }
 
 /* ============================================

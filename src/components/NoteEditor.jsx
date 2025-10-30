@@ -584,10 +584,10 @@ export default function NoteEditor({
       {/* Card Container */}
       <div className={`note-card-container flex-1 flex flex-col bg-bg-primary ${note.note_type === 'project_list' ? '' : 'border-b border-border-primary'} overflow-hidden ${getAnimationClass()} relative`}>
 
-        {/* Navigation Breadcrumb Panel - Simplified */}
+        {/* Navigation Breadcrumb Panel - Subtle, reveal on hover */}
         {note.note_type !== 'project_list' && (note.up_id || note.down_id || note.left_id || note.right_id) && (
-        <div className="breadcrumb-nav px-8 py-2 bg-bg-primary border-b border-border-primary/50">
-          <div className="flex items-center gap-4 text-xs">
+        <div className="breadcrumb-nav px-8 py-2 bg-bg-primary border-b border-border-subtle opacity-40 hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-4 font-sans" style={{ fontSize: 'var(--text-sm)' }}>
             {/* Left Link */}
             {note.left_id && (
               <button
@@ -639,8 +639,8 @@ export default function NoteEditor({
         </div>
         )}
 
-        {/* Title Section - Clean and Minimal */}
-        <div className="note-title-section px-8 pt-8 pb-6 relative">
+        {/* Title Section - Refined Header */}
+        <div className="note-title-section px-8 pt-8 pb-6 relative page-header">
           {/* Star button - Clean, minimal */}
           <button
             onClick={() => onToggleStar(note.id)}
@@ -664,10 +664,12 @@ export default function NoteEditor({
                   onContextMenu={handleTitleContextMenu}
                   placeholder="Untitled"
                   readOnly={isSpecialSystemPage(note)}
-                  className={`text-4xl font-bold outline-none bg-transparent text-fg-primary ${
+                  className={`font-semibold outline-none bg-transparent text-fg-primary font-sans ${
                     isSpecialSystemPage(note) ? 'cursor-default' : ''
                   }`}
                   style={{
+                    fontSize: 'var(--text-3xl)',
+                    letterSpacing: '-0.02em',
                     width: 'auto',
                     minWidth: '200px'
                   }}
@@ -675,21 +677,21 @@ export default function NoteEditor({
 
                 {/* Date next to Today title */}
                 {note.title === 'Today' && (
-                  <span className="text-xl text-fg-tertiary font-normal">
+                  <span className="text-fg-tertiary font-normal font-sans" style={{ fontSize: 'var(--text-xl)' }}>
                     {formatTodayLong()}
                   </span>
                 )}
 
-                {/* Project ID badge for project notes */}
+                {/* Project ID badge for project notes - Refined pill style */}
                 {note.note_type === 'project' && note.ref_id && (
-                  <span className="px-2.5 py-1 text-xs font-mono rounded-md bg-syntax-blue/10 text-syntax-blue border border-syntax-blue/30">
+                  <span className="ref-id-badge">
                     {note.ref_id}
                   </span>
                 )}
               </div>
 
               {/* Note type indicator - subtle */}
-              <div className="flex items-center gap-2 mt-2 text-xs text-fg-tertiary">
+              <div className="flex items-center gap-2 mt-2 text-fg-tertiary font-sans" style={{ fontSize: 'var(--text-sm)' }}>
                 {note.is_home && (
                   <span className="flex items-center gap-1">
                     <Home size={12} />
@@ -882,15 +884,13 @@ export default function NoteEditor({
                         )}
                     </div>
 
-                    {/* Filter Bar */}
+                    {/* Filter Bar - Refined Pill Style */}
                     <div className="px-6 py-4 border-b border-border-primary bg-bg-secondary">
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
                           onClick={() => setInboxFilter('all')}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                            inboxFilter === 'all'
-                              ? 'bg-accent-primary text-white'
-                              : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                          className={`filter-pill flex items-center gap-1.5 ${
+                            inboxFilter === 'all' ? 'active' : ''
                           }`}
                         >
                           <Inbox size={14} />
@@ -899,10 +899,8 @@ export default function NoteEditor({
                         {capturedItems.length > 0 && (
                           <button
                             onClick={() => setInboxFilter('captured')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                              inboxFilter === 'captured'
-                                ? 'bg-accent-primary text-white'
-                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            className={`filter-pill flex items-center gap-1.5 ${
+                              inboxFilter === 'captured' ? 'active' : ''
                             }`}
                           >
                             <FileText size={14} />
@@ -912,10 +910,8 @@ export default function NoteEditor({
                         {inboxTasks.length > 0 && (
                           <button
                             onClick={() => setInboxFilter('task')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                              inboxFilter === 'task'
-                                ? 'bg-accent-primary text-white'
-                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            className={`filter-pill flex items-center gap-1.5 ${
+                              inboxFilter === 'task' ? 'active' : ''
                             }`}
                           >
                             <ListTodo size={14} />
@@ -925,10 +921,8 @@ export default function NoteEditor({
                         {unprocessedDiagrams.length > 0 && (
                           <button
                             onClick={() => setInboxFilter('diagram')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                              inboxFilter === 'diagram'
-                                ? 'bg-accent-primary text-white'
-                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            className={`filter-pill flex items-center gap-1.5 ${
+                              inboxFilter === 'diagram' ? 'active' : ''
                             }`}
                           >
                             <Network size={14} />
@@ -938,10 +932,8 @@ export default function NoteEditor({
                         {unprocessedMindmaps.length > 0 && (
                           <button
                             onClick={() => setInboxFilter('mindmap')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                              inboxFilter === 'mindmap'
-                                ? 'bg-accent-primary text-white'
-                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            className={`filter-pill flex items-center gap-1.5 ${
+                              inboxFilter === 'mindmap' ? 'active' : ''
                             }`}
                           >
                             <Map size={14} />
@@ -951,10 +943,8 @@ export default function NoteEditor({
                         {unprocessedNotes.length > 0 && (
                           <button
                             onClick={() => setInboxFilter('note')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                              inboxFilter === 'note'
-                                ? 'bg-accent-primary text-white'
-                                : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                            className={`filter-pill flex items-center gap-1.5 ${
+                              inboxFilter === 'note' ? 'active' : ''
                             }`}
                           >
                             <FileText size={14} />
@@ -1175,26 +1165,28 @@ export default function NoteEditor({
           ) : note.note_type === 'project' ? (
             /* Project Note View - Tabbed Interface */
             <div className="flex-1 overflow-hidden flex flex-col">
-              {/* Tab Navigation */}
+              {/* Tab Navigation - Refined */}
               <div className="flex items-center gap-1 px-4 py-2 border-b border-border-primary bg-bg-secondary">
                 <button
                   onClick={() => setProjectTab('tasks')}
-                  className={`px-4 py-2 rounded-t text-sm font-medium transition-colors flex items-center gap-2 ${
+                  className={`px-4 py-2 font-sans font-medium transition-colors flex items-center gap-2 ${
                     projectTab === 'tasks'
                       ? 'bg-bg-primary text-fg-primary border-b-2 border-accent-primary'
                       : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-tertiary'
                   }`}
+                  style={{ fontSize: 'var(--text-sm)' }}
                 >
                   <ListTodo size={16} />
                   Tasks ({projectTasks.length})
                 </button>
                 <button
                   onClick={() => setProjectTab('assets')}
-                  className={`px-4 py-2 rounded-t text-sm font-medium transition-colors flex items-center gap-2 ${
+                  className={`px-4 py-2 font-sans font-medium transition-colors flex items-center gap-2 ${
                     projectTab === 'assets'
                       ? 'bg-bg-primary text-fg-primary border-b-2 border-accent-primary'
                       : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-tertiary'
                   }`}
+                  style={{ fontSize: 'var(--text-sm)' }}
                 >
                   <Network size={16} />
                   Assets ({projectAssets.length})
@@ -1315,8 +1307,8 @@ export default function NoteEditor({
                 <div className="px-6 py-3 flex items-center justify-between border-b border-border-primary" style={
                   projectViewMode === 'kanban' ? { background: 'var(--color-bg-primary)' } : {}
                 }>
-                  <h3 className={`text-sm font-semibold uppercase tracking-wider ${
-                    projectViewMode === 'kanban' ? '' : 'text-fg-primary'
+                  <h3 className={`section-header ${
+                    projectViewMode === 'kanban' ? '' : ''
                   }`} style={
                     projectViewMode === 'kanban' ? { color: 'white' } : {}
                   }>
@@ -1418,46 +1410,38 @@ export default function NoteEditor({
                 />
               )}
 
-              {/* Scheduled View Date Range Filter */}
+              {/* Scheduled View Date Range Filter - Pill Style */}
               {note.title === 'Scheduled' && (
                 <div className="px-6 py-3 border-b border-border-primary bg-bg-secondary">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => onScheduledDateFilterChange?.('all')}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                        scheduledDateFilter === 'all'
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      className={`filter-pill ${
+                        scheduledDateFilter === 'all' ? 'active' : ''
                       }`}
                     >
                       All Upcoming
                     </button>
                     <button
                       onClick={() => onScheduledDateFilterChange?.('tomorrow')}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                        scheduledDateFilter === 'tomorrow'
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      className={`filter-pill ${
+                        scheduledDateFilter === 'tomorrow' ? 'active' : ''
                       }`}
                     >
                       Tomorrow
                     </button>
                     <button
                       onClick={() => onScheduledDateFilterChange?.('this_week')}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                        scheduledDateFilter === 'this_week'
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      className={`filter-pill ${
+                        scheduledDateFilter === 'this_week' ? 'active' : ''
                       }`}
                     >
                       This Week
                     </button>
                     <button
                       onClick={() => onScheduledDateFilterChange?.('this_month')}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                        scheduledDateFilter === 'this_month'
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      className={`filter-pill ${
+                        scheduledDateFilter === 'this_month' ? 'active' : ''
                       }`}
                     >
                       This Month
@@ -1466,22 +1450,20 @@ export default function NoteEditor({
                 </div>
               )}
 
-              {/* Tasks View: Toggle Scheduled Tasks */}
+              {/* Tasks View: Toggle Scheduled Tasks - Pill Style */}
               {note.title === 'Tasks' && (
                 <div className="px-6 py-3 border-b border-border-primary bg-bg-secondary">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-fg-secondary">Show Scheduled:</span>
+                    <span className="text-xs font-medium text-fg-secondary font-sans">Show Scheduled:</span>
                     <button
                       onClick={() => onShowScheduledInTasksChange?.(!showScheduledInTasks)}
-                      className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
-                        showScheduledInTasks
-                          ? 'bg-accent-primary text-white'
-                          : 'bg-bg-tertiary text-fg-secondary hover:bg-bg-elevated'
+                      className={`filter-pill ${
+                        showScheduledInTasks ? 'active' : ''
                       }`}
                     >
                       {showScheduledInTasks ? 'Yes' : 'No'}
                     </button>
-                    <span className="text-xs text-fg-tertiary">
+                    <span className="text-xs text-fg-tertiary font-sans">
                       {showScheduledInTasks ? 'Showing all tasks' : 'Hiding tasks with scheduled dates'}
                     </span>
                   </div>
@@ -1525,7 +1507,7 @@ export default function NoteEditor({
                       {/* Reminders Section - Collapsible */}
                       {showRemindersSection && todaysReminders && todaysReminders.length > 0 && (
                         <div className="flex-none border-b border-border-primary pb-4 mb-4">
-                          <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                          <h3 className="section-header">
                             Reminders ({todaysReminders.length})
                           </h3>
                           <div className="space-y-2">
@@ -1601,7 +1583,7 @@ export default function NoteEditor({
                           style={showDoneSection ? { width: `${100 - doneSectionWidth}%` } : {}}
                         >
                           {showDoneSection && (
-                            <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
+                            <h3 className="section-header">
                               Planned
                             </h3>
                           )}
@@ -1641,7 +1623,7 @@ export default function NoteEditor({
                           className="flex flex-col h-full"
                           style={{ width: `${doneSectionWidth}%` }}
                         >
-                          <h3 className="text-sm font-semibold text-fg-secondary mb-4 uppercase tracking-wider">
+                          <h3 className="section-header">
                             Done
                           </h3>
                           <div className="flex-1 overflow-y-auto">
@@ -1746,7 +1728,7 @@ export default function NoteEditor({
                     color: 'var(--color-editor-text)'
                   }}
                 >
-                  <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                  <h3 className="section-header">
                     Notes
                   </h3>
                   <Editor
@@ -1816,7 +1798,7 @@ export default function NoteEditor({
                     color: 'var(--color-editor-text)'
                   }}
                 >
-                  <h3 className="text-sm font-semibold text-fg-secondary mb-3 uppercase tracking-wider">
+                  <h3 className="section-header">
                     Notes
                   </h3>
                   <Editor
